@@ -1,0 +1,37 @@
+{
+    "tools": [
+        {
+            "name": "oi_status",
+            "title": "Open Interpreter Status",
+            "description": "Report whether Open Interpreter is installed, the configured model topology, telemetry posture, and durable data root.",
+            "command": "python3 /code/tools/oi_status.py",
+            "cwd": "/code",
+            "inputSchema": {}
+        },
+        {
+            "name": "oi_run_task",
+            "title": "Open Interpreter Bounded Task",
+            "description": "Run one bounded Open Interpreter task in offline/local mode with a strict timeout. Auto-run is rejected by default; callers must pass execution_mode=\"explicit\" to allow shell/code execution.",
+            "command": "python3 /code/tools/oi_run_task.py",
+            "cwd": "/code",
+            "inputSchema": {
+                "prompt": {
+                    "type": "string",
+                    "optional": false
+                },
+                "working_directory": {
+                    "type": "string",
+                    "optional": true
+                },
+                "timeout_seconds": {
+                    "type": "number",
+                    "optional": true
+                },
+                "execution_mode": {
+                    "type": "string",
+                    "optional": true
+                }
+            }
+        }
+    ]
+}

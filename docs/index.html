@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>copilot-agents - Ploinky Research Agents</title>
+    <script type="module">
+        import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; color: #222; }
+        h1 { font-size: 1.85rem; margin-bottom: 0.25rem; }
+        h2 { margin-top: 2rem; font-size: 1.3rem; border-bottom: 1px solid #ddd; padding-bottom: 0.25rem; }
+        code { font-family: "SF Mono", Menlo, Consolas, monospace; background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.92em; }
+        pre { background: #f4f4f4; padding: 0.75rem 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.9rem; }
+        ul { padding-left: 1.25rem; }
+        li { margin: 0.2rem 0; }
+        small { color: #666; }
+        a { color: #0a58ca; }
+    </style>
+</head>
+<body>
+    <p><small>Documentation entry point for the <code>copilot-agents</code> Ploinky repository.</small></p>
+    <h1>Ploinky Research Agents</h1>
+    <p>
+        <code>copilot-agents</code> is a Ploinky agent repository that integrates Open Interpreter, OpenHands,
+        Agent Laboratory, and The AI Scientist as router-mediated, manifest-discoverable agents. The suite is
+        not a default AssistOSExplorer dependency. It deploys only through an explicit
+        <code>research-agents</code> bundle.
+    </p>
+
+    <h2>Source of Truth</h2>
+    <p>
+        The DS specifications under <a href="specs/matrix.md">docs/specs/</a> are the source of truth for
+        contracts and invariants. Code, configuration, and tests must follow them. Update specs in the same
+        change as any behavior, interface, or runtime configuration change. Spec-code synchronization is a
+        repository invariant, not an optional documentation task.
+    </p>
+
+    <h2>Quick Start</h2>
+    <pre>cd &lt;workspace-root&gt;
+ploinky add repo copilot-agents &lt;repo-url-or-local-path&gt;
+ploinky enable repo copilot-agents
+ploinky enable agent copilot-agents/research-agents global
+ploinky start explorer 8080</pre>
+    <p>
+        Heavy execution agents stay gated behind Ploinky's selectable profiles. The default and
+        <code>dev</code> profiles enable only <code>researchCopilot</code> and <code>openInterpreterAgent</code>;
+        <code>qa</code> adds OpenHands; <code>prod</code> adds OpenHands, Agent Laboratory, and AI Scientist.
+    </p>
+
+    <h2>Agent Inventory</h2>
+    <ul>
+        <li><code>research-agents</code> - explicit deployment bundle</li>
+        <li><code>researchCopilot</code> - Explorer plugin and dispatch agent</li>
+        <li><code>openInterpreterAgent</code> - bounded Open Interpreter MCP adapter</li>
+        <li><code>openHandsAgent</code> - constrained OpenHands adapter (profile-gated)</li>
+        <li><code>agentLaboratoryAgent</code> - Agent Laboratory phase-driven adapter (profile-gated)</li>
+        <li><code>aiScientistAgent</code> - AI Scientist adapter, review-first (profile-gated)</li>
+    </ul>
+
+    <h2>AchillesCLI Launchers</h2>
+    <p>
+        Launcher skills live under <code>achilles-skills/</code>. <code>researchCopilot</code> opens
+        AchillesCLI WebChat with <code>dir</code> and <code>skill-root</code> query parameters so that
+        <code>/exec launch-open-interpreter</code> runs a deterministic <code>cskill</code> that returns a valid launch URL. Direct slash aliases such as
+        <code>/open-interpreter</code> require a future generic AchillesCLI dynamic-alias extension and are
+        out of scope for the first slice.
+    </p>
+
+    <h2>Specifications</h2>
+    <ul>
+        <li><a href="specsLoader.html?spec=DS000-vision.md">DS000 - Vision</a></li>
+        <li><a href="specsLoader.html?spec=DS001-coding-style.md">DS001 - Coding Style</a></li>
+        <li><a href="specsLoader.html?spec=DS002-ploinky-runtime-invariants.md">DS002 - Ploinky Runtime Invariants</a></li>
+        <li><a href="specsLoader.html?spec=DS003-agent-inventory.md">DS003 - Agent Inventory</a></li>
+        <li><a href="specsLoader.html?spec=DS004-research-agents-bundle.md">DS004 - Research Agents Bundle</a></li>
+        <li><a href="specsLoader.html?spec=DS005-research-copilot-agent.md">DS005 - Research Copilot Agent</a></li>
+        <li><a href="specsLoader.html?spec=DS006-open-interpreter-agent.md">DS006 - Open Interpreter Agent</a></li>
+        <li><a href="specsLoader.html?spec=DS007-openhands-agent.md">DS007 - OpenHands Agent</a></li>
+        <li><a href="specsLoader.html?spec=DS008-agent-laboratory-agent.md">DS008 - Agent Laboratory Agent</a></li>
+        <li><a href="specsLoader.html?spec=DS009-ai-scientist-agent.md">DS009 - AI Scientist Agent</a></li>
+        <li><a href="specsLoader.html?spec=DS010-achilles-cli-launch-integration.md">DS010 - AchillesCLI Launch Integration</a></li>
+        <li><a href="specsLoader.html?spec=DS011-security-observability.md">DS011 - Security and Observability</a></li>
+    </ul>
+
+    <h2>Implementation Plan</h2>
+    <p>
+        See <a href="plans/ploinky-research-agents-plan.md">plans/ploinky-research-agents-plan.md</a>
+        for analysis, phasing, and risk decisions captured during initial design.
+    </p>
+</body>
+</html>

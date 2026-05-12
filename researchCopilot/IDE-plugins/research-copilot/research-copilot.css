@@ -1,0 +1,18 @@
+.research-copilot-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.research-copilot-button-status {
+    font-size: 0.75rem;
+    opacity: 0.75;
+}
+
+.research-copilot-button-status[data-state="error"] {
+    color: var(--explorer-color-danger, #b00020);
+}
+
+.research-copilot-button-status[data-state="ok"] {
+    color: var(--explorer-color-success, #1a7f37);
+}

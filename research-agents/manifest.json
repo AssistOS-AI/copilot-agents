@@ -1,0 +1,42 @@
+{
+    "container": "node:20-alpine",
+    "lite-sandbox": true,
+    "about": "Explicit deployment bundle for the copilot-agents research suite. Enables researchCopilot and openInterpreterAgent by default; heavier agents stay behind Ploinky selectable profiles.",
+    "env": [
+        "PLOINKY_WORKSPACE_ROOT"
+    ],
+    "enable": [
+        "researchCopilot global",
+        "openInterpreterAgent global"
+    ],
+    "profiles": {
+        "default": {
+            "enable": [
+                "researchCopilot global",
+                "openInterpreterAgent global"
+            ]
+        },
+        "dev": {
+            "enable": [
+                "researchCopilot global",
+                "openInterpreterAgent global"
+            ]
+        },
+        "qa": {
+            "enable": [
+                "researchCopilot global",
+                "openInterpreterAgent global",
+                "openHandsAgent global no-wait"
+            ]
+        },
+        "prod": {
+            "enable": [
+                "researchCopilot global",
+                "openInterpreterAgent global",
+                "openHandsAgent global no-wait",
+                "agentLaboratoryAgent global no-wait",
+                "aiScientistAgent global no-wait"
+            ]
+        }
+    }
+}

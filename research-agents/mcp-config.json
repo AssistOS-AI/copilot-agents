@@ -1,0 +1,17 @@
+{
+    "tools": [
+        {
+            "name": "research_agents_status",
+            "title": "Research Agents Bundle Status",
+            "description": "Report which child agents in the research-agents bundle are configured to deploy, plus the active profile if reported by the runtime.",
+            "command": "node /code/tools/status.mjs",
+            "cwd": "/code",
+            "inputSchema": {
+                "profile": {
+                    "type": "string",
+                    "optional": true
+                }
+            }
+        }
+    ]
+}

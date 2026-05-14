@@ -562,6 +562,7 @@ test('Open Interpreter broker restricts routes, injects upstream authorization, 
         upstreamApiKey: 'real-soul-key',
         upstreamModel: 'deep',
         sandboxApiKey: 'sandbox-only-key',
+        agentName: 'openInterpreterAgent',
     });
     try {
         const unsupported = await fetch(`${broker.apiBase}/models`);
@@ -590,6 +591,7 @@ test('Open Interpreter broker restricts routes, injects upstream authorization, 
         assert.equal(responseBody.echoedModel, 'deep');
         assert.equal(calls.length, 1);
         assert.equal(calls[0].headers.authorization, 'Bearer real-soul-key');
+        assert.equal(calls[0].headers['x-soul-agent'], 'openInterpreterAgent');
         assert.equal(calls[0].body.model, 'deep');
         assert.equal(calls[0].body.messages[0].content, 'hello');
 
@@ -610,6 +612,7 @@ test('Open Interpreter broker restricts routes, injects upstream authorization, 
         assert.ok(streamText.includes('data: [DONE]'));
         assert.equal(calls.length, 2);
         assert.equal(calls[1].headers.authorization, 'Bearer real-soul-key');
+        assert.equal(calls[1].headers['x-soul-agent'], 'openInterpreterAgent');
         assert.equal(calls[1].body.model, 'deep');
         assert.equal(calls[1].body.stream, false,
             'broker must force non-streaming upstream and synthesize the sandbox stream');

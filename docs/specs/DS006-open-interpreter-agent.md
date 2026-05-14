@@ -113,6 +113,9 @@ secrets, and shut down after the task. If Open Interpreter requests streaming,
 the broker may request a non-streaming upstream completion and synthesize the
 minimal OpenAI-compatible server-sent event stream back to the sandbox, so
 provider-specific streaming behavior does not leak into the runtime shim.
+The broker must also forward the provider container's `AGENT_NAME` or
+`PLOINKY_AGENT_NAME` as `X-Soul-Agent` so Soul Gateway observability records
+the tagged provider agent instead of `unknown`.
 
 Broker-backed jobs require the inner bwrap runner to inherit the provider
 container network so the sandbox can reach the loopback broker. This network

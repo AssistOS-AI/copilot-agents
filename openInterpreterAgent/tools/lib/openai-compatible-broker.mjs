@@ -7,6 +7,10 @@ function stringValue(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
 
+function headerValue(value) {
+    return stringValue(value).replace(/[\r\n]/g, '');
+}
+
 function normalizeChatCompletionsURL(url) {
     const trimmed = stringValue(url).replace(/\/+$/, '');
     if (!trimmed) return '';
@@ -128,6 +132,7 @@ export async function startOpenAICompatibleBroker({
     upstreamApiKey,
     upstreamModel,
     sandboxApiKey,
+    agentName = process.env.AGENT_NAME || process.env.PLOINKY_AGENT_NAME || 'openInterpreterAgent',
     maxRequestBytes = DEFAULT_MAX_REQUEST_BYTES,
     upstreamTimeoutMs = DEFAULT_UPSTREAM_TIMEOUT_MS,
     fetchImpl = globalThis.fetch,
@@ -141,6 +146,7 @@ export async function startOpenAICompatibleBroker({
     if (!model) throw new Error('broker requires an upstream model');
     if (!sandboxToken) throw new Error('broker requires a sandbox API key');
     if (typeof fetchImpl !== 'function') throw new Error('broker requires fetch');
+    const soulAgentName = headerValue(agentName);
 
     const sockets = new Set();
     const server = http.createServer(async (req, res) => {
@@ -188,6 +194,7 @@ export async function startOpenAICompatibleBroker({
                     authorization: `Bearer ${providerKey}`,
                     'content-type': 'application/json',
                     accept: req.headers.accept || 'application/json',
+                    ...(soulAgentName ? { 'x-soul-agent': soulAgentName } : {}),
                 },
                 body: JSON.stringify({
                     ...payload,

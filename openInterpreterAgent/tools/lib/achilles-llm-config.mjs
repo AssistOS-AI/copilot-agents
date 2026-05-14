@@ -15,6 +15,43 @@ function stringValue(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
 
+function hasOwnEnvValue(env, name) {
+    return Object.prototype.hasOwnProperty.call(env, name);
+}
+
+function loadDotEnvWalkUp(startDir, targetEnv = process.env) {
+    let dir = path.resolve(startDir);
+    const { root } = path.parse(dir);
+    while (true) {
+        const candidate = path.join(dir, '.env');
+        if (fs.existsSync(candidate)) {
+            try {
+                const content = fs.readFileSync(candidate, 'utf8');
+                for (const rawLine of content.split('\n')) {
+                    let trimmed = rawLine.trim();
+                    if (!trimmed || trimmed.startsWith('#')) continue;
+                    if (trimmed.startsWith('export ')) trimmed = trimmed.slice(7).trim();
+                    const eq = trimmed.indexOf('=');
+                    if (eq === -1) continue;
+                    const key = trimmed.slice(0, eq).trim();
+                    let val = trimmed.slice(eq + 1).trim();
+                    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                        val = val.slice(1, -1);
+                    }
+                    if (key && !targetEnv[key]) {
+                        targetEnv[key] = val;
+                    }
+                }
+            } catch (_) {
+                // Keep dotenv loading best-effort, matching Achilles behavior.
+            }
+            return;
+        }
+        if (dir === root) return;
+        dir = path.dirname(dir);
+    }
+}
+
 function boolFromEnv(env, name, defaultValue = false) {
     const raw = env[name];
     if (raw == null || raw === '') return defaultValue;
@@ -255,6 +292,35 @@ export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } 
     const explicit = explicitOpenInterpreterConfig(env);
     if (explicit) return explicit;
 
+    if (hasOwnEnvValue(env, SOUL_GATEWAY_API_KEY_ENV) && stringValue(env[SOUL_GATEWAY_API_KEY_ENV]) === '') {
+        return {
+            source: 'missing',
+            config: createBaseRuntimeConfig({
+                offline: boolFromEnv(env, 'OPEN_INTERPRETER_OFFLINE', true),
+            }),
+            broker: null,
+            sandbox: { allowNetwork: false },
+            reason: `${SOUL_GATEWAY_API_KEY_ENV} is not set`,
+        };
+    }
+
+    loadDotEnvWalkUp(process.cwd(), env);
+
+    let achilles = null;
+    try {
+        achilles = await resolveAchillesSoulGatewayConfig({ env });
+    } catch (error) {
+        return {
+            source: 'missing',
+            config: createBaseRuntimeConfig({
+                offline: boolFromEnv(env, 'OPEN_INTERPRETER_OFFLINE', true),
+            }),
+            broker: null,
+            sandbox: { allowNetwork: false },
+            reason: error?.message || 'Achilles Soul Gateway configuration could not be resolved',
+        };
+    }
+
     const soulGatewayApiKey = stringValue(env[SOUL_GATEWAY_API_KEY_ENV]);
     if (!soulGatewayApiKey) {
         return {
@@ -268,36 +334,23 @@ export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } 
         };
     }
 
-    try {
-        const achilles = await resolveAchillesSoulGatewayConfig({ env });
-        return {
-            source: 'achilles-soul-gateway',
-            config: createBaseRuntimeConfig({
-                model: achilles.openInterpreterModel,
-                offline: false,
-            }),
-            achilles,
-            broker: {
-                upstreamUrl: achilles.upstreamUrl,
-                upstreamModel: achilles.providerModel,
-                upstreamApiKey: soulGatewayApiKey,
-                apiKeyEnv: achilles.apiKeyEnv,
-            },
-            sandbox: {
-                allowNetwork: true,
-            },
-        };
-    } catch (error) {
-        return {
-            source: 'missing',
-            config: createBaseRuntimeConfig({
-                offline: boolFromEnv(env, 'OPEN_INTERPRETER_OFFLINE', true),
-            }),
-            broker: null,
-            sandbox: { allowNetwork: false },
-            reason: error?.message || 'Achilles Soul Gateway configuration could not be resolved',
-        };
-    }
+    return {
+        source: 'achilles-soul-gateway',
+        config: createBaseRuntimeConfig({
+            model: achilles.openInterpreterModel,
+            offline: false,
+        }),
+        achilles,
+        broker: {
+            upstreamUrl: achilles.upstreamUrl,
+            upstreamModel: achilles.providerModel,
+            upstreamApiKey: soulGatewayApiKey,
+            apiKeyEnv: achilles.apiKeyEnv,
+        },
+        sandbox: {
+            allowNetwork: true,
+        },
+    };
 }
 
 export function buildBrokeredRuntimeConfig(resolution, { apiBase, sandboxApiKey } = {}) {

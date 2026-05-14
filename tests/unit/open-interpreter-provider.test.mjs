@@ -17,6 +17,7 @@ import {
     resolvePreparedRuntime,
     resolveRuntimeRoot,
 } from '../../openInterpreterAgent/tools/lib/runtime-bundle.mjs';
+import { resolveOpenInterpreterRuntimeConfig } from '../../openInterpreterAgent/tools/lib/achilles-llm-config.mjs';
 import { startOpenAICompatibleBroker } from '../../openInterpreterAgent/tools/lib/openai-compatible-broker.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -492,6 +493,32 @@ process.stdin.on('end', () => {
     }
 });
 
+test('Open Interpreter resolver honors a visible upward dotenv key after explicit overrides are absent', async () => {
+    const root = mkroot();
+    const nested = path.join(root, 'agent', 'code');
+    fs.mkdirSync(nested, { recursive: true });
+    fs.writeFileSync(path.join(root, '.env'), 'SOUL_GATEWAY_API_KEY=soul-key-from-dotenv\n');
+    const achillesConfigPath = writeAchillesConfig(root);
+    const previousCwd = process.cwd();
+    try {
+        process.chdir(nested);
+        const resolution = await resolveOpenInterpreterRuntimeConfig({
+            env: {
+                LLM_MODELS_CONFIG_PATH: achillesConfigPath,
+                OPEN_INTERPRETER_MODEL: '',
+                OPEN_INTERPRETER_API_BASE: '',
+                OPEN_INTERPRETER_LOCAL: '',
+            },
+        });
+        assert.equal(resolution.source, 'achilles-soul-gateway');
+        assert.equal(resolution.config.model, 'openai/deep');
+        assert.equal(resolution.broker.upstreamApiKey, 'soul-key-from-dotenv');
+    } finally {
+        process.chdir(previousCwd);
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
 test('open_interpreter_run_task does not call the router for sandbox execution', async () => {
     const root = mkroot();
     writeManifest(bundleDir(root), buildManifest({ digest: 'sha256:abc' }));
@@ -619,6 +646,8 @@ test('openInterpreterAgent manifest requests privileged container security and u
     assert.equal(manifest.profiles.default.env.OI_RUNTIME_ROOT, '/data/research-runtimes');
     assert.ok(manifest.env.includes('SOUL_GATEWAY_API_KEY'),
         'manifest env must expose SOUL_GATEWAY_API_KEY for Achilles Soul Gateway autoconfig');
+    assert.deepEqual(manifest.profiles.default.env.SOUL_GATEWAY_API_KEY, { name: 'SOUL_GATEWAY_API_KEY' },
+        'default profile env must forward SOUL_GATEWAY_API_KEY when Ploinky resolves it from host env, .secrets, or .env');
     assert.ok(!manifest.env.includes('SOUL_GATEWAY_BASE_URL'),
         'manifest env must not require SOUL_GATEWAY_BASE_URL for the normal path');
     assert.ok(!manifest.env.includes('RESEARCH_BWRAP_AGENT'),

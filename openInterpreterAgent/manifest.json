@@ -33,6 +33,9 @@
             "env": {
                 "DISABLE_TELEMETRY": "true",
                 "ANONYMIZED_TELEMETRY": "false",
+                "SOUL_GATEWAY_API_KEY": {
+                    "name": "SOUL_GATEWAY_API_KEY"
+                },
                 "OPEN_INTERPRETER_OFFLINE": "true",
                 "OI_RUNTIME_ROOT": "/data/research-runtimes",
                 "OI_RUNTIME_AUTO_PREPARE": "true",

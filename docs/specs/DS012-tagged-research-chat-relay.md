@@ -41,17 +41,20 @@ The invariant is:
 5. The relay returns a natural-language answer to the originating chat.
 
 Ploinky WebChat must not intercept research tags or hardcode the
-`researchRelay` agent. For Copilot chat, the `researchRelay` plugin opens
-AchillesCLI WebChat with `research-tags=1`, `forward-envelope=1`, and explicit
-generic tag-relay parameters naming the relay agent, tool, and allowed tag
-set. AchillesCLI's tag-relay mode must only intercept tags named by the
-explicit `tag-relay-tags` allowlist or, when that allowlist is absent, tags
-returned by `researchRelay.research_relay_list_backends`. When a tagged
-message is handled, it must not be forwarded to AchillesCLI's normal LLM
-prompt. Unknown mentions must remain normal chat. AchillesCLI may materialize
-shared blob attachments as bounded inline resources for the relay, but shared
-attachment paths must resolve inside the mounted shared blob directory after
-symlink resolution.
+`researchRelay` agent. For Copilot chat, Explorer exposes the normal
+`Open Copilot here` action only. The `researchRelay` plugin contributes
+metadata through `file-exp:copilot-launch-extension`, and the AchillesCLI
+Copilot launcher uses that metadata to open WebChat with `research-tags=1`,
+`forward-envelope=1`, and explicit generic tag-relay parameters naming the
+relay agent, tool, and allowed tag set. AchillesCLI's tag-relay mode must only
+intercept tags named by the explicit `tag-relay-tags` allowlist or, when that
+allowlist is absent, tags returned by
+`researchRelay.research_relay_list_backends`. When a tagged message is
+handled, it must not be forwarded to AchillesCLI's normal LLM prompt. Unknown
+mentions must remain normal chat. AchillesCLI may materialize shared blob
+attachments as bounded inline resources for the relay, but shared attachment
+paths must resolve inside the mounted shared blob directory after symlink
+resolution.
 
 WebMeet MCP chat must dispatch configured tags after persisting the user
 message, then append the research result as an agent-kind chat message. This

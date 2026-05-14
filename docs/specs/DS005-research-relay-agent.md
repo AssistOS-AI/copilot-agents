@@ -10,8 +10,8 @@ summary: Defines the Explorer-facing tagged research-task relay under the `resea
 
 ## Introduction
 
-The Research Relay is the Explorer-facing agent for tagged research tasks. Its
-agent id is `researchRelay`. It provides plugin UI, the backend tag catalog
+The Research Relay is the tagged-task relay for research tasks. Its agent id
+is `researchRelay`. It provides Copilot launch metadata, the backend tag catalog
 tools, and the secure relay that routes tagged research tasks to provider
 agents. The relay must not own backend runtime setup and must not call a
 sandbox runner directly for backend execution.
@@ -58,32 +58,31 @@ the relay forwards the task to
 natural-language output. Backend execution through a local sandbox runner
 belongs to provider agents, not to the relay.
 
-The agent must own Explorer `IDE-plugins` for research controls. The first
-plugin should mount in an existing Explorer application slot such as
-`file-exp:toolbar-plugins-dropdown` or `file-exp:right-bar`. Menu
-contributions may target file and directory context menus. User-visible plugin
-copy should consistently refer to the Research Relay role.
+The agent must not expose a separate user-facing Explorer menu item or toolbar
+button for research chat. Explorer should show one primary chat entry point:
+the existing AchillesCLI action labeled `Open Copilot here`. Research Relay
+adds tag handling to that normal Copilot launch through a metadata-only
+Explorer plugin in `file-exp:copilot-launch-extension`.
 
-Explorer plugin actions must use host-provided filesystem context such as
-`selectedFsPath` and `currentFsPath`. When application-slot context only
-contains Explorer paths, plugin code must use Explorer's workspace-root
-utility or SDK-backed root resolution instead of assuming `workspaceRoot` or
-`workspaceFsRoot` are present.
+The launch-extension plugin must contribute `copilotLaunch.query` values for
+`research-tags=1`, `forward-envelope=1`, `tag-relay-agent=researchRelay`,
+`tag-relay-submit-tool=research_task_submit`,
+`tag-relay-list-tool=research_relay_list_backends`, and the explicit
+`tag-relay-tags` allowlist. It should set `workspaceDirParam` to
+`workspace-dir` so the Copilot launcher can prefer workspace-relative
+directory parameters over absolute host paths.
 
 Explorer and helper-generated WebChat URLs must prefer workspace-relative
 query parameters such as `workspace-dir` instead of placing absolute host
 workspace paths in the browser URL. Ploinky WebChat resolves those relative
 values server-side before spawning AchillesCLI.
 
-The agent may provide an action named `Open Research Relay here`. That
-action should open AchillesCLI WebChat with `research-tags=1`,
-`forward-envelope=1`, `tag-relay-agent=researchRelay`,
-`tag-relay-submit-tool=research_task_submit`, and
-`tag-relay-tags=<known-tags>` so `@backend` messages are intercepted by
-AchillesCLI's configured tag-relay mode before they reach the general LLM
-prompt path. The list tool may remain in the URL as a fallback catalog source,
-but the explicit tag allowlist is preferred because it avoids a preflight MCP
-call before the actual delegated task submit.
+The relay may keep `research_relay_dispatch` as a compatibility helper that
+returns the same Copilot WebChat URL shape, but the durable Explorer path is
+the normal Copilot launch plus launch-extension metadata. The list tool may
+remain in the URL as a fallback catalog source, but the explicit tag allowlist
+is preferred because it avoids a preflight MCP call before the actual
+delegated task submit.
 
 Browser-side status calls must go through Explorer `appServices.callTool`
 or an equivalent MCP session-aware helper. The plugin must not post raw
@@ -160,7 +159,8 @@ identity without coupling Ploinky core to the relay.
 
 ## Conclusion
 
-The Research Relay (`researchRelay`) must remain a thin Explorer plugin and
+The Research Relay (`researchRelay`) must remain a thin launch-extension and
 secure tagged-task relay that routes natural-language research tasks through
 provider agents and returns normalized natural-language output to the
-originating chat. It must not own backend runtimes.
+originating chat. It must not own backend runtimes or a separate visible
+Explorer chat entry point.

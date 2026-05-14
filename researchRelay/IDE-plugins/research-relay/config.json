@@ -2,12 +2,23 @@
     "pluginCategory": "application",
     "id": "research-relay",
     "component": "research-relay",
-    "location": ["file-exp:toolbar-plugins-dropdown"],
-    "label": "Research Relay",
-    "tooltip": "Open Copilot chat with @research-agent tags enabled",
+    "location": ["file-exp:copilot-launch-extension"],
+    "label": "Research tag relay",
+    "tooltip": "Adds @research-agent tag handling to the normal Copilot chat launch",
     "icon": "./icon.svg",
     "presenter": "ResearchRelay",
     "type": "embedded",
     "autoPin": false,
+    "copilotLaunch": {
+        "query": {
+            "research-tags": "1",
+            "forward-envelope": "1",
+            "tag-relay-agent": "researchRelay",
+            "tag-relay-submit-tool": "research_task_submit",
+            "tag-relay-list-tool": "research_relay_list_backends",
+            "tag-relay-tags": "open-interpreter,oi"
+        },
+        "workspaceDirParam": "workspace-dir"
+    },
     "dependencies": []
 }

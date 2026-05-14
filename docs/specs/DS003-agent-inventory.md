@@ -19,8 +19,7 @@ implementation ordering.
 The repository must contain these Ploinky agents:
 
 1. `research-agents`: the explicit deployment bundle.
-2. `researchRelay`: the Explorer-facing UI surface and tagged-task relay
-   agent.
+2. `researchRelay`: the Copilot launch-extension and tagged-task relay agent.
 3. `openInterpreterAgent`: the Open Interpreter provider agent that owns
    runtime preparation and runs research tasks in its own local bwrap sandbox.
 
@@ -85,8 +84,8 @@ and sandbox execution.
 
 ## Conclusion
 
-The repository inventory consists of one deployment bundle, one Explorer-facing
-tagged relay (the **Research Relay**, kept under the `researchRelay` agent
-id), and the Open Interpreter provider agent that owns its runtime and local
-sandbox execution. Additional backend tags require provider agents before they
-enter the active catalog.
+The repository inventory consists of one deployment bundle, one tagged relay
+(the **Research Relay**, kept under the `researchRelay` agent id), and the
+Open Interpreter provider agent that owns its runtime and local sandbox
+execution. Additional backend tags require provider agents before they enter
+the active catalog.

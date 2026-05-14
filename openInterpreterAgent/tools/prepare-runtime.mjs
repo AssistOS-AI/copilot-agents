@@ -27,7 +27,7 @@ import {
     bundleDir,
     bundleParentDir,
     buildManifest,
-    readExistingManifest,
+    resolvePreparedRuntime,
     resolveRuntimeRoot,
 } from './lib/runtime-bundle.mjs';
 
@@ -51,6 +51,12 @@ function copyShim(targetBinDir) {
     fs.copyFileSync(SHIM_HOST_PATH, shimDestination);
     fs.chmodSync(shimDestination, 0o755);
     return shimDestination;
+}
+
+function digestFile(filePath) {
+    const hash = crypto.createHash('sha256');
+    hash.update(fs.readFileSync(filePath));
+    return `sha256:${hash.digest('hex')}`;
 }
 
 function installPackage(tempDir, env = process.env) {
@@ -86,9 +92,28 @@ function writeManifestFile(tempDir, manifest) {
     return target;
 }
 
+function buildRuntimeManifest() {
+    const manifest = buildManifest({
+        shim: {
+            path: `/runtime/bin/${SHIM_NAME}`,
+            digest: digestFile(SHIM_HOST_PATH),
+        },
+    });
+    manifest.digest = digestManifest(manifest);
+    return manifest;
+}
+
 function digestManifest(manifest) {
     const hash = crypto.createHash('sha256');
-    hash.update(Buffer.from(JSON.stringify({ id: manifest.id, version: manifest.version, schema: manifest.schema })));
+    hash.update(Buffer.from(JSON.stringify({
+        id: manifest.id,
+        version: manifest.version,
+        schema: manifest.schema,
+        entrypoints: manifest.entrypoints,
+        python: manifest.python,
+        compatibility: manifest.compatibility,
+        shim: manifest.shim || null,
+    })));
     return `sha256:${hash.digest('hex')}`;
 }
 
@@ -96,21 +121,39 @@ export function prepareRuntime({ env = process.env } = {}) {
     const runtimeRoot = resolveRuntimeRoot(env);
     ensureParent(runtimeRoot);
 
-    const existing = readExistingManifest(runtimeRoot);
-    if (existing) {
+    if (!fs.existsSync(SHIM_HOST_PATH)) {
+        throw new Error(`Open Interpreter shim missing at ${SHIM_HOST_PATH}; redeploy the openInterpreterAgent runtime files.`);
+    }
+
+    const preparedRuntime = resolvePreparedRuntime(runtimeRoot);
+    if (preparedRuntime) {
+        const manifest = buildRuntimeManifest();
+        const shimDestination = path.join(preparedRuntime.bundleDir, 'bin', SHIM_NAME);
+        const existingShimDigest = preparedRuntime.manifest?.shim?.digest || null;
+        if (existingShimDigest !== manifest.shim.digest || !fs.existsSync(shimDestination)) {
+            copyShim(path.dirname(shimDestination));
+            writeManifestFile(preparedRuntime.bundleDir, manifest);
+            return {
+                bundle: { id: BUNDLE_ID, version: BUNDLE_VERSION },
+                runtimeRoot,
+                bundleDir: preparedRuntime.bundleDir,
+                prepared: false,
+                reused: true,
+                refreshed: true,
+                manifest,
+                message: `Refreshed Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION} shim at ${preparedRuntime.bundleDir}.`,
+            };
+        }
         return {
             bundle: { id: BUNDLE_ID, version: BUNDLE_VERSION },
             runtimeRoot,
-            bundleDir: bundleDir(runtimeRoot),
+            bundleDir: preparedRuntime.bundleDir,
             prepared: false,
             reused: true,
-            manifest: existing,
+            refreshed: false,
+            manifest: preparedRuntime.manifest,
             message: `Reused existing Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION}.`,
         };
-    }
-
-    if (!fs.existsSync(SHIM_HOST_PATH)) {
-        throw new Error(`Open Interpreter shim missing at ${SHIM_HOST_PATH}; redeploy the openInterpreterAgent runtime files.`);
     }
 
     const target = bundleDir(runtimeRoot);
@@ -125,8 +168,7 @@ export function prepareRuntime({ env = process.env } = {}) {
         installPackage(tempDir, env);
         const binDir = path.join(tempDir, 'bin');
         copyShim(binDir);
-        const manifest = buildManifest();
-        manifest.digest = digestManifest(manifest);
+        const manifest = buildRuntimeManifest();
         writeManifestFile(tempDir, manifest);
 
         try {
@@ -141,6 +183,7 @@ export function prepareRuntime({ env = process.env } = {}) {
                     bundleDir: target,
                     prepared: false,
                     reused: true,
+                    refreshed: false,
                     manifest: raced,
                     message: `Reused concurrently prepared Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION}.`,
                 };
@@ -154,6 +197,7 @@ export function prepareRuntime({ env = process.env } = {}) {
             bundleDir: target,
             prepared: true,
             reused: false,
+            refreshed: false,
             manifest,
             message: `Prepared Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION} at ${target}.`,
         };

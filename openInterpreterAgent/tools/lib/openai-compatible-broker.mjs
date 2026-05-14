@@ -66,6 +66,63 @@ async function writeUpstreamResponse(res, upstreamResponse) {
     }
 }
 
+function writeSse(res, payload) {
+    res.write(`data: ${payload}\n\n`);
+}
+
+function chunkEnvelope(source, choice, delta, finishReason = null) {
+    return {
+        id: source.id || 'chatcmpl-open-interpreter-broker',
+        object: 'chat.completion.chunk',
+        created: source.created || Math.floor(Date.now() / 1000),
+        model: source.model || 'open-interpreter-broker',
+        choices: [{
+            index: Number.isInteger(choice?.index) ? choice.index : 0,
+            delta,
+            finish_reason: finishReason,
+        }],
+    };
+}
+
+async function writeSyntheticStreamResponse(res, upstreamResponse) {
+    const bodyText = await upstreamResponse.text();
+    if (!upstreamResponse.ok) {
+        res.writeHead(upstreamResponse.status, copyResponseHeaders(upstreamResponse));
+        res.end(bodyText);
+        return;
+    }
+
+    let payload;
+    try {
+        payload = bodyText ? JSON.parse(bodyText) : {};
+    } catch (_) {
+        writeJson(res, 502, { error: { message: 'upstream response was not JSON' } });
+        return;
+    }
+
+    const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+    res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-store',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
+    });
+    for (const choice of choices) {
+        const message = choice?.message && typeof choice.message === 'object' ? choice.message : {};
+        const delta = {};
+        if (message.role) delta.role = message.role;
+        if (typeof message.content === 'string' && message.content) delta.content = message.content;
+        if (Array.isArray(message.tool_calls) && message.tool_calls.length) delta.tool_calls = message.tool_calls;
+        if (message.function_call && typeof message.function_call === 'object') delta.function_call = message.function_call;
+        if (Object.keys(delta).length > 0) {
+            writeSse(res, JSON.stringify(chunkEnvelope(payload, choice, delta, null)));
+        }
+        writeSse(res, JSON.stringify(chunkEnvelope(payload, choice, {}, choice?.finish_reason || 'stop')));
+    }
+    writeSse(res, '[DONE]');
+    res.end();
+}
+
 export async function startOpenAICompatibleBroker({
     upstreamUrl,
     upstreamApiKey,
@@ -123,6 +180,7 @@ export async function startOpenAICompatibleBroker({
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), upstreamTimeoutMs);
+        const sandboxRequestedStream = payload.stream === true;
         try {
             const upstreamResponse = await fetchImpl(targetUrl, {
                 method: 'POST',
@@ -134,11 +192,16 @@ export async function startOpenAICompatibleBroker({
                 body: JSON.stringify({
                     ...payload,
                     model,
+                    stream: sandboxRequestedStream ? false : payload.stream,
                 }),
                 signal: controller.signal,
             });
             clearTimeout(timeout);
-            await writeUpstreamResponse(res, upstreamResponse);
+            if (sandboxRequestedStream) {
+                await writeSyntheticStreamResponse(res, upstreamResponse);
+            } else {
+                await writeUpstreamResponse(res, upstreamResponse);
+            }
         } catch (error) {
             clearTimeout(timeout);
             if (res.headersSent) {

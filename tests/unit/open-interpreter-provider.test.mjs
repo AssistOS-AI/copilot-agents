@@ -364,6 +364,8 @@ process.stdin.on('end', () => {
             OI_LOCAL_RUNNER_BIN: wrapper,
             OPEN_INTERPRETER_MODEL: 'local-model',
             OPEN_INTERPRETER_API_BASE: 'http://127.0.0.1:11434/v1',
+            OPEN_INTERPRETER_CONTEXT_WINDOW: '12345',
+            OPEN_INTERPRETER_MAX_TOKENS: '1234',
             SOUL_GATEWAY_API_KEY: 'soul-secret-should-not-win',
             // No PLOINKY_ROUTER_URL: the provider must not call the router.
         });
@@ -387,6 +389,8 @@ process.stdin.on('end', () => {
         const config = JSON.parse(configFile.content);
         assert.equal(config.model, 'local-model');
         assert.equal(config.api_base, 'http://127.0.0.1:11434/v1');
+        assert.equal(config.context_window, 12345);
+        assert.equal(config.max_tokens, 1234);
         assert.equal(config.api_key, null);
         const serialized = JSON.stringify(received);
         assert.ok(!serialized.includes('OPENAI_API_KEY'), 'credentials must not be staged');
@@ -472,6 +476,8 @@ process.stdin.on('end', () => {
         assert.equal(config.model, 'openai/deep');
         assert.match(config.api_base, /^http:\/\/127\.0\.0\.1:\d+\/v1$/);
         assert.match(config.api_key, /^oi-broker-/);
+        assert.equal(config.context_window, 8000);
+        assert.equal(config.max_tokens, 2000);
         assert.equal(config.offline, false);
         assert.equal(config.local, null);
 
@@ -543,8 +549,12 @@ test('Open Interpreter broker restricts routes, injects upstream authorization, 
         status: 200,
         body: {
             id: 'chatcmpl-test',
-            choices: [{ message: { role: 'assistant', content: 'ok' } }],
+            object: 'chat.completion',
+            created: 123,
+            model: call.body?.model,
+            choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
             echoedModel: call.body?.model,
+            echoedStream: call.body?.stream,
         },
     }));
     const broker = await startOpenAICompatibleBroker({
@@ -582,6 +592,27 @@ test('Open Interpreter broker restricts routes, injects upstream authorization, 
         assert.equal(calls[0].headers.authorization, 'Bearer real-soul-key');
         assert.equal(calls[0].body.model, 'deep');
         assert.equal(calls[0].body.messages[0].content, 'hello');
+
+        const streamed = await fetch(`${broker.apiBase}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                authorization: 'Bearer sandbox-only-key',
+                'content-type': 'application/json',
+                accept: 'text/event-stream',
+            },
+            body: JSON.stringify({ model: 'openai/deep', messages: [{ role: 'user', content: 'hello' }], stream: true }),
+        });
+        assert.equal(streamed.status, 200);
+        assert.match(streamed.headers.get('content-type') || '', /text\/event-stream/);
+        const streamText = await streamed.text();
+        assert.match(streamText, /data: /);
+        assert.match(streamText, /"content":"ok"/);
+        assert.ok(streamText.includes('data: [DONE]'));
+        assert.equal(calls.length, 2);
+        assert.equal(calls[1].headers.authorization, 'Bearer real-soul-key');
+        assert.equal(calls[1].body.model, 'deep');
+        assert.equal(calls[1].body.stream, false,
+            'broker must force non-streaming upstream and synthesize the sandbox stream');
     } finally {
         await broker.close();
         await new Promise((resolve) => server.close(resolve));
@@ -619,6 +650,10 @@ test('openInterpreterAgent manifest requests privileged container security and u
     assert.equal(manifest.profiles.default.env.OI_RUNTIME_ROOT, '/data/research-runtimes');
     assert.ok(manifest.env.includes('SOUL_GATEWAY_API_KEY'),
         'manifest env must expose SOUL_GATEWAY_API_KEY for Achilles Soul Gateway autoconfig');
+    assert.ok(manifest.env.includes('OPEN_INTERPRETER_CONTEXT_WINDOW'),
+        'manifest env should allow optional local Open Interpreter context window overrides');
+    assert.ok(manifest.env.includes('OPEN_INTERPRETER_MAX_TOKENS'),
+        'manifest env should allow optional local Open Interpreter max token overrides');
     assert.deepEqual(manifest.profiles.default.env.SOUL_GATEWAY_API_KEY, { name: 'SOUL_GATEWAY_API_KEY' },
         'default profile env must forward SOUL_GATEWAY_API_KEY when Ploinky resolves it from host env, .secrets, or .env');
     assert.ok(!manifest.env.includes('SOUL_GATEWAY_BASE_URL'),

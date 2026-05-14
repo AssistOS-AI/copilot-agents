@@ -120,6 +120,8 @@ async function main() {
                 source: resolvedConfig.source,
                 model: resolvedConfig.config?.model || null,
                 api_base: resolvedConfig.config?.api_base || null,
+                context_window: resolvedConfig.config?.context_window || null,
+                max_tokens: resolvedConfig.config?.max_tokens || null,
                 offline: Boolean(resolvedConfig.config?.offline),
                 local_endpoint: resolvedConfig.config?.local || null,
                 brokered: resolvedConfig.source === 'achilles-soul-gateway',

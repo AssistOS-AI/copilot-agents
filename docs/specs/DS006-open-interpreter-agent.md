@@ -65,7 +65,10 @@ The agent must own:
   autoconfigure from AchillesAgentLib's `research` model default and
   `soul_gateway` provider when `SOUL_GATEWAY_API_KEY` is present. If neither
   path is available, it must return immediate natural-language configuration
-  guidance before invoking the sandbox runner.
+  guidance before invoking the sandbox runner. The staged Open Interpreter
+  config must include explicit `context_window` and `max_tokens` values when
+  they are known or defaulted, because the Soul Gateway aliases are not
+  necessarily present in Open Interpreter's bundled LiteLLM model metadata.
 - `openInterpreterAgent/tools/status.mjs`: a status tool that reports whether
   the runtime is prepared, the configured model topology, the local sandbox
   health, and the telemetry posture. Status must not expose provider
@@ -84,7 +87,11 @@ AchillesAgentLib configuration; the current Achilles default maps
 `research` to `soul_gateway/deep`. `SOUL_GATEWAY_BASE_URL` is not part of the
 required Open Interpreter provider contract. Explicit `OPEN_INTERPRETER_*`
 overrides remain allowed for local or development endpoints, but they must not
-be required for the normal Ploinky path.
+be required for the normal Ploinky path. `OPEN_INTERPRETER_CONTEXT_WINDOW` and
+`OPEN_INTERPRETER_MAX_TOKENS` are optional tuning overrides; if they are absent
+on the Soul Gateway path, the provider supplies conservative defaults so Open
+Interpreter does not emit its unknown-context-window warning for the synthetic
+OpenAI-compatible model alias.
 
 The agent must not pass caller-provided mounts, bind paths, raw bubblewrap
 flags, network selectors, capabilities, provider credentials, or invocation
@@ -102,7 +109,10 @@ must not contain `SOUL_GATEWAY_API_KEY` or the upstream provider bearer token.
 The broker must inject the raw Soul Gateway key only in the outer provider
 process, support only the minimum chat-completions route needed by Open
 Interpreter, enforce size and timeout limits, avoid logging prompt bodies or
-secrets, and shut down after the task.
+secrets, and shut down after the task. If Open Interpreter requests streaming,
+the broker may request a non-streaming upstream completion and synthesize the
+minimal OpenAI-compatible server-sent event stream back to the sandbox, so
+provider-specific streaming behavior does not leak into the runtime shim.
 
 Broker-backed jobs require the inner bwrap runner to inherit the provider
 container network so the sandbox can reach the loopback broker. This network

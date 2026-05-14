@@ -7,6 +7,8 @@ export const OPEN_INTERPRETER_CONFIG_SCHEMA = 'ploinky.open-interpreter.config.v
 export const SOUL_GATEWAY_PROVIDER = 'soul_gateway';
 export const SOUL_GATEWAY_API_KEY_ENV = 'SOUL_GATEWAY_API_KEY';
 export const ACHILLES_RESEARCH_DEFAULT = 'research';
+export const DEFAULT_SOUL_GATEWAY_CONTEXT_WINDOW = 8000;
+export const DEFAULT_SOUL_GATEWAY_MAX_TOKENS = 2000;
 
 const require = createRequire(import.meta.url);
 const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -25,6 +27,13 @@ function boolFromEnv(env, name, defaultValue = false) {
     return ['1', 'true', 'yes', 'on', 'y'].includes(String(raw).trim().toLowerCase());
 }
 
+function positiveIntegerFromEnv(env, name, defaultValue = null) {
+    const raw = stringValue(env[name]);
+    if (!raw) return defaultValue;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
 function createBaseRuntimeConfig(overrides = {}) {
     return {
         schema: OPEN_INTERPRETER_CONFIG_SCHEMA,
@@ -33,6 +42,8 @@ function createBaseRuntimeConfig(overrides = {}) {
         api_key: null,
         local: null,
         offline: true,
+        context_window: null,
+        max_tokens: null,
         ...overrides,
     };
 }
@@ -81,6 +92,8 @@ function explicitOpenInterpreterConfig(env) {
             api_base: apiBase || null,
             local: local || null,
             offline: boolFromEnv(env, 'OPEN_INTERPRETER_OFFLINE', true),
+            context_window: positiveIntegerFromEnv(env, 'OPEN_INTERPRETER_CONTEXT_WINDOW'),
+            max_tokens: positiveIntegerFromEnv(env, 'OPEN_INTERPRETER_MAX_TOKENS'),
         }),
         broker: null,
         sandbox: {
@@ -304,6 +317,16 @@ export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } 
         config: createBaseRuntimeConfig({
             model: achilles.openInterpreterModel,
             offline: false,
+            context_window: positiveIntegerFromEnv(
+                env,
+                'OPEN_INTERPRETER_CONTEXT_WINDOW',
+                DEFAULT_SOUL_GATEWAY_CONTEXT_WINDOW,
+            ),
+            max_tokens: positiveIntegerFromEnv(
+                env,
+                'OPEN_INTERPRETER_MAX_TOKENS',
+                DEFAULT_SOUL_GATEWAY_MAX_TOKENS,
+            ),
         }),
         achilles,
         broker: {
@@ -333,6 +356,7 @@ export function __privateForTests() {
         normalizeBaseToChatCompletionsURL,
         normalizeRawAchillesConfig,
         parseModelReference,
+        positiveIntegerFromEnv,
         toOpenInterpreterOpenAIModel,
     };
 }

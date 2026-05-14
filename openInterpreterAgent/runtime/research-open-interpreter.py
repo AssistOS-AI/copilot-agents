@@ -30,6 +30,16 @@ def as_bool(value: object, default: bool = False) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on", "y")
 
 
+def positive_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def model_is_configured(config: dict[str, object]) -> bool:
     if config.get("model"):
         return True
@@ -113,6 +123,12 @@ def main() -> int:
         api_key = config.get("api_key")
         if api_key:
             interpreter.llm.api_key = str(api_key)
+        context_window = positive_int(config.get("context_window"))
+        if context_window:
+            interpreter.llm.context_window = context_window
+        max_tokens = positive_int(config.get("max_tokens"))
+        if max_tokens:
+            interpreter.llm.max_tokens = max_tokens
     except Exception as exc:  # pragma: no cover - upstream API drift
         emit(f"Open Interpreter configuration failed: {exc}.")
         return 0

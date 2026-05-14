@@ -1,18 +1,31 @@
 {
-    "container": "python:3.12-slim",
-    "lite-sandbox": true,
-    "about": "Ploinky MCP adapter that wraps Open Interpreter for bounded, workspace-confined local coding and analysis tasks. Telemetry is disabled by default.",
-    "install": "if [ -z \"$OPEN_INTERPRETER_SKIP_INSTALL\" ]; then python3 -m pip install --quiet --no-cache-dir --upgrade pip && python3 -m pip install --quiet --no-cache-dir open-interpreter==0.4.3; fi",
+    "container": "assistos/bwrap-runner:node24-python-bookworm",
+    "about": "Open Interpreter provider agent. Prepares its own runtime under /data/research-runtimes/open-interpreter/<version>/ inside the provider container and executes research tasks in a local bwrap sandbox started inside the same container. Does not call basic/bwrap-runner.",
+    "containerSecurity": {
+        "privileged": true
+    },
+    "agent": "/usr/local/bin/node /opt/bwrap-runner/bin/healthcheck.mjs && sh /Agent/server/AgentServer.sh",
+    "readiness": {
+        "protocol": "mcp"
+    },
+    "health": {
+        "readiness": {
+            "script": "healthcheck.sh",
+            "interval": 5,
+            "timeout": 10,
+            "failureThreshold": 12
+        }
+    },
     "env": [
         "PLOINKY_WORKSPACE_ROOT",
-        "PLOINKY_DERIVED_MASTER_KEY",
+        "PLOINKY_ROUTER_URL",
+        "OI_RUNTIME_ROOT",
+        "OI_RUNTIME_AUTO_PREPARE",
+        "OI_PREPARE_PYTHON",
         "OPEN_INTERPRETER_MODEL",
         "OPEN_INTERPRETER_API_BASE",
         "OPEN_INTERPRETER_OFFLINE",
-        "OPEN_INTERPRETER_AUTO_RUN",
-        "OPEN_INTERPRETER_DEBUG",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY"
+        "OPEN_INTERPRETER_LOCAL"
     ],
     "profiles": {
         "default": {
@@ -20,7 +33,9 @@
                 "DISABLE_TELEMETRY": "true",
                 "ANONYMIZED_TELEMETRY": "false",
                 "OPEN_INTERPRETER_OFFLINE": "true",
-                "OPEN_INTERPRETER_AUTO_RUN": "false"
+                "OI_RUNTIME_ROOT": "/data/research-runtimes",
+                "OI_RUNTIME_AUTO_PREPARE": "true",
+                "OI_PREPARE_PYTHON": "/usr/bin/python3"
             }
         }
     },

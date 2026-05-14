@@ -1,17 +1,6 @@
 # copilot-agents smoke path
 
-This document tracks the manual, end-to-end smoke check for the first
-implementation slice. It is intentionally manual: heavy agents are gated, and
-the smoke path is written to be runnable in a developer workspace without
-external secrets or paid LLM calls in the default case.
-
-## Prerequisites
-
-- A Ploinky workspace under `<workspace-root>`.
-- `node 20+` available for static validation.
-- `python 3.12+` available (only required to import Open Interpreter when
-  running `oi_run_task`; `oi_status` works without it and reports
-  `installed: false`).
+Manual end-to-end smoke check for the tagged research relay.
 
 ## 1. Static validation
 
@@ -23,107 +12,96 @@ node --test tests/unit/*.test.mjs
 python3 -m unittest discover -s tests/python -p "test_*.py"
 ```
 
-All three must pass before continuing.
-
 ## 2. Enable the bundle
-
-Use the documented Ploinky path. Do not add `copilot-agents` to Explorer's
-default dependency list.
 
 ```bash
 cd <workspace-root>
+ploinky add repo basic <basic-repo-url-or-local-path>
+ploinky enable repo basic
 ploinky add repo copilot-agents <repo-url-or-local-path>
 ploinky enable repo copilot-agents
 ploinky enable agent copilot-agents/research-agents global
 ploinky start explorer 8080
 ```
 
-Heavy agents stay gated behind Ploinky's selectable profiles:
+The bundle enables `researchRelay` and `openInterpreterAgent`. Active backend
+tags route through provider agents; the relay does not own backend command
+environment variables and the bundle must not enable a separate
+`basic/bwrap-runner` Ploinky agent. Provider agents execute their inner bwrap
+job locally inside their own container based on the shared `assistos/bwrap-runner`
+image.
 
-```bash
-ploinky profile qa
-ploinky enable agent copilot-agents/research-agents global
-
-ploinky profile prod
-ploinky enable agent copilot-agents/research-agents global
-```
-
-## 3. Verify Ploinky discovery
+## 3. Verify tool discovery
 
 ```bash
 ploinky client methods research-agents
-ploinky client methods researchCopilot
+ploinky client methods researchRelay
 ploinky client methods openInterpreterAgent
 ```
 
 Expected tools:
 
 - `research-agents`: `research_agents_status`
-- `researchCopilot`: `research_copilot_status`, `research_copilot_list_backends`, `research_copilot_dispatch`
-- `openInterpreterAgent`: `oi_status`, `oi_run_task`
+- `researchRelay`: `research_relay_status`, `research_relay_list_backends`,
+  `research_relay_dispatch`, `research_task_submit`
+- `openInterpreterAgent`: `oi_status`, `prepare_runtime`,
+  `open_interpreter_run_task`
 
-## 4. Verify status without secrets
+## 4. Verify Copilot tags
 
-```bash
-ploinky client invoke openInterpreterAgent oi_status '{}'
-```
-
-Expected: `ok: true`, structured `interpreter`, `telemetry`, `config`, and
-`paths` blocks. `telemetry.disabled` must be `true` by default.
-
-## 5. Verify Explorer plugin discovery
-
-Open `http://127.0.0.1:8080/explorer/index.html`. Confirm:
-
-- The `Research Copilot` plugin shows up under the toolbar plugins dropdown.
-- Right-click a directory in the file tree: `Research Copilot` context menu
-  entries appear (Open Research Copilot here, Open Open Interpreter agent here).
-
-## 6. Verify AchillesCLI launch with `--skill-root`
-
-From the AchillesCLI plugin, open the Copilot for a workspace directory. From
-the URL bar, add the `skill-root` query parameter pointing at this
-repository's `achilles-skills` folder:
+Open Explorer, then open Research Relay from the toolbar or context menu. The
+URL should include:
 
 ```text
-/webchat?agent=achilles-cli&dir=<workingDir>&skill-root=<workspaceRoot>/.ploinky/repos/copilot-agents/achilles-skills
+agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter,oi&tag-relay-list-tool=research_relay_list_backends
 ```
 
-`researchCopilot`'s menu actions already build this URL. Inside the chat, run:
+When opened from a file or directory context, the URL should use
+`workspace-dir=<relative-path>` rather than an absolute host path.
+
+Send:
 
 ```text
-/exec launch-open-interpreter
+@open-interpreter Give a one sentence configuration status.
 ```
 
-The reply must include a line that starts with
-`/webchat?agent=openInterpreterAgent` and, when the working directory is
-known, includes `&dir=<workingDir>`. When `openInterpreterAgent` is not
-deployed, the reply must include a `note:` line that points to the
-`ploinky enable agent copilot-agents/research-agents global` command.
+On a fresh workspace the provider should prepare or reuse the Open Interpreter
+runtime under `/data/research-runtimes/open-interpreter/<version>/`, start a
+local bwrap job inside its own container, and return natural-language output
+to the same chat. If no local model endpoint is configured, the reply should
+be a natural-language model/local-endpoint configuration message, not a
+Python traceback.
 
-## 7. Confirm log hygiene
+## 5. Verify WebMeet tags
 
-Tail the router and watchdog logs while exercising the tools above:
+Open a WebMeet room through the WebMeet plugin and send:
+
+```text
+@open-interpreter summarize the current meeting goal
+```
+
+The user message should remain in chat. A second agent-kind message should be
+appended with the research relay result or a natural-language error.
+
+## 6. Confirm log hygiene
+
+Tail the router and watchdog logs while exercising the tools:
 
 ```bash
 tail -f .ploinky/logs/router.log
 tail -f .ploinky/logs/watchdog.log
 ```
 
-The following strings must never appear:
+Invocation JWTs, bearer tokens, provider keys, raw prompts, materialized
+resource contents, base64 payloads, command stdin, and hidden payload fields
+must not appear in logs. Chat transcripts may contain the originating visible
+chat prompt and final answer.
 
-- raw `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `PLOINKY_*KEY` values
-- raw prompt bodies passed to `oi_run_task`
-- invocation JWTs or bearer tokens
+## Known limitations
 
-## Known first-slice limitations
-
-- `/exec launch-open-interpreter` is the supported deterministic launcher path.
-  Direct slash aliases such as `/open-interpreter` require a future generic
-  AchillesCLI dynamic-alias extension (see DS010).
-- `openHandsAgent`, `agentLaboratoryAgent`, and `aiScientistAgent` are documented
-  in DS007/DS008/DS009 but not yet implemented in this repository.
-- `oi_run_task` requires the upstream `open-interpreter` Python package; the
-  install hook in the manifest pins version `0.4.3`. CI environments without
-  network egress should set `OPEN_INTERPRETER_SKIP_INSTALL=1` and skip the
-  bounded-task test.
+- The current relay is synchronous and bounded by provider and local sandbox
+  runner timeout caps.
+- Large resources and long-running backend loops need a future async/artifact
+  extension in the shared local sandbox runner.
+- Future backend tags require provider agents before they become active relay
+  tags.

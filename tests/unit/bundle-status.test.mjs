@@ -23,7 +23,8 @@ test('research_agents_status returns the default profile by default', () => {
     assert.equal(payload.bundle, 'research-agents');
     assert.equal(payload.profile, 'default');
     const agents = payload.agents.map((a) => a.agent).sort();
-    assert.deepEqual(agents, ['openInterpreterAgent', 'researchCopilot']);
+    assert.deepEqual(agents, ['openInterpreterAgent', 'researchRelay']);
+    assert.ok(!agents.includes('bwrap-runner'), 'research-agents must not enable bwrap-runner');
     assert.ok(payload.availableProfiles.includes('qa'));
     assert.ok(payload.availableProfiles.includes('prod'));
 });
@@ -33,11 +34,9 @@ test('research_agents_status surfaces a requested profile', () => {
     assert.equal(payload.ok, true);
     assert.equal(payload.profile, 'prod');
     const agents = payload.agents.map((a) => a.agent).sort();
-    assert.ok(agents.includes('openHandsAgent'));
-    assert.ok(agents.includes('agentLaboratoryAgent'));
-    assert.ok(agents.includes('aiScientistAgent'));
+    assert.deepEqual(agents, ['openInterpreterAgent', 'researchRelay']);
     const noWait = payload.agents.filter((a) => a.noWait).map((a) => a.agent).sort();
-    assert.deepEqual(noWait, ['agentLaboratoryAgent', 'aiScientistAgent', 'openHandsAgent']);
+    assert.deepEqual(noWait, ['openInterpreterAgent']);
 });
 
 test('research_agents_status falls back to the default profile for unknown names', () => {

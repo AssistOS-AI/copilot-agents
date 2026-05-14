@@ -1,13 +1,9 @@
 import { getWorkspaceRoot } from "/explorer/utils/workspaceRoot.js";
 
-const RESEARCH_COPILOT_AGENT = 'researchCopilot';
-
-function buildSkillRootHint(workspaceRoot) {
-    if (!workspaceRoot) {
-        return '';
-    }
-    return `${workspaceRoot.replace(/\/$/, '')}/.ploinky/repos/copilot-agents/achilles-skills`;
-}
+const RESEARCH_RELAY_AGENT = 'researchRelay';
+const RESEARCH_RELAY_SUBMIT_TOOL = 'research_task_submit';
+const RESEARCH_RELAY_LIST_TOOL = 'research_relay_list_backends';
+const RESEARCH_RELAY_TAGS = 'open-interpreter,oi';
 
 function normalizeRoot(value) {
     const normalized = typeof value === 'string' ? value.trim().replace(/\/+$/g, '') : '';
@@ -32,6 +28,19 @@ function toWorkspaceFsPath(explorerPath, workspaceRoot) {
     return `${root}/${raw}`;
 }
 
+function toWorkspaceRelativeParam(fsPath, workspaceRoot) {
+    const root = normalizeRoot(workspaceRoot);
+    const raw = typeof fsPath === 'string' ? fsPath.trim() : '';
+    if (!root || !raw || (raw !== root && !raw.startsWith(`${root}/`))) {
+        return '';
+    }
+    const relative = raw.slice(root.length).replace(/^\/+/, '');
+    if (relative.includes('\0') || relative.split('/').some((segment) => segment === '..')) {
+        return '';
+    }
+    return relative || '.';
+}
+
 async function callMcp(agent, toolName, payload) {
     const services = window.webSkel?.appServices || window.assistOS?.appServices;
     if (!services || typeof services.callTool !== 'function') {
@@ -51,7 +60,7 @@ async function callMcp(agent, toolName, payload) {
     return response;
 }
 
-export class ResearchCopilot {
+export class ResearchRelay {
     constructor(element, invalidate) {
         this.element = element;
         this.invalidate = invalidate;
@@ -62,8 +71,8 @@ export class ResearchCopilot {
     beforeRender() {}
 
     afterRender() {
-        this.button = this.element.querySelector('#researchCopilotButton');
-        this.statusEl = this.element.querySelector('.research-copilot-button-status');
+        this.button = this.element.querySelector('#researchRelayButton');
+        this.statusEl = this.element.querySelector('.research-relay-button-status');
         this.refreshStatus();
     }
 
@@ -80,14 +89,14 @@ export class ResearchCopilot {
         this.statusEl.textContent = '...';
         this.statusEl.dataset.state = 'pending';
         try {
-            const response = await callMcp(RESEARCH_COPILOT_AGENT, 'research_copilot_status', {});
+            const response = await callMcp(RESEARCH_RELAY_AGENT, 'research_relay_status', {});
             const result = response && response.result ? response.result : response;
-            const reachable = Array.isArray(result && result.backends)
-                ? result.backends.filter((b) => b && b.reachable).length
+            const bwrapReachable = Boolean(result?.execution?.bwrap?.reachable);
+            const configured = Array.isArray(result && result.backends)
+                ? result.backends.filter((backend) => backend && backend.configured).length
                 : 0;
-            const total = Array.isArray(result && result.backends) ? result.backends.length : 0;
-            this.statusEl.textContent = `${reachable}/${total}`;
-            this.statusEl.dataset.state = reachable > 0 ? 'ok' : 'error';
+            this.statusEl.textContent = bwrapReachable ? `relay ${configured}` : 'setup';
+            this.statusEl.dataset.state = bwrapReachable ? 'ok' : 'error';
         } catch (error) {
             this.statusEl.textContent = 'offline';
             this.statusEl.dataset.state = 'error';
@@ -101,13 +110,18 @@ export class ResearchCopilot {
         const dir = this.hostContext.currentFsPath
             || this.hostContext.workspaceFsRoot
             || toWorkspaceFsPath(this.hostContext.currentPath || '/', workspaceRoot);
-        const skillRoot = buildSkillRootHint(workspaceRoot);
-        const params = new URLSearchParams({ agent: 'achilles-cli' });
-        if (dir) {
-            params.set('dir', dir);
-        }
-        if (skillRoot) {
-            params.set('skill-root', skillRoot);
+        const params = new URLSearchParams({
+            agent: 'achilles-cli',
+            'research-tags': '1',
+            'forward-envelope': '1',
+            'tag-relay-agent': RESEARCH_RELAY_AGENT,
+            'tag-relay-submit-tool': RESEARCH_RELAY_SUBMIT_TOOL,
+            'tag-relay-list-tool': RESEARCH_RELAY_LIST_TOOL,
+            'tag-relay-tags': RESEARCH_RELAY_TAGS
+        });
+        const relativeDir = toWorkspaceRelativeParam(dir, workspaceRoot);
+        if (relativeDir) {
+            params.set('workspace-dir', relativeDir);
         }
         window.open(`/webchat?${params.toString()}`, '_blank', 'noopener,noreferrer');
     }

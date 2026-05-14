@@ -1,36 +1,102 @@
 ---
 id: DS006
-title: Open Interpreter Agent
+title: Open Interpreter Provider Agent
 status: planned
 owner: copilot-agents-team
-summary: Defines the Ploinky MCP adapter around Open Interpreter for bounded local coding and analysis tasks.
+summary: Defines the Open Interpreter provider agent. The agent owns Open Interpreter runtime setup and executes tasks inside its own local bwrap sandbox.
 ---
 
-# DS006 - Open Interpreter Agent
+# DS006 - Open Interpreter Provider Agent
 
 ## Introduction
 
-`openInterpreterAgent` adapts Open Interpreter into a Ploinky MCP agent. It is the first execution adapter and the first useful backend for the research copilot suite.
+`openInterpreterAgent` is the Open Interpreter provider agent. It owns
+preparation of the Open Interpreter runtime and execution of bounded research
+tasks inside a local inner bubblewrap sandbox. It does not delegate execution
+to a separate `basic/bwrap-runner` Ploinky agent. Chat-facing tasks reach it
+only through the Research Relay's `@open-interpreter` tag.
 
 ## Core Content
 
-The agent should use a Python 3.12 runtime. A prebuilt image with Open Interpreter installed is preferred. Development profiles may use a `python:3.12-slim` base with a `python3 -m pip` install hook only when cold-start cost is acceptable.
+The agent must run inside a Linux container based on
+`assistos/bwrap-runner:node24-python-bookworm` or a documented derived image
+that preserves the shared sandbox base. This gives Open Interpreter runtime
+preparation and inner bwrap execution the same Linux Python ABI on macOS and
+Linux hosts. The agent must not use `lite-sandbox: true`, because it is itself
+a containerized sandbox host and must run the local bwrap runner. The provider
+manifest must request Ploinky's allowlisted
+`containerSecurity.privileged: true` setting so the inner bubblewrap process
+can create namespaces under common Docker and Podman configurations.
+The provider startup command must run the bwrap-runner image health check
+before `AgentServer.sh`, and readiness should expose the same health check, so
+Ploinky does not mark the provider ready when nested bubblewrap is unavailable.
 
-Telemetry must be disabled by default. The agent must set or enforce the upstream-supported telemetry controls such as `DISABLE_TELEMETRY=true` and equivalent Python configuration.
+The agent must own:
+
+- `openInterpreterAgent/runtime/research-open-interpreter.py`: the Python
+  shim that runs inside the bwrap sandbox. The shim must force telemetry off,
+  keep `auto_run` disabled, and emit a natural-language configuration message
+  when no model/provider/local endpoint is configured, rather than a Python
+  traceback.
+- `openInterpreterAgent/tools/prepare-runtime.mjs`: the idempotent runtime
+  preparation tool. It must target an agent-owned runtime root, defaulting to
+  `/data/research-runtimes/open-interpreter/<version>/`, build into
+  `/data/research-runtimes/open-interpreter/.tmp-*`, install the pinned
+  Python package with
+  `python3 -m pip install --target <tmp>/python open-interpreter==<version>`,
+  copy the shim into `<tmp>/bin/`, write `manifest.json`, and atomically
+  rename the temp dir into the versioned runtime dir when the target does not
+  already exist. If a valid manifest already exists, the tool must reuse the
+  runtime. If an invalid target directory already exists, preparation must
+  fail with a natural-language repair message instead of deleting or replacing
+  the directory in place.
+- `openInterpreterAgent/tools/open-interpreter-run-task.mjs`: the provider
+  tool the Research Relay invokes for `@open-interpreter` tasks. It must
+  validate input, refuse to proceed without a router invocation token,
+  ensure the runtime exists by reusing or preparing it when
+  `OI_RUNTIME_AUTO_PREPARE` is enabled, stage `prompt.md`,
+  `config/open-interpreter.json`, and `input/*` files for a local sandbox
+  job, invoke the shared local sandbox runner inside the provider container
+  with the runtime directory bound read-only at `/runtime`, and normalize
+  stdout/stderr into a natural-language final answer.
+- `openInterpreterAgent/tools/status.mjs`: a status tool that reports whether
+  the runtime is prepared, the configured model topology, the local sandbox
+  health, and the telemetry posture. Status must not expose provider
+  credentials or invocation tokens.
+
+The agent must not bake Open Interpreter into the shared bwrap-runner base
+image. Runtime preparation may install the package into agent-owned persistent
+storage or a provider-specific derived image, but the shared base image must
+remain generic. The inner sandbox should see Open Interpreter through the
+provider-selected `/runtime` bind or through the provider image's documented
+runtime layer, never through a central runner agent.
+
+The agent must not pass caller-provided mounts, bind paths, raw bubblewrap
+flags, network selectors, capabilities, provider credentials, or invocation
+JWTs into the local sandbox runner. Only provider-selected runtime metadata,
+staged files, validated `timeoutMs`, and the prompt command line are forwarded.
+Non-secret model topology such as `OPEN_INTERPRETER_MODEL`,
+`OPEN_INTERPRETER_API_BASE`, `OPEN_INTERPRETER_OFFLINE`, and
+`OPEN_INTERPRETER_LOCAL` may be copied into the staged
+`/work/config/open-interpreter.json` file. Provider API keys and other
+credential-bearing environment variables must not be staged or forwarded.
+
+Telemetry must be disabled by default. The agent must set or enforce the
+upstream-supported telemetry controls such as `DISABLE_TELEMETRY=true` and
+`ANONYMIZED_TELEMETRY=false`. The shim must also force these inside the
+inner sandbox.
 
 The agent must expose at least:
 
-- `oi_status`
-- `oi_chat` or `oi_run_task`
-- `oi_reset_session` when session state is introduced
+- `oi_status` (renamed conceptually, still `oi_status` as MCP tool name)
+- `prepare_runtime`
+- `open_interpreter_run_task`
 
-The first bounded execution tool may be synchronous only if it has a strict timeout and explicit execution mode. Longer or stateful work must move to async MCP tasks and status polling.
+Long or stateful research work is out of scope for this provider tool; if
+introduced later, it must move to async MCP tasks and status polling.
 
-The wrapper should call Open Interpreter through Python APIs when possible rather than building unstructured shell strings. It must validate all target paths against `PLOINKY_WORKSPACE_ROOT`, default to local/offline provider settings when configured, and return compact JSON output.
-
-The agent must not enable `-y` or comparable auto-run behavior by default. Any execution mode that can mutate files or run shell commands must be explicit in tool input and reflected in the schema.
-
-The durable `/data` mount must be declared with Ploinky's manifest volume object-map shape:
+The durable `/data` mount must be declared with Ploinky's manifest volume
+object-map shape:
 
 ```json
 {
@@ -38,25 +104,90 @@ The durable `/data` mount must be declared with Ploinky's manifest volume object
 }
 ```
 
-Array or Docker-style `host:container` volume strings are not valid for this repository.
+Array or Docker-style `host:container` volume strings are not valid for this
+repository.
 
 ## Decisions & Questions
 
-### Question #1: Why implement Open Interpreter first?
+### Question #1: Why run Open Interpreter inside the provider's inner sandbox?
 
 Response:
-Open Interpreter is the smallest useful vertical slice. It validates the Ploinky MCP adapter pattern, telemetry defaults, Explorer status calls, and AchillesCLI launcher path before heavier agents are added.
+Running Open Interpreter directly in the MCP server process would mix tool
+wiring, provider configuration, and untrusted code execution. The provider
+agent should own Open Interpreter runtime setup, then run the backend command
+inside a local inner bwrap sandbox using the shared bwrap-runner policy.
 
 ### Question #2: Why disable telemetry by default?
 
 Response:
-The agent may process local code, prompts, and workspace context. Default-off telemetry keeps data movement explicit and aligns with the repository's redaction and observability posture.
+The agent processes local code, prompts, and workspace context. Default-off
+telemetry keeps data movement explicit and aligns with the repository's
+redaction and observability posture.
 
 ### Question #3: Why require the Ploinky object-map volume shape?
 
 Response:
-Ploinky resolves `manifest.volumes` with `Object.entries()` and applies host-path policy checks to each map key. Docker-style strings are interpreted incorrectly and fail the `.ploinky/` confinement policy at startup.
+Ploinky resolves `manifest.volumes` with `Object.entries()` and applies
+host-path policy checks to each map key. Docker-style strings are
+interpreted incorrectly and fail the `.ploinky/` confinement policy at
+startup.
+
+### Question #4: Why prepare the runtime in a Linux container instead of on the host?
+
+Response:
+The runtime is loaded by the provider's inner sandbox, which runs Linux with
+the bwrap-runner image's Python ABI. macOS host wheels and binaries are not
+portable into that sandbox. Preparing the runtime inside the provider's Linux
+Ploinky container avoids ABI drift.
+
+### Question #5: Why use the bwrap-runner image for the provider agent's container?
+
+Response:
+The provider agent needs Python 3.11, pip, Node 24, and the same dependency
+toolchain that the bwrap-runner image already publishes. Reusing the image
+avoids publishing and maintaining a second sandbox base just to keep ABI
+compatibility.
+
+### Question #6: Why does the shim emit a natural-language configuration message instead of a traceback?
+
+Response:
+The chat invariant requires a natural-language answer in the originating
+chat. A Python traceback from an unconfigured model is not actionable for the
+user and pollutes the chat with implementation details. The shim's
+configuration check is the right surface for that operator guidance.
+
+### Question #7: Why does task execution prepare the runtime on demand?
+
+Response:
+The chat path must work in a fresh workspace after the `research-agents`
+bundle is enabled. Requiring a manual `prepare_runtime` call before the first
+`@open-interpreter` task would make the advertised flow incomplete. The
+explicit `prepare_runtime` tool remains useful for operators who want to warm
+the runtime before chat use or diagnose preparation failures.
+
+### Question #8: Why stage model topology instead of passing environment variables?
+
+Response:
+The local sandbox runner clears the environment and accepts only a generic,
+allowlisted environment plus provider-selected runtime values. That is the
+right sandbox boundary. The provider therefore stages a small non-secret
+config file for the shim and still refuses to forward provider credentials or
+invocation JWTs into the inner sandbox.
+
+### Question #9: Why not call a separate `basic/bwrap-runner` agent?
+
+Response:
+Open Interpreter already needs a provider agent for model topology, runtime
+installation, shim behavior, resource validation, and natural-language result
+normalization. Calling a second runner agent would add a remote MCP hop and a
+shared runtime handoff without reducing provider complexity. Running the same
+local sandbox runner inside the provider container keeps the bwrap policy DRY
+and keeps execution machine independent through the shared Linux image.
 
 ## Conclusion
 
-`openInterpreterAgent` must provide a bounded, telemetry-disabled, workspace-confined Open Interpreter adapter that proves the end-to-end Ploinky and UI integration path.
+`openInterpreterAgent` must own Open Interpreter's runtime and bounded task
+execution inside its own local bwrap sandbox. It must keep the relay free of
+backend command strings and the shared bwrap-runner base image free of
+backend-specific dependencies. Telemetry stays off by default and every
+externally visible response must be natural language, not a traceback.

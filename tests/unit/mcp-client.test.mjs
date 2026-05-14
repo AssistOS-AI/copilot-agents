@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 
-import { callAgentTool } from '../../researchCopilot/tools/lib/mcp.mjs';
+import { callAgentTool } from '../../researchRelay/tools/lib/mcp.mjs';
 
 async function withServer(handler, fn) {
     const server = http.createServer(handler);

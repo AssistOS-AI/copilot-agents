@@ -10,7 +10,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 
 const AGENT_DIRS = [
     'research-agents',
-    'researchCopilot',
+    'researchRelay',
     'openInterpreterAgent',
 ];
 

@@ -3,33 +3,60 @@
         {
             "name": "oi_status",
             "title": "Open Interpreter Status",
-            "description": "Report whether Open Interpreter is installed, the configured model topology, telemetry posture, and durable data root.",
-            "command": "python3 /code/tools/oi_status.py",
+            "description": "Report whether the Open Interpreter runtime bundle is prepared, the configured model topology, and the telemetry posture.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/status.mjs"
+            ],
             "cwd": "/code",
             "inputSchema": {}
         },
         {
-            "name": "oi_run_task",
-            "title": "Open Interpreter Bounded Task",
-            "description": "Run one bounded Open Interpreter task in offline/local mode with a strict timeout. Auto-run is rejected by default; callers must pass execution_mode=\"explicit\" to allow shell/code execution.",
-            "command": "python3 /code/tools/oi_run_task.py",
+            "name": "prepare_runtime",
+            "title": "Prepare Open Interpreter Runtime",
+            "description": "Idempotently prepare /data/research-runtimes/open-interpreter/<version>/ with the open-interpreter Python package, shim, and manifest. Reuses an existing matching runtime.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/prepare-runtime.mjs"
+            ],
             "cwd": "/code",
+            "timeoutMs": 300000,
+            "inputSchema": {}
+        },
+        {
+            "name": "open_interpreter_run_task",
+            "title": "Run Open Interpreter Bounded Task",
+            "description": "Prepare the Open Interpreter runtime when needed, then run one bounded research task by invoking the local bwrap sandbox runner inside this provider container with the runtime bound at /runtime. Returns a natural-language final answer.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/open-interpreter-run-task.mjs"
+            ],
+            "cwd": "/code",
+            "timeoutMs": 450000,
             "inputSchema": {
                 "prompt": {
                     "type": "string",
-                    "optional": false
+                    "optional": false,
+                    "maxLength": 16000
                 },
-                "working_directory": {
-                    "type": "string",
-                    "optional": true
+                "resources": {
+                    "type": "array",
+                    "optional": true,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
                 },
-                "timeout_seconds": {
+                "timeoutMs": {
                     "type": "number",
-                    "optional": true
+                    "optional": true,
+                    "min": 1000,
+                    "max": 120000
                 },
-                "execution_mode": {
-                    "type": "string",
-                    "optional": true
+                "origin": {
+                    "type": "object",
+                    "optional": true,
+                    "additionalProperties": true
                 }
             }
         }

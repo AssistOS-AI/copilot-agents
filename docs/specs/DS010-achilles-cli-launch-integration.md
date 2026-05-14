@@ -1,56 +1,53 @@
 ---
 id: DS010
-title: AchillesCLI Launch Integration
-status: planned
+title: AchillesCLI Tagged Chat Integration
+status: implemented
 owner: copilot-agents-team
-summary: Defines how AchillesCLI Copilot chat launches research agents through external skills and future dynamic slash aliases.
+summary: Defines how AchillesCLI Copilot chat participates in tagged research task dispatch.
 ---
 
 # DS010 - AchillesCLI Launch Integration
 
 ## Introduction
 
-AchillesCLI is already integrated into Explorer as a Copilot chat dependency. This specification defines how `copilot-agents` uses that existing path without making Explorer or AchillesCLI depend directly on this repository.
+AchillesCLI is already integrated into Explorer as a Copilot chat dependency. This specification defines how `copilot-agents` uses that existing path for tagged research tasks without making AchillesCLI own backend-specific runtime logic.
 
 ## Core Content
 
-The first integration path must use AchillesCLI external skill roots. `researchCopilot` should open AchillesCLI WebChat with query parameters equivalent to:
+The current integration path must use AchillesCLI's configured WebChat tag-relay mode. `researchRelay` should open AchillesCLI WebChat with query parameters equivalent to:
 
 ```text
-/webchat?agent=achilles-cli&dir=<selectedFsPath>&skill-root=<workspaceRoot>/.ploinky/repos/copilot-agents/achilles-skills
+/webchat?agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter,oi&tag-relay-list-tool=research_relay_list_backends&dir=<selectedFsPath>
 ```
 
-Ploinky WebChat forwards non-reserved query parameters to the selected agent CLI as long-form flags. AchillesCLI already accepts `--dir` and repeated `--skill-root` arguments, so this path can load launcher skills without changing Explorer or AchillesCLI.
-
-The first launcher command must use existing AchillesCLI slash behavior:
+The preferred URL shape is now:
 
 ```text
-/exec launch-open-interpreter
+/webchat?agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter,oi&tag-relay-list-tool=research_relay_list_backends&workspace-dir=<relativeWorkspacePath>
 ```
 
-The `launch-open-interpreter` launcher must be a deterministic `cskill` with code under `achilles-skills/launch-open-interpreter/src/index.mjs`. It must validate the working directory, inspect the current Ploinky routing file when possible, and return an actionable launch or status message. It must not directly run Open Interpreter or other upstream systems inside the AchillesCLI process.
+`dir=<absolutePath>` remains a Ploinky WebChat compatibility parameter, but Explorer plugins owned by this repository must avoid exposing absolute host paths in browser URLs.
 
-Exact direct commands such as `/open-interpreter`, `/openhands`, `/agent-lab`, and `/ai-scientist` require a later AchillesCLI extension. That extension must be generic, reading slash metadata from discovered skills and merging dynamic aliases into the slash-command catalog. It must not hard-code research-agent command names into AchillesCLI.
+Ploinky WebChat is only the transport. It must forward agent-owned query parameters to AchillesCLI and, when `forward-envelope=1` is present, send the WebChat envelope with sanitized attachment metadata and the selected-agent invocation token. It must not detect research tags, name `researchRelay`, call `research_task_submit`, or own the known-backend catalog.
 
-Static AchillesCLI commands must win on name conflicts. The `list_achilles_cli_commands` MCP catalog must include dynamic aliases after the extension exists so WebChat autocomplete can discover them.
+When `research-tags=1` and the tag-relay parameters are present, AchillesCLI must detect only tags named by `tag-relay-tags` or, if no explicit tag list is provided, tags returned by `researchRelay.research_relay_list_backends`. It must materialize supported shared attachments, call `researchRelay.research_task_submit`, and write the natural-language result back to stdout for the same WebChat stream. Unknown mentions such as `@teammate` must fall through to AchillesCLI as normal chat. Tagged research messages must not be forwarded to AchillesCLI as normal LLM prompts after the relay handles them.
+
+When `forward-envelope=1` is present and a message is not a research tag, WebChat may forward the full WebChat envelope to AchillesCLI. AchillesCLI must normalize that envelope back to plain text before invoking slash or natural-language paths so ordinary chat is not polluted by raw JSON. Attachment metadata may be appended as readable context for non-research prompts.
+
+The legacy `launch-open-interpreter` cskill may remain for migration, but it is no longer the primary contract. Exact direct commands such as `/open-interpreter` are out of scope unless implemented as generic tag aliases that submit to the same relay.
 
 ## Decisions & Questions
 
-### Question #1: Why use `/exec launch-open-interpreter` first?
+### Question #1: Why keep tag interception out of Ploinky WebChat?
 
 Response:
-AchillesCLI already supports `/exec <skill-name>` for discovered user skills. Using that path gives an end-to-end Copilot launch without modifying sibling repositories.
+Ploinky is the framework transport and must not know optional catalog agents such as `researchRelay`. AchillesCLI is the selected chat agent, so it can opt into a generic tag-relay mode through explicit launch parameters. The relay still owns the backend catalog and provider routing, while Ploinky only carries the envelope and invocation grant.
 
-### Question #2: Why not hard-code `/open-interpreter` in AchillesCLI?
-
-Response:
-Hard-coding research-specific commands would couple AchillesCLI to this repository. A generic dynamic alias mechanism keeps AchillesCLI reusable and lets other skill roots define their own direct slash commands.
-
-### Question #3: Why use a `cskill` instead of a `cgskill` prompt?
+### Question #2: Why still normalize WebChat envelopes in AchillesCLI?
 
 Response:
-The launcher is routing glue, not a reasoning task. A `cskill` gives `/exec launch-open-interpreter` a stable skill alias and deterministic URL generation, while avoiding LLM variance in URL encoding, working-directory handling, and deployment notes.
+Envelope forwarding is useful for attachment-aware chat surfaces. AchillesCLI must tolerate it even when a message is not a research tag, otherwise ordinary Copilot prompts would receive raw `__webchatMessage` JSON.
 
 ## Conclusion
 
-The launch integration must first use AchillesCLI external skills and `/exec`, then may graduate to exact slash commands only through a generic dynamic alias extension in AchillesCLI.
+The AchillesCLI integration must preserve normal Copilot chat while allowing the explicitly configured tag relay to handle known research tags and return relay output in the same stream.

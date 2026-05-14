@@ -1,41 +1,37 @@
 {
     "container": "node:20-alpine",
     "lite-sandbox": true,
-    "about": "Explicit deployment bundle for the copilot-agents research suite. Enables researchCopilot and openInterpreterAgent by default; heavier agents stay behind Ploinky selectable profiles.",
+    "about": "Explicit deployment bundle for the copilot-agents research suite. Enables the research-relay (researchRelay) and the openInterpreterAgent provider. Provider agents execute research tasks locally in their own containers based on the shared bwrap-runner image; this bundle must not enable basic/bwrap-runner.",
     "env": [
         "PLOINKY_WORKSPACE_ROOT"
     ],
     "enable": [
-        "researchCopilot global",
-        "openInterpreterAgent global"
+        "researchRelay global",
+        "openInterpreterAgent global no-wait"
     ],
     "profiles": {
         "default": {
             "enable": [
-                "researchCopilot global",
-                "openInterpreterAgent global"
+                "researchRelay global",
+                "openInterpreterAgent global no-wait"
             ]
         },
         "dev": {
             "enable": [
-                "researchCopilot global",
-                "openInterpreterAgent global"
+                "researchRelay global",
+                "openInterpreterAgent global no-wait"
             ]
         },
         "qa": {
             "enable": [
-                "researchCopilot global",
-                "openInterpreterAgent global",
-                "openHandsAgent global no-wait"
+                "researchRelay global",
+                "openInterpreterAgent global no-wait"
             ]
         },
         "prod": {
             "enable": [
-                "researchCopilot global",
-                "openInterpreterAgent global",
-                "openHandsAgent global no-wait",
-                "agentLaboratoryAgent global no-wait",
-                "aiScientistAgent global no-wait"
+                "researchRelay global",
+                "openInterpreterAgent global no-wait"
             ]
         }
     }

@@ -1,122 +1,99 @@
 # Implementation Prompt
 
-You are running from the workspace root that contains `copilot-agents`, `AssistOSExplorer`, and `ploinky`.
+Run from the workspace root that contains `copilot-agents`, `basic`,
+`ploinky`, and `AssistOSExplorer`.
 
-Read and follow:
+Read first:
 
-1. Workspace guidance: `AGENTS.md`
-2. Implementation plan: `copilot-agents/docs/plans/ploinky-research-agents-plan.md`
-3. Explorer contracts:
-   - `AssistOSExplorer/explorer/AGENTS.md`
-   - `AssistOSExplorer/docs/specs/DS02-plugin-hosting-and-dependencies.md`
-   - `AssistOSExplorer/docs/specs/DS06-ploinky-runtime-invariants.md`
-4. Ploinky contracts:
-   - `ploinky/docs/specs/DS003-agent-manifest-and-registry.md`
-   - `ploinky/docs/specs/DS004-runtime-execution-and-isolation.md`
-   - `ploinky/docs/specs/DS005-routing-and-web-surfaces.md`
-   - `ploinky/docs/specs/DS006-auth-capabilities-and-secure-wire.md`
-   - `ploinky/docs/specs/DS009-observability-and-transcripts.md`
-   - `ploinky/docs/specs/DS011-security-model.md`
-5. AchillesCLI contracts:
-   - `AssistOSExplorer/AchillesCLI/achilles-cli/manifest.json`
-   - `AssistOSExplorer/AchillesCLI/achilles-cli/IDE-plugins/achilles-cli-tool-button/config.json`
-   - `AssistOSExplorer/AchillesCLI/achilles-cli/IDE-plugins/achilles-cli-tool-button/menu-contributions.js`
-   - `AssistOSExplorer/AchillesCLI/achilles-cli/src/index.mjs`
-   - `AssistOSExplorer/AchillesCLI/achilles-cli/src/repl/SlashCommandHandler.mjs`
-   - `AssistOSExplorer/AchillesCLI/docs/specs/DS005-repl-and-command-processing.md`
-   - `AssistOSExplorer/AchillesCLI/docs/specs/DS010-ecosystem-integration.md`
+1. Workspace `AGENTS.md`
+2. `copilot-agents/AGENTS.md`
+3. `copilot-agents/docs/plans/ploinky-research-agents-plan.md`
+4. `copilot-agents/docs/plans/provider-local-bwrap-sandbox-migration-plan.md`
+5. `copilot-agents/docs/prompts/implement-provider-local-bwrap-sandbox-migration.md`
+6. `copilot-agents/docs/specs/DS002-ploinky-runtime-invariants.md`
+7. `copilot-agents/docs/specs/DS006-open-interpreter-agent.md`
+8. `copilot-agents/docs/specs/DS012-tagged-research-chat-relay.md`
+9. `basic/docs/specs/DS002-bwrap-runner-agent.md`
+10. `ploinky/docs/specs/DS005-routing-and-web-surfaces.md`
+11. `AssistOSExplorer/webmeetAgent/docs/specs/DS09-ploinky-runtime-invariants.md`
 
 Goal:
 
-Implement the first useful slice of `copilot-agents` as described in the plan.
+Implement or extend the tagged research-agent relay. Research agents are not
+direct chat targets. A user tags a backend from Copilot or WebMeet chat, gives
+it a natural-language task and optional resources, and receives a
+natural-language answer in the originating chat.
 
-Scope for this pass:
+Required invariant:
 
-- Work only in `copilot-agents` unless you prove a blocking integration gap in `AssistOSExplorer` or `ploinky`.
-- Do not add the research agents to Explorer's default dependency list.
-- Do not make individual research agents auto-enable one another. Use the explicit `research-agents` bundle.
-- Do not modify sibling repos for convenience.
-- Do not stage unrelated files, sibling repos, `node_modules`, caches, or generated runtime state.
-- Do not add generated-code, coding-agent, or tool attribution to commits, docs, comments, metadata, release notes, changelogs, or PR text.
+```text
+chat @backend prompt/resources
+  -> researchRelay.research_task_submit
+  -> backend provider agent
+  -> provider-owned runtime setup
+  -> provider-local sandbox runner inside provider container
+  -> backend command in inner bwrap
+  -> natural-language chat reply
+```
 
-Required first slice:
+Do not require or enable a `basic/bwrap-runner` Ploinky agent for research
+execution. The shared artifact is the bwrap-runner Docker image and local
+sandbox runner. Every research provider agent must run in that image or a
+documented derived image and start its own inner bubblewrap sandbox locally.
 
-1. Add repo guidance:
-   - Create small identical `copilot-agents/AGENTS.md` and `copilot-agents/CLAUDE.md`.
-   - Point to the docs entry point and specs.
-   - State that DS specs are source of truth.
-   - State that `AGENTS.md` and `CLAUDE.md` must stay identical.
+Do not:
 
-2. Add documentation skeleton:
-   - `docs/index.html`
-   - `docs/specs/matrix.md`
-   - `docs/specs/DS000-vision.md`
-   - `docs/specs/DS001-coding-style.md`
-   - `docs/specs/DS002-ploinky-runtime-invariants.md`
-   - `docs/specs/DS003-agent-inventory.md`
-   - `docs/specs/DS004-research-agents-bundle.md`
-   - `docs/specs/DS005-research-copilot-agent.md`
-   - `docs/specs/DS006-open-interpreter-agent.md`
-   - `docs/specs/DS007-openhands-agent.md`
-   - `docs/specs/DS008-agent-laboratory-agent.md`
-   - `docs/specs/DS009-ai-scientist-agent.md`
-   - `docs/specs/DS010-achilles-cli-launch-integration.md`
-   - `docs/specs/DS011-security-observability.md`
-   - `docs/specs/matrix.md`
+- Enable direct backend chat agents by default.
+- Enable `basic/bwrap-runner` from the `research-agents` bundle.
+- Add research-agent ids, backend tags, or provider tool names to Ploinky
+  framework code.
+- Pass host paths as bwrap mounts.
+- Follow symlinks outside `PLOINKY_WORKSPACE_ROOT`, `.ploinky/shared`, or a
+  provider-owned runtime root when materializing inputs.
+- Pass raw bwrap flags, network selectors, capabilities, provider credentials,
+  or invocation JWTs into the sandbox.
+- Intercept arbitrary `@word` mentions; only configured backend tags are
+  research invocations.
+- Place absolute host workspace paths in browser launch URLs when a
+  workspace-relative parameter can be used.
+- Log raw prompts, resource contents, base64 payloads, command stdin, or
+  invocation payloads.
+- Add research-agent logic to Explorer core or Ploinky core.
+- Add coding-agent attribution to commits, docs, metadata, changelogs, or PRs.
 
-3. Implement the explicit deployment bundle:
-   - Add `research-agents/manifest.json`.
-   - The bundle should enable `researchCopilot global` and `openInterpreterAgent global` in its default profile.
-   - Heavy agents must stay profile-gated.
-   - Document this command as the supported deployment path:
-     `ploinky enable agent copilot-agents/research-agents global`
-   - Do not require a Ploinky core shorthand like `ploinky enable research-agents` in this pass.
+Only provider-backed tags are active. Keep `@open-interpreter` routed through
+`openInterpreterAgent`; do not add DeepAnalyze, OpenHands, MLJAR, or Agentic
+Data Scientist as active tags until each has a provider agent that owns
+runtime setup and local sandbox execution.
 
-4. Implement `openInterpreterAgent`:
-   - Ploinky `manifest.json`.
-   - `mcp-config.json`.
-   - Python wrapper tools.
-   - At minimum expose `oi_status` and one bounded task/chat tool.
-   - Disable Open Interpreter telemetry by default.
-   - Validate target paths against `PLOINKY_WORKSPACE_ROOT`.
-   - Return compact JSON with `{ "ok": true }` or `{ "ok": false, "error": "..." }`.
-   - Redact secrets, invocation tokens, and raw prompt bodies from logs.
+When changing behavior, update the affected DS file in the same change because
+the specs are the source of truth.
 
-5. Implement `researchCopilot`:
-   - Ploinky `manifest.json`.
-   - `mcp-config.json`.
-   - A minimal Explorer application plugin under `IDE-plugins/research-copilot`.
-   - Mount into an existing Explorer slot, preferably `file-exp:toolbar-plugins-dropdown` or `file-exp:right-bar`.
-   - Add a status action that calls `openInterpreterAgent` through the Ploinky/Explorer MCP path.
-   - Add or document an action that opens AchillesCLI WebChat with both `dir` and `skill-root` query parameters.
-   - Keep domain logic inside the agent/tools, not in Explorer core.
+Verification:
 
-6. Add AchillesCLI launcher skills:
-   - Add `achilles-skills/launch-open-interpreter`.
-   - The no-AchillesCLI-change launch command for this pass is `/exec launch-open-interpreter`.
-   - The skill should validate context, check or report whether `openInterpreterAgent` is deployed, and return a `/webchat?agent=openInterpreterAgent&dir=<workingDir>` launch URL.
-   - Document that exact `/open-interpreter` requires a later AchillesCLI dynamic slash-alias extension because direct slash commands are currently static in `SlashCommandHandler`.
+```bash
+cd basic
+node --check bwrap-runner/bin/sandbox-exec.mjs \
+  bwrap-runner/lib/policy.mjs \
+  bwrap-runner/lib/staging.mjs
+node --test tests/unit/bwrapRunnerPolicy.test.mjs \
+  tests/unit/bwrapRunnerSmoke.test.mjs \
+  tests/unit/bwrapRunnerRuntimeBundles.test.mjs
+./fileSizesCheck.sh
+git diff --check
 
-7. Add tests and smoke documentation:
-   - Unit tests for envelope parsing, path confinement, redaction, and tool output shape.
-   - Static validation for manifests, MCP configs, and plugin config shape.
-   - A documented Ploinky smoke path that enables only `research-agents`, starts Explorer, verifies plugin discovery, verifies `oi_status`, opens AchillesCLI Copilot with `--skill-root`, and runs `/exec launch-open-interpreter`.
+cd ../copilot-agents
+node --check researchRelay/tools/lib/task.mjs \
+  researchRelay/tools/submit-task.mjs \
+  openInterpreterAgent/tools/prepare-runtime.mjs \
+  openInterpreterAgent/tools/open-interpreter-run-task.mjs \
+  openInterpreterAgent/tools/status.mjs
+python3 -m py_compile openInterpreterAgent/runtime/research-open-interpreter.py
+node --test tests/unit/*.test.mjs
+node scripts/validate-manifests.mjs
+git diff --check
+```
 
-Implementation constraints:
-
-- Use the existing Ploinky default AgentServer and `mcp-config.json` tool pattern where practical.
-- Use async MCP tools for long-running tasks, but the first Open Interpreter bounded task may be synchronous if it has a strict timeout.
-- Do not add public unauthenticated HTTP services.
-- Do not use direct agent container ports.
-- Do not mount host paths outside `.ploinky/`.
-- Keep durable state under `.ploinky/data/<agent>`.
-- Keep generated runtime inputs under `.ploinky/agents/<agent>`.
-- Treat OpenHands, Agent Laboratory, and AI Scientist as documented future agents in this first pass unless there is time to scaffold empty manifests safely.
-- If you decide exact `/open-interpreter` must be implemented in this pass, first update AchillesCLI with a generic dynamic slash alias mechanism rather than hard-coding research-specific commands, and update AchillesCLI docs/tests in the same change. Otherwise leave it as planned future work and use `/exec launch-open-interpreter`.
-
-Verification before finishing:
-
-- Run the narrowest relevant tests.
-- Run static validation scripts if you add them.
-- Show `git status --short` for `copilot-agents`.
-- Summarize exactly what changed, what tests ran, and what remains for the next slice.
+Also run syntax checks on any touched JavaScript files in `ploinky`,
+`AssistOSExplorer/AchillesCLI`, or `AssistOSExplorer/webmeetAgent`, and run the
+fresh-workspace browser check described in the plan after unit tests pass.

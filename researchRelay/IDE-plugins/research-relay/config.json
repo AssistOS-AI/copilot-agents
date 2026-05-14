@@ -1,0 +1,13 @@
+{
+    "pluginCategory": "application",
+    "id": "research-relay",
+    "component": "research-relay",
+    "location": ["file-exp:toolbar-plugins-dropdown"],
+    "label": "Research Relay",
+    "tooltip": "Open Copilot chat with @research-agent tags enabled",
+    "icon": "./icon.svg",
+    "presenter": "ResearchRelay",
+    "type": "embedded",
+    "autoPin": false,
+    "dependencies": []
+}

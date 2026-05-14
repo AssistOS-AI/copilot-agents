@@ -1,18 +1,18 @@
-.research-copilot-button {
+.research-relay-button {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
 }
 
-.research-copilot-button-status {
+.research-relay-button-status {
     font-size: 0.75rem;
     opacity: 0.75;
 }
 
-.research-copilot-button-status[data-state="error"] {
+.research-relay-button-status[data-state="error"] {
     color: var(--explorer-color-danger, #b00020);
 }
 
-.research-copilot-button-status[data-state="ok"] {
+.research-relay-button-status[data-state="ok"] {
     color: var(--explorer-color-success, #1a7f37);
 }

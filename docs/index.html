@@ -24,10 +24,12 @@
     <p><small>Documentation entry point for the <code>copilot-agents</code> Ploinky repository.</small></p>
     <h1>Ploinky Research Agents</h1>
     <p>
-        <code>copilot-agents</code> is a Ploinky agent repository that integrates Open Interpreter, OpenHands,
-        Agent Laboratory, and The AI Scientist as router-mediated, manifest-discoverable agents. The suite is
-        not a default AssistOSExplorer dependency. It deploys only through an explicit
-        <code>research-agents</code> bundle.
+        <code>copilot-agents</code> is a Ploinky agent repository that integrates Open Interpreter,
+        Agentic Data Scientist, OpenHands, MLJAR, and DeepAnalyze as tagged research backends.
+        Users invoke them from Copilot or WebMeet chat with <code>@backend</code> mentions; execution is
+        relayed through <code>researchRelay</code> to provider agents that run local bwrap sandboxes from
+        the shared bwrap-runner image. The suite is not a
+        default AssistOSExplorer dependency. It deploys only through an explicit <code>research-agents</code> bundle.
     </p>
 
     <h2>Source of Truth</h2>
@@ -45,28 +47,30 @@ ploinky enable repo copilot-agents
 ploinky enable agent copilot-agents/research-agents global
 ploinky start explorer 8080</pre>
     <p>
-        Heavy execution agents stay gated behind Ploinky's selectable profiles. The default and
-        <code>dev</code> profiles enable only <code>researchCopilot</code> and <code>openInterpreterAgent</code>;
-        <code>qa</code> adds OpenHands; <code>prod</code> adds OpenHands, Agent Laboratory, and AI Scientist.
+        The bundle enables <code>researchRelay</code> and <code>openInterpreterAgent</code>. Backend
+        availability is controlled by provider agents, not by direct backend chat agents, a separate
+        bwrap-runner agent, or relay-owned command strings.
     </p>
 
     <h2>Agent Inventory</h2>
     <ul>
         <li><code>research-agents</code> - explicit deployment bundle</li>
-        <li><code>researchCopilot</code> - Explorer plugin and dispatch agent</li>
-        <li><code>openInterpreterAgent</code> - bounded Open Interpreter MCP adapter</li>
-        <li><code>openHandsAgent</code> - constrained OpenHands adapter (profile-gated)</li>
-        <li><code>agentLaboratoryAgent</code> - Agent Laboratory phase-driven adapter (profile-gated)</li>
-        <li><code>aiScientistAgent</code> - AI Scientist adapter, review-first (profile-gated)</li>
+        <li><code>researchRelay</code> - Explorer plugin and tagged task relay</li>
+        <li><code>openInterpreterAgent</code> - Open Interpreter provider agent</li>
+        <li><code>@open-interpreter</code> - active Open Interpreter backend tag</li>
     </ul>
 
-    <h2>AchillesCLI Launchers</h2>
+    <h2>Chat Tags</h2>
     <p>
-        Launcher skills live under <code>achilles-skills/</code>. <code>researchCopilot</code> opens
-        AchillesCLI WebChat with <code>dir</code> and <code>skill-root</code> query parameters so that
-        <code>/exec launch-open-interpreter</code> runs a deterministic <code>cskill</code> that returns a valid launch URL. Direct slash aliases such as
-        <code>/open-interpreter</code> require a future generic AchillesCLI dynamic-alias extension and are
-        out of scope for the first slice.
+        <code>researchRelay</code> opens AchillesCLI WebChat with <code>research-tags=1</code>,
+        <code>forward-envelope=1</code>, and explicit tag-relay parameters. Messages like
+        <code>@open-interpreter summarize this file</code> are intercepted by AchillesCLI's configured
+        tag-relay mode, sent to <code>research_task_submit</code>, delegated to
+        <code>openInterpreterAgent</code>, executed inside that provider's local bwrap sandbox, and
+        returned to the same chat.
+        Unknown <code>@word</code> mentions remain ordinary chat. Explorer launch URLs use workspace-relative
+        directory parameters so absolute host workspace paths do not appear in copied browser URLs. WebMeet MCP
+        chat uses the same relay and appends the result as an agent-kind chat message.
     </p>
 
     <h2>Specifications</h2>
@@ -76,19 +80,22 @@ ploinky start explorer 8080</pre>
         <li><a href="specsLoader.html?spec=DS002-ploinky-runtime-invariants.md">DS002 - Ploinky Runtime Invariants</a></li>
         <li><a href="specsLoader.html?spec=DS003-agent-inventory.md">DS003 - Agent Inventory</a></li>
         <li><a href="specsLoader.html?spec=DS004-research-agents-bundle.md">DS004 - Research Agents Bundle</a></li>
-        <li><a href="specsLoader.html?spec=DS005-research-copilot-agent.md">DS005 - Research Copilot Agent</a></li>
+        <li><a href="specsLoader.html?spec=DS005-research-relay-agent.md">DS005 - Research Relay Agent</a></li>
         <li><a href="specsLoader.html?spec=DS006-open-interpreter-agent.md">DS006 - Open Interpreter Agent</a></li>
-        <li><a href="specsLoader.html?spec=DS007-openhands-agent.md">DS007 - OpenHands Agent</a></li>
-        <li><a href="specsLoader.html?spec=DS008-agent-laboratory-agent.md">DS008 - Agent Laboratory Agent</a></li>
-        <li><a href="specsLoader.html?spec=DS009-ai-scientist-agent.md">DS009 - AI Scientist Agent</a></li>
-        <li><a href="specsLoader.html?spec=DS010-achilles-cli-launch-integration.md">DS010 - AchillesCLI Launch Integration</a></li>
+        <li><a href="specsLoader.html?spec=DS007-openhands-agent.md">DS007 - OpenHands Backend</a></li>
+        <li><a href="specsLoader.html?spec=DS008-agent-laboratory-agent.md">DS008 - Agentic Data Scientist Backend</a></li>
+        <li><a href="specsLoader.html?spec=DS009-ai-scientist-agent.md">DS009 - MLJAR and DeepAnalyze Backends</a></li>
+        <li><a href="specsLoader.html?spec=DS010-achilles-cli-launch-integration.md">DS010 - AchillesCLI Tagged Chat Integration</a></li>
         <li><a href="specsLoader.html?spec=DS011-security-observability.md">DS011 - Security and Observability</a></li>
+        <li><a href="specsLoader.html?spec=DS012-tagged-research-chat-relay.md">DS012 - Tagged Research Chat Relay</a></li>
     </ul>
 
     <h2>Implementation Plan</h2>
     <p>
         See <a href="plans/ploinky-research-agents-plan.md">plans/ploinky-research-agents-plan.md</a>
-        for analysis, phasing, and risk decisions captured during initial design.
+        for the umbrella research-agent plan and
+        <a href="plans/provider-local-bwrap-sandbox-migration-plan.md">plans/provider-local-bwrap-sandbox-migration-plan.md</a>
+        for the provider-local bwrap migration.
     </p>
 </body>
 </html>

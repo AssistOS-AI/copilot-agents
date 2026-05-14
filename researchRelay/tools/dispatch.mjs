@@ -57,24 +57,37 @@ function resolveSkillRoot(candidate) {
     return { value: path.resolve(root, candidate) };
 }
 
-function buildLaunchPath(backend, workingDir, skillRoot) {
-    const params = new URLSearchParams({ agent: backend.agent });
-    if (workingDir) {
-        params.set('dir', workingDir);
+function toWorkspaceRelative(value, workspaceRoot) {
+    if (!value || !workspaceRoot) {
+        return '';
     }
-    if (skillRoot) {
-        params.set('skill-root', skillRoot);
+    const relative = path.relative(path.resolve(workspaceRoot), path.resolve(value));
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+        return '';
     }
-    return `/webchat?${params.toString()}`;
+    return relative || '.';
 }
 
-function buildCopilotLaunchPath(workingDir, skillRoot) {
-    const params = new URLSearchParams({ agent: 'achilles-cli' });
-    if (workingDir) {
-        params.set('dir', workingDir);
+function buildRelayLaunchPath(workingDir, skillRoot, workspaceRoot, backend) {
+    const relayTags = backend && Array.isArray(backend.tags) ? backend.tags.join(',') : '';
+    const params = new URLSearchParams({
+        agent: 'achilles-cli',
+        'research-tags': '1',
+        'forward-envelope': '1',
+        'tag-relay-agent': 'researchRelay',
+        'tag-relay-submit-tool': 'research_task_submit',
+        'tag-relay-list-tool': 'research_relay_list_backends',
+    });
+    if (relayTags) {
+        params.set('tag-relay-tags', relayTags);
     }
-    if (skillRoot) {
-        params.set('skill-root', skillRoot);
+    const relativeWorkingDir = toWorkspaceRelative(workingDir, workspaceRoot);
+    if (relativeWorkingDir) {
+        params.set('workspace-dir', relativeWorkingDir);
+    }
+    const relativeSkillRoot = toWorkspaceRelative(skillRoot, workspaceRoot);
+    if (relativeSkillRoot) {
+        params.set('workspace-skill-root', relativeSkillRoot);
     }
     return `/webchat?${params.toString()}`;
 }
@@ -103,16 +116,15 @@ async function main() {
 
         writeOk({
             backend: backend.id,
-            agent: backend.agent,
-            launch_url: buildLaunchPath(backend, dir.value, skill.value),
-            copilot_url: buildCopilotLaunchPath(dir.value, skill.value),
+            agent: 'researchRelay',
+            tag: `@${backend.tags[0]}`,
+            launch_url: buildRelayLaunchPath(dir.value, skill.value, process.env.PLOINKY_WORKSPACE_ROOT, backend),
+            relay_url: buildRelayLaunchPath(dir.value, skill.value, process.env.PLOINKY_WORKSPACE_ROOT, backend),
             default_profile: backend.default_profile,
-            note: backend.id === 'open-interpreter'
-                ? 'Open Interpreter is part of the default research-agents profile.'
-                : `Enable bundle profile '${backend.default_profile}' before dispatching this backend.`,
+            note: 'Research backends are invoked by @tag from Copilot chat; direct backend WebChat launch is deprecated.',
         });
     } catch (error) {
-        writeError(error && error.message ? error.message : 'research_copilot_dispatch failed');
+        writeError(error && error.message ? error.message : 'research_relay_dispatch failed');
     }
 }
 

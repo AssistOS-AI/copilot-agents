@@ -1,50 +1,40 @@
 ---
 id: DS009
-title: AI Scientist Agent
+title: MLJAR and DeepAnalyze Backends
 status: planned
 owner: copilot-agents-team
-summary: Defines the optional heavy adapter for The AI Scientist workflows, templates, reviews, and manuscript outputs.
+summary: Reserves the future MLJAR and DeepAnalyze provider backend contracts.
 ---
 
-# DS009 - AI Scientist Agent
+# DS009 - MLJAR and DeepAnalyze Backends
 
 ## Introduction
 
-`aiScientistAgent` adapts The AI Scientist into Ploinky. It is an optional heavy research agent and must not be part of the default lightweight deployment path.
+`@mljar` and `@deepanalyze` are reserved future research tags. They are not
+currently exposed by `researchRelay` and are not direct Ploinky chat agents in
+the current architecture.
 
 ## Core Content
 
-The agent should use prebuilt Python images with template-specific dependencies. CPU, GPU, and LaTeX variants must be modeled through profiles or image tags rather than hidden runtime assumptions.
+Before either tag becomes active, the repository must add a provider agent
+that owns the backend's runtime preparation, task staging, and local sandbox
+execution from a container based on the shared bwrap-runner image.
 
-The agent must store durable state under `.ploinky/data/aiScientistAgent`. It must keep generated runtime inputs under `.ploinky/agents/aiScientistAgent` or validated project output directories.
-
-The agent may expose async tools such as:
-
-- `scientist_generate_ideas`
-- `scientist_run_experiment`
-- `scientist_generate_paper`
-- `scientist_review_paper`
-- `scientist_status`
-- `scientist_export`
-
-Templates must be allow-listed. The adapter must validate template setup before running experiments and must not accept arbitrary unchecked template paths from user input.
-
-Paper review should be available independently from full experiment execution. This gives users a lower-risk first integration and supports bounded testing.
-
-Generated manuscript artifacts must preserve upstream responsible-use and disclosure requirements. The adapter must not strip or hide required disclosure text from paper outputs.
+The current provider path does not collect `/outputs` artifacts or run async jobs.
+Backends that require longer runtime, large data files, network access, or
+artifact export need provider-owned async, artifact, and local runner support
+before they are considered complete.
 
 ## Decisions & Questions
 
-### Question #1: Why keep AI Scientist out of the default bundle profile?
+### Question #1: Why share one planned DS for MLJAR and DeepAnalyze?
 
 Response:
-The AI Scientist can involve heavy dependencies, long experiments, LaTeX output, and GPU-sensitive templates. Keeping it profile-gated prevents expensive or unsuitable workloads from starting in ordinary Explorer sessions.
-
-### Question #2: Why implement review before full experiment execution?
-
-Response:
-Paper review is a narrower capability with lower runtime risk. It lets the repository validate wrapper, status, and artifact behavior before enabling larger experiment loops.
+Both are planned data-analysis backends with similar sandbox and artifact
+questions. They can split into separate DS files after concrete provider
+agents define different runtime and artifact needs.
 
 ## Conclusion
 
-`aiScientistAgent` must be optional, profile-gated, template-validated, and careful about generated manuscript disclosure requirements.
+`@mljar` and `@deepanalyze` remain reserved until provider agents own runtime
+setup and local sandbox execution.

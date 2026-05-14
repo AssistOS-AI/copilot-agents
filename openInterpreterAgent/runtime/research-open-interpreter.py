@@ -110,6 +110,9 @@ def main() -> int:
         api_base = config.get("api_base")
         if api_base:
             interpreter.llm.api_base = str(api_base)
+        api_key = config.get("api_key")
+        if api_key:
+            interpreter.llm.api_key = str(api_key)
     except Exception as exc:  # pragma: no cover - upstream API drift
         emit(f"Open Interpreter configuration failed: {exc}.")
         return 0

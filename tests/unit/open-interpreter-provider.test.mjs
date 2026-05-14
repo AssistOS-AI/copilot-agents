@@ -17,6 +17,7 @@ import {
     resolvePreparedRuntime,
     resolveRuntimeRoot,
 } from '../../openInterpreterAgent/tools/lib/runtime-bundle.mjs';
+import { startOpenAICompatibleBroker } from '../../openInterpreterAgent/tools/lib/openai-compatible-broker.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATUS_TOOL = path.resolve(__dirname, '../../openInterpreterAgent/tools/status.mjs');
@@ -29,6 +30,27 @@ function mkroot() {
 function writeManifest(dir, manifest) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+}
+
+function writeAchillesConfig(dir, overrides = {}) {
+    const configPath = path.join(dir, 'LLMConfig.json');
+    const config = {
+        defaults: {
+            research: 'soul_gateway/deep',
+            ...(overrides.defaults || {}),
+        },
+        providers: {
+            soul_gateway: {
+                baseURL: 'https://soul.axiologic.dev/v1/chat/completions',
+                apiKeyEnv: 'SOUL_GATEWAY_API_KEY',
+                module: './utils/LLMProviders/providers/openai.mjs',
+                ...(overrides.provider || {}),
+            },
+        },
+        models: [],
+    };
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    return configPath;
 }
 
 function startStubRouter(handler) {
@@ -198,7 +220,7 @@ test('open_interpreter_run_task refuses without an invocation token', () => {
     const child = spawnSync(process.execPath, [TASK_TOOL], {
         input: JSON.stringify({ tool: 'open_interpreter_run_task', input: { prompt: 'hello' } }),
         encoding: 'utf8',
-        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp' },
+        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp', SOUL_GATEWAY_API_KEY: '' },
         timeout: 10000,
     });
     const payload = JSON.parse(child.stdout || '{}');
@@ -216,7 +238,7 @@ test('open_interpreter_run_task returns a natural-language message when the bund
                 metadata: { invocationToken: 'test-token' },
             }),
             encoding: 'utf8',
-            env: { ...process.env, OI_RUNTIME_ROOT: root, OI_RUNTIME_AUTO_PREPARE: 'false' },
+            env: { ...process.env, OI_RUNTIME_ROOT: root, OI_RUNTIME_AUTO_PREPARE: 'false', SOUL_GATEWAY_API_KEY: '' },
             timeout: 10000,
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
@@ -249,6 +271,7 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
             OPEN_INTERPRETER_MODEL: '',
             OPEN_INTERPRETER_API_BASE: '',
             OPEN_INTERPRETER_LOCAL: '',
+            SOUL_GATEWAY_API_KEY: '',
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
         const payload = JSON.parse(child.stdout || '{}');
@@ -256,7 +279,8 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
         assert.equal(payload.backend_ok, true);
         assert.equal(payload.sandbox_ok, false);
         assert.match(payload.final_answer, /runtime bundle open-interpreter@0\.4\.3 is prepared/);
-        assert.match(payload.final_answer, /no model or local endpoint is configured/);
+        assert.match(payload.final_answer, /no Soul Gateway, model, or local endpoint is configured/);
+        assert.match(payload.final_answer, /SOUL_GATEWAY_API_KEY/);
         assert.doesNotMatch(payload.final_answer, /sandbox runner|local bwrap|not installed/);
         assert.deepEqual(payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
     } finally {
@@ -272,7 +296,7 @@ test('open_interpreter_run_task validates prompt presence and resource size', ()
             metadata: { invocationToken: 'test-token' },
         }),
         encoding: 'utf8',
-        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp' },
+        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp', SOUL_GATEWAY_API_KEY: '' },
         timeout: 10000,
     });
     const payload = JSON.parse(child.stdout || '{}');
@@ -300,6 +324,8 @@ process.stdin.on('end', () => {
     fs.writeFileSync(${JSON.stringify(stubMarker)}, JSON.stringify({
         env: {
             BWRAP_RUNNER_RUNTIME_ROOT: process.env.BWRAP_RUNNER_RUNTIME_ROOT || null,
+            BWRAP_RUNNER_ALLOW_NETWORK: process.env.BWRAP_RUNNER_ALLOW_NETWORK || null,
+            SOUL_GATEWAY_API_KEY: process.env.SOUL_GATEWAY_API_KEY || null,
         },
         payload: JSON.parse(text || '{}'),
     }));
@@ -338,6 +364,7 @@ process.stdin.on('end', () => {
             OI_LOCAL_RUNNER_BIN: wrapper,
             OPEN_INTERPRETER_MODEL: 'local-model',
             OPEN_INTERPRETER_API_BASE: 'http://127.0.0.1:11434/v1',
+            SOUL_GATEWAY_API_KEY: 'soul-secret-should-not-win',
             // No PLOINKY_ROUTER_URL: the provider must not call the router.
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
@@ -349,6 +376,10 @@ process.stdin.on('end', () => {
         const received = JSON.parse(fs.readFileSync(stubMarker, 'utf8'));
         assert.equal(received.env.BWRAP_RUNNER_RUNTIME_ROOT, root,
             'local runner must receive BWRAP_RUNNER_RUNTIME_ROOT pointing at the provider-owned runtime root');
+        assert.equal(received.env.BWRAP_RUNNER_ALLOW_NETWORK, null,
+            'explicit Open Interpreter overrides must not force broker network mode');
+        assert.equal(received.env.SOUL_GATEWAY_API_KEY, null,
+            'child runner env must not receive SOUL_GATEWAY_API_KEY');
         assert.deepEqual(received.payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
         assert.match(received.payload.command, /\/work\/config\/open-interpreter\.json/);
         const configFile = received.payload.files.find((file) => file.path === 'config/open-interpreter.json');
@@ -356,9 +387,105 @@ process.stdin.on('end', () => {
         const config = JSON.parse(configFile.content);
         assert.equal(config.model, 'local-model');
         assert.equal(config.api_base, 'http://127.0.0.1:11434/v1');
+        assert.equal(config.api_key, null);
         const serialized = JSON.stringify(received);
         assert.ok(!serialized.includes('OPENAI_API_KEY'), 'credentials must not be staged');
+        assert.ok(!serialized.includes('soul-secret-should-not-win'), 'SOUL_GATEWAY_API_KEY must not be staged');
         assert.ok(!serialized.includes('test-token'), 'invocation token must not be passed to the inner sandbox');
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+        fs.rmSync(stubDir, { recursive: true, force: true });
+    }
+});
+
+test('open_interpreter_run_task autoconfigures Soul Gateway through Achilles without staging the provider key', async () => {
+    const root = mkroot();
+    writeManifest(bundleDir(root), buildManifest({ digest: 'sha256:abc' }));
+
+    const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oi-soul-runner-stub-'));
+    const achillesConfigPath = writeAchillesConfig(stubDir);
+    const stubBin = path.join(stubDir, 'stub-runner.mjs');
+    const stubMarker = path.join(stubDir, 'received.json');
+    fs.writeFileSync(stubBin, `#!/usr/bin/env node
+import fs from 'node:fs';
+const chunks = [];
+process.stdin.on('data', (chunk) => chunks.push(chunk));
+process.stdin.on('end', () => {
+    const text = Buffer.concat(chunks).toString('utf8');
+    fs.writeFileSync(${JSON.stringify(stubMarker)}, JSON.stringify({
+        env: {
+            BWRAP_RUNNER_RUNTIME_ROOT: process.env.BWRAP_RUNNER_RUNTIME_ROOT || null,
+            BWRAP_RUNNER_ALLOW_NETWORK: process.env.BWRAP_RUNNER_ALLOW_NETWORK || null,
+            SOUL_GATEWAY_API_KEY: process.env.SOUL_GATEWAY_API_KEY || null,
+        },
+        payload: JSON.parse(text || '{}'),
+    }));
+    process.stdout.write(JSON.stringify({
+        ok: true,
+        jobId: 'soul-job-1',
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        elapsedMs: 9,
+        network: 'inherit',
+        stdout: { text: 'configured response through broker', truncated: false, byteLength: 34 },
+        stderr: { text: '', truncated: false, byteLength: 0 },
+    }) + '\\n');
+});
+`);
+    fs.chmodSync(stubBin, 0o755);
+    const wrapper = path.join(stubDir, 'bwrap-sandbox-exec');
+    fs.writeFileSync(wrapper, `#!/bin/sh\nexec "${process.execPath}" "${stubBin}" "$@"\n`);
+    fs.chmodSync(wrapper, 0o755);
+
+    try {
+        const child = await runTaskTool({
+            tool: 'open_interpreter_run_task',
+            input: { prompt: 'hello world', timeoutMs: 5000 },
+            metadata: { invocationToken: 'test-token' },
+        }, {
+            OI_RUNTIME_ROOT: root,
+            OI_RUNTIME_AUTO_PREPARE: 'false',
+            OI_LOCAL_RUNNER_BIN: wrapper,
+            LLM_MODELS_CONFIG_PATH: achillesConfigPath,
+            SOUL_GATEWAY_API_KEY: 'soul-secret-for-test',
+            OPEN_INTERPRETER_MODEL: '',
+            OPEN_INTERPRETER_API_BASE: '',
+            OPEN_INTERPRETER_LOCAL: '',
+            OPEN_INTERPRETER_OFFLINE: 'true',
+        });
+        assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
+        const payload = JSON.parse(child.stdout || '{}');
+        assert.equal(payload.ok, true, `expected ok=true; got ${JSON.stringify(payload)}`);
+        assert.equal(payload.jobId, 'soul-job-1');
+
+        const received = JSON.parse(fs.readFileSync(stubMarker, 'utf8'));
+        assert.equal(received.env.BWRAP_RUNNER_RUNTIME_ROOT, root);
+        assert.equal(received.env.BWRAP_RUNNER_ALLOW_NETWORK, 'true',
+            'broker-backed Open Interpreter jobs must allow inherited network to reach the local broker');
+        assert.equal(received.env.SOUL_GATEWAY_API_KEY, null,
+            'child runner env must not receive SOUL_GATEWAY_API_KEY');
+
+        const configFile = received.payload.files.find((file) => file.path === 'config/open-interpreter.json');
+        assert.ok(configFile, 'expected staged Open Interpreter config');
+        const config = JSON.parse(configFile.content);
+        assert.equal(config.model, 'openai/deep');
+        assert.match(config.api_base, /^http:\/\/127\.0\.0\.1:\d+\/v1$/);
+        assert.match(config.api_key, /^oi-broker-/);
+        assert.equal(config.offline, false);
+        assert.equal(config.local, null);
+
+        const serialized = JSON.stringify(received);
+        assert.ok(!serialized.includes('soul-secret-for-test'), 'SOUL_GATEWAY_API_KEY must not be staged');
+        assert.ok(!serialized.includes('test-token'), 'invocation token must not be passed to the inner sandbox');
+        await assert.rejects(
+            fetch(`${config.api_base}/chat/completions`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${config.api_key}`, 'content-type': 'application/json' },
+                body: JSON.stringify({ messages: [] }),
+            }),
+            'broker must be closed after the task finishes',
+        );
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
         fs.rmSync(stubDir, { recursive: true, force: true });
@@ -393,6 +520,7 @@ test('open_interpreter_run_task does not call the router for sandbox execution',
             OI_RUNTIME_AUTO_PREPARE: 'false',
             OI_LOCAL_RUNNER_BIN: '/nonexistent/path/to/bwrap-sandbox-exec',
             PLOINKY_ROUTER_URL: `http://127.0.0.1:${port}`,
+            SOUL_GATEWAY_API_KEY: '',
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
         const payload = JSON.parse(child.stdout || '{}');
@@ -408,6 +536,64 @@ test('open_interpreter_run_task does not call the router for sandbox execution',
         await new Promise((resolve) => server.close(resolve));
         fs.rmSync(root, { recursive: true, force: true });
     }
+});
+
+test('Open Interpreter broker restricts routes, injects upstream authorization, and closes cleanly', async () => {
+    const { server, port, calls } = await startStubRouter((call) => ({
+        status: 200,
+        body: {
+            id: 'chatcmpl-test',
+            choices: [{ message: { role: 'assistant', content: 'ok' } }],
+            echoedModel: call.body?.model,
+        },
+    }));
+    const broker = await startOpenAICompatibleBroker({
+        upstreamUrl: `http://127.0.0.1:${port}/v1/chat/completions`,
+        upstreamApiKey: 'real-soul-key',
+        upstreamModel: 'deep',
+        sandboxApiKey: 'sandbox-only-key',
+    });
+    try {
+        const unsupported = await fetch(`${broker.apiBase}/models`);
+        assert.equal(unsupported.status, 404);
+
+        const wrongMethod = await fetch(`${broker.apiBase}/chat/completions`);
+        assert.equal(wrongMethod.status, 405);
+
+        const unauthorized = await fetch(`${broker.apiBase}/chat/completions`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ model: 'openai/deep', messages: [] }),
+        });
+        assert.equal(unauthorized.status, 401);
+
+        const ok = await fetch(`${broker.apiBase}/chat/completions`, {
+            method: 'POST',
+            headers: {
+                authorization: 'Bearer sandbox-only-key',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({ model: 'openai/deep', messages: [{ role: 'user', content: 'hello' }] }),
+        });
+        assert.equal(ok.status, 200);
+        const responseBody = await ok.json();
+        assert.equal(responseBody.echoedModel, 'deep');
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].headers.authorization, 'Bearer real-soul-key');
+        assert.equal(calls[0].body.model, 'deep');
+        assert.equal(calls[0].body.messages[0].content, 'hello');
+    } finally {
+        await broker.close();
+        await new Promise((resolve) => server.close(resolve));
+    }
+
+    await assert.rejects(
+        fetch(`${broker.apiBase}/chat/completions`, {
+            method: 'POST',
+            headers: { authorization: 'Bearer sandbox-only-key', 'content-type': 'application/json' },
+            body: JSON.stringify({ messages: [] }),
+        }),
+    );
 });
 
 test('open_interpreter_run_task source must not import the MCP router client', () => {
@@ -431,6 +617,10 @@ test('openInterpreterAgent manifest requests privileged container security and u
     assert.deepEqual(manifest.readiness, { protocol: 'mcp' });
     assert.equal(manifest.health.readiness.script, 'healthcheck.sh');
     assert.equal(manifest.profiles.default.env.OI_RUNTIME_ROOT, '/data/research-runtimes');
+    assert.ok(manifest.env.includes('SOUL_GATEWAY_API_KEY'),
+        'manifest env must expose SOUL_GATEWAY_API_KEY for Achilles Soul Gateway autoconfig');
+    assert.ok(!manifest.env.includes('SOUL_GATEWAY_BASE_URL'),
+        'manifest env must not require SOUL_GATEWAY_BASE_URL for the normal path');
     assert.ok(!manifest.env.includes('RESEARCH_BWRAP_AGENT'),
         'manifest env must not advertise RESEARCH_BWRAP_AGENT');
     const healthcheckPath = path.resolve(__dirname, '../../openInterpreterAgent/healthcheck.sh');

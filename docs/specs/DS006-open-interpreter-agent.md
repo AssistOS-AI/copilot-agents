@@ -54,13 +54,18 @@ The agent must own:
   tool the Research Relay invokes for `@open-interpreter` tasks. It must
   validate input, refuse to proceed without a router invocation token,
   ensure the runtime exists by reusing or preparing it when
-  `OI_RUNTIME_AUTO_PREPARE` is enabled, return immediate natural-language
-  configuration guidance when no model/provider/local endpoint is configured,
-  stage `prompt.md`, `config/open-interpreter.json`, and `input/*` files for
-  configured local sandbox jobs, invoke the shared local sandbox runner inside
-  the provider container with the runtime directory bound read-only at
-  `/runtime`, and normalize stdout/stderr into a natural-language final
-  answer.
+  `OI_RUNTIME_AUTO_PREPARE` is enabled, resolve Open Interpreter LLM
+  configuration, stage `prompt.md`, `config/open-interpreter.json`, and
+  `input/*` files for configured local sandbox jobs, invoke the shared local
+  sandbox runner inside the provider container with the runtime directory
+  bound read-only at `/runtime`, and normalize stdout/stderr into a
+  natural-language final answer. Configuration resolution must prefer
+  explicit `OPEN_INTERPRETER_MODEL`, `OPEN_INTERPRETER_API_BASE`, and
+  `OPEN_INTERPRETER_LOCAL` overrides for local development; otherwise it must
+  autoconfigure from AchillesAgentLib's `research` model default and
+  `soul_gateway` provider when `SOUL_GATEWAY_API_KEY` is present. If neither
+  path is available, it must return immediate natural-language configuration
+  guidance before invoking the sandbox runner.
 - `openInterpreterAgent/tools/status.mjs`: a status tool that reports whether
   the runtime is prepared, the configured model topology, the local sandbox
   health, and the telemetry posture. Status must not expose provider
@@ -73,15 +78,37 @@ remain generic. The inner sandbox should see Open Interpreter through the
 provider-selected `/runtime` bind or through the provider image's documented
 runtime layer, never through a central runner agent.
 
+The normal hosted-provider path must require only `SOUL_GATEWAY_API_KEY`.
+Soul Gateway's URL and the research model alias must come from
+AchillesAgentLib configuration; the current Achilles default maps
+`research` to `soul_gateway/deep`. `SOUL_GATEWAY_BASE_URL` is not part of the
+required Open Interpreter provider contract. Explicit `OPEN_INTERPRETER_*`
+overrides remain allowed for local or development endpoints, but they must not
+be required for the normal Ploinky path.
+
 The agent must not pass caller-provided mounts, bind paths, raw bubblewrap
 flags, network selectors, capabilities, provider credentials, or invocation
 JWTs into the local sandbox runner. Only provider-selected runtime metadata,
-staged files, validated `timeoutMs`, and the prompt command line are forwarded.
-Non-secret model topology such as `OPEN_INTERPRETER_MODEL`,
-`OPEN_INTERPRETER_API_BASE`, `OPEN_INTERPRETER_OFFLINE`, and
-`OPEN_INTERPRETER_LOCAL` may be copied into the staged
-`/work/config/open-interpreter.json` file. Provider API keys and other
-credential-bearing environment variables must not be staged or forwarded.
+staged files, validated `timeoutMs`, and the prompt command line are
+forwarded. Non-secret model topology such as explicit
+`OPEN_INTERPRETER_MODEL`, `OPEN_INTERPRETER_API_BASE`,
+`OPEN_INTERPRETER_OFFLINE`, and `OPEN_INTERPRETER_LOCAL` values may be copied
+into the staged `/work/config/open-interpreter.json` file. For Achilles Soul
+Gateway autoconfiguration, the provider must start a short-lived
+OpenAI-compatible local broker outside the inner bwrap sandbox. The staged
+Open Interpreter config may contain the broker's loopback `/v1` API base,
+the Open Interpreter-compatible model name, and a dummy broker token, but it
+must not contain `SOUL_GATEWAY_API_KEY` or the upstream provider bearer token.
+The broker must inject the raw Soul Gateway key only in the outer provider
+process, support only the minimum chat-completions route needed by Open
+Interpreter, enforce size and timeout limits, avoid logging prompt bodies or
+secrets, and shut down after the task.
+
+Broker-backed jobs require the inner bwrap runner to inherit the provider
+container network so the sandbox can reach the loopback broker. This network
+change must be scoped to `openInterpreterAgent` broker-backed jobs. It
+protects the raw provider key from the sandbox, but it does not claim to block
+all sandbox outbound network access for that job.
 
 Telemetry must be disabled by default. The agent must set or enforce the
 upstream-supported telemetry controls such as `DISABLE_TELEMETRY=true` and
@@ -187,6 +214,26 @@ normalization. Calling a second runner agent would add a remote MCP hop and a
 shared runtime handoff without reducing provider complexity. Running the same
 local sandbox runner inside the provider container keeps the bwrap policy DRY
 and keeps execution machine independent through the shared Linux image.
+
+### Question #10: Why use Achilles Soul Gateway autoconfiguration?
+
+Response:
+Other Ploinky agents resolve hosted LLM topology from AchillesAgentLib rather
+than each agent owning hardcoded provider URLs and model aliases. Keeping the
+Open Interpreter mapping inside an agent-local adapter lets
+`openInterpreterAgent` follow that convention while preserving the framework
+boundary: Ploinky core still has no knowledge of Open Interpreter,
+researchRelay, or Soul Gateway-specific execution.
+
+### Question #11: Why place a broker between Open Interpreter and Soul Gateway?
+
+Response:
+Open Interpreter speaks to an OpenAI-compatible `/v1` API base and may require
+an API key value in its runtime configuration. Passing the raw
+`SOUL_GATEWAY_API_KEY` into the inner bwrap sandbox would violate the provider
+credential boundary. A short-lived broker lets the sandbox hold only a dummy
+token and a loopback URL while the outer provider process injects the real
+Soul Gateway bearer token when forwarding the chat-completions request.
 
 ## Conclusion
 

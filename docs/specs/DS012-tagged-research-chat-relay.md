@@ -70,7 +70,14 @@ calls. Backends without provider agents are not active research tags.
 Provider-backed tasks must travel through MCP, not through direct process
 calls. The provider agent receives `prompt`, `resources`, `timeoutMs`, and
 `origin` and is responsible for runtime selection, sandbox staging, local
-sandbox execution, and natural-language normalization.
+sandbox execution, and natural-language normalization. For the active
+`@open-interpreter` backend, normal hosted LLM configuration is provider-owned:
+`openInterpreterAgent` autoconfigures from AchillesAgentLib's `research`
+default and `soul_gateway` provider when `SOUL_GATEWAY_API_KEY` is present.
+The relay must not require or forward `SOUL_GATEWAY_BASE_URL`, raw provider
+credentials, or backend-specific model settings. Explicit
+`OPEN_INTERPRETER_*` overrides remain an `openInterpreterAgent` local
+development concern.
 
 The relay must not pass caller-provided mounts, bind paths, raw bwrap flags,
 network selectors, capabilities, provider credentials, or invocation JWTs
@@ -138,10 +145,11 @@ disclosure of host directory layouts.
 Response:
 The Open Interpreter runtime is a heavy Python dependency closure with its
 own version pin and shim. Owning runtime preparation, model/provider
-configuration, and local sandbox execution inside `openInterpreterAgent` keeps
-the relay generic. The relay does not need to know runtime ids, paths, or shim
-locations, and the shared bwrap-runner image stays free of backend-specific
-dependencies.
+configuration, Achilles Soul Gateway autoconfiguration, broker-mediated
+secret handling, and local sandbox execution inside `openInterpreterAgent`
+keeps the relay generic. The relay does not need to know runtime ids, paths,
+shim locations, provider URLs, or model aliases, and the shared bwrap-runner
+image stays free of backend-specific dependencies.
 
 ### Question #7: Why stage files through the local sandbox runner instead of passing setup code?
 

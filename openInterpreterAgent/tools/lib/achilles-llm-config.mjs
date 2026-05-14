@@ -19,39 +19,6 @@ function hasOwnEnvValue(env, name) {
     return Object.prototype.hasOwnProperty.call(env, name);
 }
 
-function loadDotEnvWalkUp(startDir, targetEnv = process.env) {
-    let dir = path.resolve(startDir);
-    const { root } = path.parse(dir);
-    while (true) {
-        const candidate = path.join(dir, '.env');
-        if (fs.existsSync(candidate)) {
-            try {
-                const content = fs.readFileSync(candidate, 'utf8');
-                for (const rawLine of content.split('\n')) {
-                    let trimmed = rawLine.trim();
-                    if (!trimmed || trimmed.startsWith('#')) continue;
-                    if (trimmed.startsWith('export ')) trimmed = trimmed.slice(7).trim();
-                    const eq = trimmed.indexOf('=');
-                    if (eq === -1) continue;
-                    const key = trimmed.slice(0, eq).trim();
-                    let val = trimmed.slice(eq + 1).trim();
-                    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-                        val = val.slice(1, -1);
-                    }
-                    if (key && !targetEnv[key]) {
-                        targetEnv[key] = val;
-                    }
-                }
-            } catch (_) {
-                // Keep dotenv loading best-effort, matching Achilles behavior.
-            }
-            return;
-        }
-        if (dir === root) return;
-        dir = path.dirname(dir);
-    }
-}
-
 function boolFromEnv(env, name, defaultValue = false) {
     const raw = env[name];
     if (raw == null || raw === '') return defaultValue;
@@ -303,8 +270,6 @@ export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } 
             reason: `${SOUL_GATEWAY_API_KEY_ENV} is not set`,
         };
     }
-
-    loadDotEnvWalkUp(process.cwd(), env);
 
     let achilles = null;
     try {

@@ -17,13 +17,13 @@ AchillesCLI is already integrated into Explorer as a Copilot chat dependency. Th
 The current integration path must use AchillesCLI's configured WebChat tag-relay mode. Explorer must keep the normal `Open Copilot here` action as the only visible chat entry point. The `researchRelay` plugin contributes launch metadata through `file-exp:copilot-launch-extension`, and the AchillesCLI Copilot launcher applies those generic query parameters when it builds a WebChat URL equivalent to:
 
 ```text
-/webchat?agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter,oi&tag-relay-list-tool=research_relay_list_backends&dir=<selectedFsPath>
+/webchat?agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter&tag-relay-list-tool=research_relay_list_backends&dir=<selectedFsPath>
 ```
 
 The preferred URL shape is now:
 
 ```text
-/webchat?agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter,oi&tag-relay-list-tool=research_relay_list_backends&workspace-dir=<relativeWorkspacePath>
+/webchat?agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter&tag-relay-list-tool=research_relay_list_backends&workspace-dir=<relativeWorkspacePath>
 ```
 
 `dir=<absolutePath>` remains a Ploinky WebChat compatibility parameter, but Explorer launch extensions owned by this repository must avoid exposing absolute host paths in browser URLs when a workspace-relative path can be computed.

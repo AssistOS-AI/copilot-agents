@@ -16,7 +16,7 @@
             "tag-relay-agent": "researchRelay",
             "tag-relay-submit-tool": "research_task_submit",
             "tag-relay-list-tool": "research_relay_list_backends",
-            "tag-relay-tags": "open-interpreter,oi"
+            "tag-relay-tags": "open-interpreter"
         },
         "workspaceDirParam": "workspace-dir"
     },

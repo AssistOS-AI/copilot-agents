@@ -20,7 +20,7 @@ test('researchRelay contributes launch metadata instead of a separate Explorer m
     assert.equal(config.copilotLaunch.query['tag-relay-agent'], 'researchRelay');
     assert.equal(config.copilotLaunch.query['tag-relay-submit-tool'], 'research_task_submit');
     assert.equal(config.copilotLaunch.query['tag-relay-list-tool'], 'research_relay_list_backends');
-    assert.equal(config.copilotLaunch.query['tag-relay-tags'], 'open-interpreter,oi');
+    assert.equal(config.copilotLaunch.query['tag-relay-tags'], 'open-interpreter');
     assert.equal(config.copilotLaunch.workspaceDirParam, 'workspace-dir');
 });
 

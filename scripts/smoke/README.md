@@ -53,7 +53,7 @@ Open Explorer, then open Research Relay from the toolbar or context menu. The
 URL should include:
 
 ```text
-agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter,oi&tag-relay-list-tool=research_relay_list_backends
+agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter&tag-relay-list-tool=research_relay_list_backends
 ```
 
 When opened from a file or directory context, the URL should use

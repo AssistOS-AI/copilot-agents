@@ -24,7 +24,7 @@ test('list_backends returns the canonical research catalog', () => {
     assert.ok(Array.isArray(payload.backends));
     const ids = payload.backends.map((b) => b.id).sort();
     assert.deepEqual(ids, ['open-interpreter']);
-    assert.ok(payload.backends.find((backend) => backend.id === 'open-interpreter').tags.includes('oi'));
+    assert.deepEqual(payload.backends.find((backend) => backend.id === 'open-interpreter').tags, ['open-interpreter']);
 });
 
 test('dispatch composes a tagged Copilot launch URL for the requested backend', () => {
@@ -46,7 +46,7 @@ test('dispatch composes a tagged Copilot launch URL for the requested backend', 
     assert.ok(payload.launch_url.includes('tag-relay-agent=researchRelay'));
     assert.ok(payload.launch_url.includes('tag-relay-submit-tool=research_task_submit'));
     assert.ok(payload.launch_url.includes('tag-relay-list-tool=research_relay_list_backends'));
-    assert.ok(payload.launch_url.includes('tag-relay-tags=open-interpreter%2Coi'));
+    assert.ok(payload.launch_url.includes('tag-relay-tags=open-interpreter'));
     assert.ok(payload.launch_url.includes('workspace-dir=.'));
     assert.ok(!decodeURIComponent(payload.launch_url).includes(workspaceRoot));
     assert.ok(payload.relay_url.startsWith('/webchat?agent=achilles-cli'));

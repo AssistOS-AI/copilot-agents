@@ -16,13 +16,12 @@ not the contract.
 
 ## Core Content
 
-The active supported tag is `@open-interpreter`, with `@oi` as an alias.
-Aliases may map to the same backend inside `researchRelay`, but the canonical
-ids must remain visible in `research_relay_list_backends`. Chat surfaces must
-maintain a known-backend tag set and must not intercept arbitrary `@word`
-mentions. Future tags such as `@deepanalyze`, `@openhands`, `@mljar`, and
-`@agentic-data-scientist` must not be intercepted until their provider agents
-exist.
+The active supported tag is `@open-interpreter`. Each active backend must
+advertise exactly one tag so autocomplete can present one user-facing agent
+entry. Chat surfaces must maintain a known-backend tag set and must not
+intercept arbitrary `@word` mentions. Future tags such as `@deepanalyze`,
+`@openhands`, `@mljar`, and `@agentic-data-scientist` must not be intercepted
+until their provider agents exist.
 
 The invariant is:
 

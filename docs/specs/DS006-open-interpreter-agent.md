@@ -35,9 +35,9 @@ The agent must own:
 
 - `openInterpreterAgent/runtime/research-open-interpreter.py`: the Python
   shim that runs inside the bwrap sandbox. The shim must force telemetry off,
-  keep `auto_run` disabled, and emit a natural-language configuration message
-  when no model/provider/local endpoint is configured, rather than a Python
-  traceback.
+  keep `auto_run` disabled, and reject missing model/provider/local endpoint
+  configuration before importing Open Interpreter, rather than producing a
+  Python traceback.
 - `openInterpreterAgent/tools/prepare-runtime.mjs`: the idempotent runtime
   preparation tool. It must target an agent-owned runtime root, defaulting to
   `/data/research-runtimes/open-interpreter/<version>/`, build into
@@ -54,11 +54,13 @@ The agent must own:
   tool the Research Relay invokes for `@open-interpreter` tasks. It must
   validate input, refuse to proceed without a router invocation token,
   ensure the runtime exists by reusing or preparing it when
-  `OI_RUNTIME_AUTO_PREPARE` is enabled, stage `prompt.md`,
-  `config/open-interpreter.json`, and `input/*` files for a local sandbox
-  job, invoke the shared local sandbox runner inside the provider container
-  with the runtime directory bound read-only at `/runtime`, and normalize
-  stdout/stderr into a natural-language final answer.
+  `OI_RUNTIME_AUTO_PREPARE` is enabled, return immediate natural-language
+  configuration guidance when no model/provider/local endpoint is configured,
+  stage `prompt.md`, `config/open-interpreter.json`, and `input/*` files for
+  configured local sandbox jobs, invoke the shared local sandbox runner inside
+  the provider container with the runtime directory bound read-only at
+  `/runtime`, and normalize stdout/stderr into a natural-language final
+  answer.
 - `openInterpreterAgent/tools/status.mjs`: a status tool that reports whether
   the runtime is prepared, the configured model topology, the local sandbox
   health, and the telemetry posture. Status must not expose provider
@@ -148,13 +150,15 @@ toolchain that the bwrap-runner image already publishes. Reusing the image
 avoids publishing and maintaining a second sandbox base just to keep ABI
 compatibility.
 
-### Question #6: Why does the shim emit a natural-language configuration message instead of a traceback?
+### Question #6: Why return missing-model guidance before entering Open Interpreter?
 
 Response:
 The chat invariant requires a natural-language answer in the originating
 chat. A Python traceback from an unconfigured model is not actionable for the
-user and pollutes the chat with implementation details. The shim's
-configuration check is the right surface for that operator guidance.
+user and pollutes the chat with implementation details. The provider tool
+therefore returns operator guidance immediately after confirming the runtime
+bundle is prepared. The shim keeps the same check before importing Open
+Interpreter as defense in depth for direct invocations.
 
 ### Question #7: Why does task execution prepare the runtime on demand?
 

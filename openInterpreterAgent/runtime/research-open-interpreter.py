@@ -79,16 +79,6 @@ def main() -> int:
         return 0
     config = read_config(config_path)
 
-    try:
-        from interpreter import interpreter  # type: ignore
-    except Exception as exc:  # pragma: no cover - exercised via the missing-bundle test path
-        emit(
-            "Open Interpreter is registered, but the runtime bundle does not "
-            "contain the open-interpreter Python package. Ask the operator to "
-            f"re-run the prepare_runtime tool. Details: {exc}."
-        )
-        return 0
-
     if not model_is_configured(config):
         emit(
             "Open Interpreter is installed in the runtime bundle, but no model "
@@ -97,6 +87,16 @@ def main() -> int:
             "credentialless endpoint) on the openInterpreterAgent before "
             "re-running the task. Provider API keys are intentionally not "
             "forwarded into the sandbox."
+        )
+        return 0
+
+    try:
+        from interpreter import interpreter  # type: ignore
+    except Exception as exc:  # pragma: no cover - exercised via the missing-bundle test path
+        emit(
+            "Open Interpreter is registered, but the runtime bundle does not "
+            "contain the open-interpreter Python package. Ask the operator to "
+            f"re-run the prepare_runtime tool. Details: {exc}."
         )
         return 0
 

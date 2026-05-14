@@ -48,6 +48,12 @@ function boolEnv(name, defaultValue = false) {
     return ['1', 'true', 'yes', 'on', 'y'].includes(String(raw).trim().toLowerCase());
 }
 
+function boolFromEnv(env, name, defaultValue = false) {
+    const raw = env[name];
+    if (raw == null || raw === '') return defaultValue;
+    return ['1', 'true', 'yes', 'on', 'y'].includes(String(raw).trim().toLowerCase());
+}
+
 function autoPrepareEnabled() {
     return boolEnv('OI_RUNTIME_AUTO_PREPARE', true);
 }
@@ -145,11 +151,45 @@ function buildRuntimeConfig(env = process.env) {
         model: model || null,
         api_base: apiBase || null,
         local: local || null,
-        offline: boolEnv('OPEN_INTERPRETER_OFFLINE', true),
+        offline: boolFromEnv(env, 'OPEN_INTERPRETER_OFFLINE', true),
     };
 }
 
-function buildSandboxPayload(task) {
+function modelConfigIsPresent(config) {
+    return Boolean(config?.model || config?.api_base || config?.local);
+}
+
+function missingModelConfigurationMessage() {
+    return [
+        `Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION} is prepared,`,
+        'but no model or local endpoint is configured for this workspace.',
+        'Set OPEN_INTERPRETER_MODEL (and OPEN_INTERPRETER_API_BASE for a local credentialless endpoint)',
+        'on the openInterpreterAgent before re-running the task.',
+        'Provider API keys are intentionally not forwarded into the sandbox.',
+    ].join(' ');
+}
+
+function missingModelConfigurationResult(task) {
+    const finalAnswer = missingModelConfigurationMessage();
+    return {
+        ok: true,
+        backend_ok: true,
+        sandbox_ok: false,
+        jobId: null,
+        final_answer: finalAnswer,
+        natural_language_output: finalAnswer,
+        exitCode: null,
+        stderr_preview: '',
+        resources: task.resources.map((resource) => ({ name: resource.name, mime: resource.mime, size: resource.size })),
+        origin: task.origin,
+        runtimeBundle: describeBundleInput(),
+        timedOut: false,
+        stdout_truncated: false,
+        stderr_truncated: false,
+    };
+}
+
+function buildSandboxPayload(task, runtimeConfig = buildRuntimeConfig(process.env)) {
     const seen = new Set(['prompt.md', CONFIG_PATH]);
     const staged = task.resources.map((resource, index) => ({
         resource,
@@ -167,7 +207,7 @@ function buildSandboxPayload(task) {
 
     const files = [
         { path: 'prompt.md', content: promptBody, encoding: 'utf8' },
-        { path: CONFIG_PATH, content: `${JSON.stringify(buildRuntimeConfig(process.env), null, 2)}\n`, encoding: 'utf8' },
+        { path: CONFIG_PATH, content: `${JSON.stringify(runtimeConfig, null, 2)}\n`, encoding: 'utf8' },
         ...staged.map(({ resource, path: stagedPath }) => ({
             path: stagedPath,
             content: resource.content,
@@ -263,29 +303,52 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs }) {
         const stdoutChunks = [];
         const stderrChunks = [];
         let killed = false;
-        const watchdog = setTimeout(() => {
+        let settled = false;
+        let watchdog = null;
+
+        function streamText(chunks) {
+            return Buffer.concat(chunks).toString('utf8');
+        }
+
+        function finish(result) {
+            if (settled) return;
+            settled = true;
+            if (watchdog) clearTimeout(watchdog);
+            resolve(result);
+        }
+
+        watchdog = setTimeout(() => {
             killed = true;
             try { child.kill('SIGKILL'); } catch (_) {}
+            const stdoutText = streamText(stdoutChunks).trim();
+            const stderrText = streamText(stderrChunks);
+            finish({
+                ok: false,
+                error: {
+                    code: 'OI_LOCAL_RUNNER_TIMEOUT',
+                    message: 'local sandbox runner timed out',
+                },
+                stdout: { text: stdoutText, truncated: false, byteLength: Buffer.byteLength(stdoutText, 'utf8') },
+                stderr: { text: stderrText, truncated: false, byteLength: Buffer.byteLength(stderrText, 'utf8') },
+            });
         }, Math.max(timeoutMs + 15000, 30000));
 
         child.stdout.on('data', (chunk) => stdoutChunks.push(chunk));
         child.stderr.on('data', (chunk) => stderrChunks.push(chunk));
         child.on('error', (err) => {
-            clearTimeout(watchdog);
-            resolve({
+            finish({
                 ok: false,
                 error: {
                     code: 'OI_LOCAL_RUNNER_SPAWN_FAILED',
                     message: err?.message || String(err),
                 },
                 stdout: { text: '', truncated: false, byteLength: 0 },
-                stderr: { text: Buffer.concat(stderrChunks).toString('utf8'), truncated: false, byteLength: 0 },
+                stderr: { text: streamText(stderrChunks), truncated: false, byteLength: 0 },
             });
         });
         child.on('close', (code) => {
-            clearTimeout(watchdog);
-            const stdoutText = Buffer.concat(stdoutChunks).toString('utf8').trim();
-            const stderrText = Buffer.concat(stderrChunks).toString('utf8');
+            const stdoutText = streamText(stdoutChunks).trim();
+            const stderrText = streamText(stderrChunks);
             const lastLine = stdoutText ? stdoutText.split('\n').pop() : '';
             let parsed = null;
             try {
@@ -294,10 +357,10 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs }) {
                 parsed = null;
             }
             if (parsed && typeof parsed === 'object') {
-                resolve(parsed);
+                finish(parsed);
                 return;
             }
-            resolve({
+            finish({
                 ok: false,
                 error: {
                     code: killed ? 'OI_LOCAL_RUNNER_TIMEOUT' : 'OI_LOCAL_RUNNER_BAD_OUTPUT',
@@ -310,7 +373,7 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs }) {
             });
         });
 
-        child.stdin.end(JSON.stringify(payload));
+        child.stdin.end(`${JSON.stringify(payload)}\n`);
     });
 }
 
@@ -369,7 +432,13 @@ async function main() {
             return;
         }
 
-        const sandboxInput = buildSandboxPayload(task);
+        const runtimeConfig = buildRuntimeConfig(process.env);
+        if (!modelConfigIsPresent(runtimeConfig)) {
+            writeOk(missingModelConfigurationResult(task));
+            return;
+        }
+
+        const sandboxInput = buildSandboxPayload(task, runtimeConfig);
         const runnerResult = await invokeLocalRunner(sandboxInput, { runtimeRoot, timeoutMs: task.timeoutMs });
         const stdout = String(runnerResult?.stdout?.text || '').trim();
         const stderr = String(runnerResult?.stderr?.text || '').trim();

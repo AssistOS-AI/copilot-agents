@@ -234,6 +234,36 @@ test('open_interpreter_run_task returns a natural-language message when the bund
     }
 });
 
+test('open_interpreter_run_task returns missing-model guidance without invoking the sandbox runner', async () => {
+    const root = mkroot();
+    writeManifest(bundleDir(root), buildManifest({ digest: 'sha256:abc' }));
+    try {
+        const child = await runTaskTool({
+            tool: 'open_interpreter_run_task',
+            input: { prompt: 'hello world', timeoutMs: 5000 },
+            metadata: { invocationToken: 'test-token' },
+        }, {
+            OI_RUNTIME_ROOT: root,
+            OI_RUNTIME_AUTO_PREPARE: 'false',
+            OI_LOCAL_RUNNER_BIN: '/nonexistent/path/to/bwrap-sandbox-exec',
+            OPEN_INTERPRETER_MODEL: '',
+            OPEN_INTERPRETER_API_BASE: '',
+            OPEN_INTERPRETER_LOCAL: '',
+        });
+        assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
+        const payload = JSON.parse(child.stdout || '{}');
+        assert.equal(payload.ok, true, `expected ok=true; got ${JSON.stringify(payload)}`);
+        assert.equal(payload.backend_ok, true);
+        assert.equal(payload.sandbox_ok, false);
+        assert.match(payload.final_answer, /runtime bundle open-interpreter@0\.4\.3 is prepared/);
+        assert.match(payload.final_answer, /no model or local endpoint is configured/);
+        assert.doesNotMatch(payload.final_answer, /sandbox runner|local bwrap|not installed/);
+        assert.deepEqual(payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
 test('open_interpreter_run_task validates prompt presence and resource size', () => {
     const child = spawnSync(process.execPath, [TASK_TOOL], {
         input: JSON.stringify({
@@ -415,4 +445,8 @@ test('research-open-interpreter shim never embeds a heredoc python driver', () =
     assert.doesNotMatch(shim, /node\s+-e\s/);
     assert.match(shim, /DISABLE_TELEMETRY/);
     assert.match(shim, /auto_run = False/);
+    assert.ok(
+        shim.indexOf('if not model_is_configured(config):') < shim.indexOf('from interpreter import interpreter'),
+        'shim must reject missing model configuration before importing Open Interpreter',
+    );
 });

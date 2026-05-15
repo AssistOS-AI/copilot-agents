@@ -119,7 +119,7 @@ export function resolvePreparedRuntime(runtimeRoot) {
     }
 }
 
-export function buildManifest({ digest = null } = {}) {
+export function buildManifest({ digest = null, shim = null } = {}) {
     const manifest = {
         schema: SCHEMA,
         id: BUNDLE_ID,
@@ -135,6 +135,9 @@ export function buildManifest({ digest = null } = {}) {
             pythonMajorMinor: PYTHON_MAJOR_MINOR,
         },
     };
+    if (shim) {
+        manifest.shim = shim;
+    }
     if (digest) {
         manifest.digest = digest;
     }

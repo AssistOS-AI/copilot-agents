@@ -30,6 +30,16 @@ def as_bool(value: object, default: bool = False) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on", "y")
 
 
+def positive_int(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def model_is_configured(config: dict[str, object]) -> bool:
     if config.get("model"):
         return True
@@ -79,16 +89,6 @@ def main() -> int:
         return 0
     config = read_config(config_path)
 
-    try:
-        from interpreter import interpreter  # type: ignore
-    except Exception as exc:  # pragma: no cover - exercised via the missing-bundle test path
-        emit(
-            "Open Interpreter is registered, but the runtime bundle does not "
-            "contain the open-interpreter Python package. Ask the operator to "
-            f"re-run the prepare_runtime tool. Details: {exc}."
-        )
-        return 0
-
     if not model_is_configured(config):
         emit(
             "Open Interpreter is installed in the runtime bundle, but no model "
@@ -97,6 +97,16 @@ def main() -> int:
             "credentialless endpoint) on the openInterpreterAgent before "
             "re-running the task. Provider API keys are intentionally not "
             "forwarded into the sandbox."
+        )
+        return 0
+
+    try:
+        from interpreter import interpreter  # type: ignore
+    except Exception as exc:  # pragma: no cover - exercised via the missing-bundle test path
+        emit(
+            "Open Interpreter is registered, but the runtime bundle does not "
+            "contain the open-interpreter Python package. Ask the operator to "
+            f"re-run the prepare_runtime tool. Details: {exc}."
         )
         return 0
 
@@ -110,6 +120,15 @@ def main() -> int:
         api_base = config.get("api_base")
         if api_base:
             interpreter.llm.api_base = str(api_base)
+        api_key = config.get("api_key")
+        if api_key:
+            interpreter.llm.api_key = str(api_key)
+        context_window = positive_int(config.get("context_window"))
+        if context_window:
+            interpreter.llm.context_window = context_window
+        max_tokens = positive_int(config.get("max_tokens"))
+        if max_tokens:
+            interpreter.llm.max_tokens = max_tokens
     except Exception as exc:  # pragma: no cover - upstream API drift
         emit(f"Open Interpreter configuration failed: {exc}.")
         return 0

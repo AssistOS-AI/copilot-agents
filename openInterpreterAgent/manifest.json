@@ -22,8 +22,11 @@
         "OI_RUNTIME_ROOT",
         "OI_RUNTIME_AUTO_PREPARE",
         "OI_PREPARE_PYTHON",
+        "SOUL_GATEWAY_API_KEY",
         "OPEN_INTERPRETER_MODEL",
         "OPEN_INTERPRETER_API_BASE",
+        "OPEN_INTERPRETER_CONTEXT_WINDOW",
+        "OPEN_INTERPRETER_MAX_TOKENS",
         "OPEN_INTERPRETER_OFFLINE",
         "OPEN_INTERPRETER_LOCAL"
     ],
@@ -32,6 +35,9 @@
             "env": {
                 "DISABLE_TELEMETRY": "true",
                 "ANONYMIZED_TELEMETRY": "false",
+                "SOUL_GATEWAY_API_KEY": {
+                    "name": "SOUL_GATEWAY_API_KEY"
+                },
                 "OPEN_INTERPRETER_OFFLINE": "true",
                 "OI_RUNTIME_ROOT": "/data/research-runtimes",
                 "OI_RUNTIME_AUTO_PREPARE": "true",

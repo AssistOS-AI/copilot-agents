@@ -16,13 +16,12 @@ not the contract.
 
 ## Core Content
 
-The active supported tag is `@open-interpreter`, with `@oi` as an alias.
-Aliases may map to the same backend inside `researchRelay`, but the canonical
-ids must remain visible in `research_relay_list_backends`. Chat surfaces must
-maintain a known-backend tag set and must not intercept arbitrary `@word`
-mentions. Future tags such as `@deepanalyze`, `@openhands`, `@mljar`, and
-`@agentic-data-scientist` must not be intercepted until their provider agents
-exist.
+The active supported tag is `@open-interpreter`. Each active backend must
+advertise exactly one tag so autocomplete can present one user-facing agent
+entry. Chat surfaces must maintain a known-backend tag set and must not
+intercept arbitrary `@word` mentions. Future tags such as `@deepanalyze`,
+`@openhands`, `@mljar`, and `@agentic-data-scientist` must not be intercepted
+until their provider agents exist.
 
 The invariant is:
 
@@ -41,17 +40,20 @@ The invariant is:
 5. The relay returns a natural-language answer to the originating chat.
 
 Ploinky WebChat must not intercept research tags or hardcode the
-`researchRelay` agent. For Copilot chat, the `researchRelay` plugin opens
-AchillesCLI WebChat with `research-tags=1`, `forward-envelope=1`, and explicit
-generic tag-relay parameters naming the relay agent, tool, and allowed tag
-set. AchillesCLI's tag-relay mode must only intercept tags named by the
-explicit `tag-relay-tags` allowlist or, when that allowlist is absent, tags
-returned by `researchRelay.research_relay_list_backends`. When a tagged
-message is handled, it must not be forwarded to AchillesCLI's normal LLM
-prompt. Unknown mentions must remain normal chat. AchillesCLI may materialize
-shared blob attachments as bounded inline resources for the relay, but shared
-attachment paths must resolve inside the mounted shared blob directory after
-symlink resolution.
+`researchRelay` agent. For Copilot chat, Explorer exposes the normal
+`Open Copilot here` action only. The `researchRelay` plugin contributes
+metadata through `file-exp:copilot-launch-extension`, and the AchillesCLI
+Copilot launcher uses that metadata to open WebChat with `research-tags=1`,
+`forward-envelope=1`, and explicit generic tag-relay parameters naming the
+relay agent, tool, and allowed tag set. AchillesCLI's tag-relay mode must only
+intercept tags named by the explicit `tag-relay-tags` allowlist or, when that
+allowlist is absent, tags returned by
+`researchRelay.research_relay_list_backends`. When a tagged message is
+handled, it must not be forwarded to AchillesCLI's normal LLM prompt. Unknown
+mentions must remain normal chat. AchillesCLI may materialize shared blob
+attachments as bounded inline resources for the relay, but shared attachment
+paths must resolve inside the mounted shared blob directory after symlink
+resolution.
 
 WebMeet MCP chat must dispatch configured tags after persisting the user
 message, then append the research result as an agent-kind chat message. This
@@ -67,7 +69,14 @@ calls. Backends without provider agents are not active research tags.
 Provider-backed tasks must travel through MCP, not through direct process
 calls. The provider agent receives `prompt`, `resources`, `timeoutMs`, and
 `origin` and is responsible for runtime selection, sandbox staging, local
-sandbox execution, and natural-language normalization.
+sandbox execution, and natural-language normalization. For the active
+`@open-interpreter` backend, normal hosted LLM configuration is provider-owned:
+`openInterpreterAgent` autoconfigures from AchillesAgentLib's `research`
+default and `soul_gateway` provider when `SOUL_GATEWAY_API_KEY` is present.
+The relay must not require or forward `SOUL_GATEWAY_BASE_URL`, raw provider
+credentials, or backend-specific model settings. Explicit
+`OPEN_INTERPRETER_*` overrides remain an `openInterpreterAgent` local
+development concern.
 
 The relay must not pass caller-provided mounts, bind paths, raw bwrap flags,
 network selectors, capabilities, provider credentials, or invocation JWTs
@@ -135,10 +144,11 @@ disclosure of host directory layouts.
 Response:
 The Open Interpreter runtime is a heavy Python dependency closure with its
 own version pin and shim. Owning runtime preparation, model/provider
-configuration, and local sandbox execution inside `openInterpreterAgent` keeps
-the relay generic. The relay does not need to know runtime ids, paths, or shim
-locations, and the shared bwrap-runner image stays free of backend-specific
-dependencies.
+configuration, Achilles Soul Gateway autoconfiguration, broker-mediated
+secret handling, and local sandbox execution inside `openInterpreterAgent`
+keeps the relay generic. The relay does not need to know runtime ids, paths,
+shim locations, provider URLs, or model aliases, and the shared bwrap-runner
+image stays free of backend-specific dependencies.
 
 ### Question #7: Why stage files through the local sandbox runner instead of passing setup code?
 

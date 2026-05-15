@@ -9,7 +9,7 @@
 export const RESEARCH_BACKENDS = Object.freeze([
     {
         id: 'open-interpreter',
-        tags: ['open-interpreter', 'oi'],
+        tags: ['open-interpreter'],
         label: 'Open Interpreter',
         default_profile: 'default',
         provider: { agent: 'openInterpreterAgent', tool: 'open_interpreter_run_task' },

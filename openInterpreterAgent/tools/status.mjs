@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 import { readEnvelope, writeOk, writeError } from './lib/envelope.mjs';
+import { resolveOpenInterpreterRuntimeConfig } from './lib/achilles-llm-config.mjs';
 import {
     BUNDLE_ID,
     BUNDLE_VERSION,
@@ -102,6 +103,7 @@ async function main() {
         await readEnvelope();
         const runtimeRoot = resolveRuntimeRoot(process.env);
         const manifest = readExistingManifest(runtimeRoot);
+        const resolvedConfig = await resolveOpenInterpreterRuntimeConfig({ env: process.env });
         writeOk({
             agent: 'openInterpreterAgent',
             mode: 'provider',
@@ -115,10 +117,18 @@ async function main() {
             },
             sandbox: probeLocalSandbox(),
             config: {
-                model: process.env.OPEN_INTERPRETER_MODEL || null,
-                api_base: process.env.OPEN_INTERPRETER_API_BASE || null,
-                offline: bool('OPEN_INTERPRETER_OFFLINE', true),
-                local_endpoint: process.env.OPEN_INTERPRETER_LOCAL || null,
+                source: resolvedConfig.source,
+                model: resolvedConfig.config?.model || null,
+                api_base: resolvedConfig.config?.api_base || null,
+                context_window: resolvedConfig.config?.context_window || null,
+                max_tokens: resolvedConfig.config?.max_tokens || null,
+                offline: Boolean(resolvedConfig.config?.offline),
+                local_endpoint: resolvedConfig.config?.local || null,
+                brokered: resolvedConfig.source === 'achilles-soul-gateway',
+                provider: resolvedConfig.achilles?.providerKey || null,
+                provider_model: resolvedConfig.achilles?.providerModel || null,
+                api_key_env: resolvedConfig.broker?.apiKeyEnv || null,
+                missing_reason: resolvedConfig.source === 'missing' ? (resolvedConfig.reason || null) : null,
             },
             telemetry: {
                 disabled: bool('DISABLE_TELEMETRY', true),

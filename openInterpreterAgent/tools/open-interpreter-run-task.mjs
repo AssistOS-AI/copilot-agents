@@ -15,10 +15,16 @@
 
 import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { readEnvelope, writeOk, writeError } from './lib/envelope.mjs';
+import {
+    buildBrokeredRuntimeConfig,
+    resolveOpenInterpreterRuntimeConfig,
+} from './lib/achilles-llm-config.mjs';
+import { startOpenAICompatibleBroker } from './lib/openai-compatible-broker.mjs';
 import {
     BUNDLE_ID,
     BUNDLE_VERSION,
@@ -136,20 +142,63 @@ function stagedResourcePath(name, index, seen) {
     return candidate;
 }
 
-function buildRuntimeConfig(env = process.env) {
-    const model = String(env.OPEN_INTERPRETER_MODEL || '').trim();
-    const apiBase = String(env.OPEN_INTERPRETER_API_BASE || '').trim();
-    const local = String(env.OPEN_INTERPRETER_LOCAL || '').trim();
+function modelConfigIsPresent(config) {
+    return Boolean(config?.model || config?.api_base || config?.local);
+}
+
+function missingModelConfigurationMessage(resolution = {}) {
+    const reason = resolution.reason ? ` ${resolution.reason}.` : '';
+    return [
+        `Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION} is prepared,`,
+        `but no Soul Gateway, model, or local endpoint is configured for this workspace.${reason}`,
+        'Set SOUL_GATEWAY_API_KEY on the openInterpreterAgent, or set OPEN_INTERPRETER_MODEL',
+        '(and OPEN_INTERPRETER_API_BASE for a local credentialless endpoint) before re-running the task.',
+        'Provider API keys are intentionally not forwarded into the sandbox.',
+    ].join(' ');
+}
+
+function missingModelConfigurationResult(task, resolution) {
+    const finalAnswer = missingModelConfigurationMessage(resolution);
     return {
-        schema: 'ploinky.open-interpreter.config.v1',
-        model: model || null,
-        api_base: apiBase || null,
-        local: local || null,
-        offline: boolEnv('OPEN_INTERPRETER_OFFLINE', true),
+        ok: true,
+        backend_ok: true,
+        sandbox_ok: false,
+        jobId: null,
+        final_answer: finalAnswer,
+        natural_language_output: finalAnswer,
+        exitCode: null,
+        stderr_preview: '',
+        resources: task.resources.map((resource) => ({ name: resource.name, mime: resource.mime, size: resource.size })),
+        origin: task.origin,
+        runtimeBundle: describeBundleInput(),
+        timedOut: false,
+        stdout_truncated: false,
+        stderr_truncated: false,
     };
 }
 
-function buildSandboxPayload(task) {
+function brokerFailureResult(task, error) {
+    const message = error && error.message ? error.message : String(error || 'unknown error');
+    const finalAnswer = `Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION} is prepared, but the local Soul Gateway broker could not start. ${message}`;
+    return {
+        ok: false,
+        backend_ok: false,
+        sandbox_ok: false,
+        jobId: null,
+        final_answer: finalAnswer,
+        natural_language_output: finalAnswer,
+        exitCode: null,
+        stderr_preview: '',
+        resources: task.resources.map((resource) => ({ name: resource.name, mime: resource.mime, size: resource.size })),
+        origin: task.origin,
+        runtimeBundle: describeBundleInput(),
+        timedOut: false,
+        stdout_truncated: false,
+        stderr_truncated: false,
+    };
+}
+
+function buildSandboxPayload(task, runtimeConfig) {
     const seen = new Set(['prompt.md', CONFIG_PATH]);
     const staged = task.resources.map((resource, index) => ({
         resource,
@@ -167,7 +216,7 @@ function buildSandboxPayload(task) {
 
     const files = [
         { path: 'prompt.md', content: promptBody, encoding: 'utf8' },
-        { path: CONFIG_PATH, content: `${JSON.stringify(buildRuntimeConfig(process.env), null, 2)}\n`, encoding: 'utf8' },
+        { path: CONFIG_PATH, content: `${JSON.stringify(runtimeConfig, null, 2)}\n`, encoding: 'utf8' },
         ...staged.map(({ resource, path: stagedPath }) => ({
             path: stagedPath,
             content: resource.content,
@@ -227,7 +276,7 @@ function resolveLocalRunnerCommand() {
     return null;
 }
 
-function invokeLocalRunner(payload, { runtimeRoot, timeoutMs }) {
+function invokeLocalRunner(payload, { runtimeRoot, timeoutMs, allowNetwork = false }) {
     return new Promise((resolve) => {
         const launch = resolveLocalRunnerCommand();
         if (!launch) {
@@ -252,7 +301,9 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs }) {
         if (process.env.BWRAP_RUNNER_STATE) {
             childEnv.BWRAP_RUNNER_STATE = process.env.BWRAP_RUNNER_STATE;
         }
-        if (process.env.BWRAP_RUNNER_ALLOW_NETWORK) {
+        if (allowNetwork) {
+            childEnv.BWRAP_RUNNER_ALLOW_NETWORK = 'true';
+        } else if (process.env.BWRAP_RUNNER_ALLOW_NETWORK) {
             childEnv.BWRAP_RUNNER_ALLOW_NETWORK = process.env.BWRAP_RUNNER_ALLOW_NETWORK;
         }
 
@@ -263,29 +314,52 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs }) {
         const stdoutChunks = [];
         const stderrChunks = [];
         let killed = false;
-        const watchdog = setTimeout(() => {
+        let settled = false;
+        let watchdog = null;
+
+        function streamText(chunks) {
+            return Buffer.concat(chunks).toString('utf8');
+        }
+
+        function finish(result) {
+            if (settled) return;
+            settled = true;
+            if (watchdog) clearTimeout(watchdog);
+            resolve(result);
+        }
+
+        watchdog = setTimeout(() => {
             killed = true;
             try { child.kill('SIGKILL'); } catch (_) {}
+            const stdoutText = streamText(stdoutChunks).trim();
+            const stderrText = streamText(stderrChunks);
+            finish({
+                ok: false,
+                error: {
+                    code: 'OI_LOCAL_RUNNER_TIMEOUT',
+                    message: 'local sandbox runner timed out',
+                },
+                stdout: { text: stdoutText, truncated: false, byteLength: Buffer.byteLength(stdoutText, 'utf8') },
+                stderr: { text: stderrText, truncated: false, byteLength: Buffer.byteLength(stderrText, 'utf8') },
+            });
         }, Math.max(timeoutMs + 15000, 30000));
 
         child.stdout.on('data', (chunk) => stdoutChunks.push(chunk));
         child.stderr.on('data', (chunk) => stderrChunks.push(chunk));
         child.on('error', (err) => {
-            clearTimeout(watchdog);
-            resolve({
+            finish({
                 ok: false,
                 error: {
                     code: 'OI_LOCAL_RUNNER_SPAWN_FAILED',
                     message: err?.message || String(err),
                 },
                 stdout: { text: '', truncated: false, byteLength: 0 },
-                stderr: { text: Buffer.concat(stderrChunks).toString('utf8'), truncated: false, byteLength: 0 },
+                stderr: { text: streamText(stderrChunks), truncated: false, byteLength: 0 },
             });
         });
         child.on('close', (code) => {
-            clearTimeout(watchdog);
-            const stdoutText = Buffer.concat(stdoutChunks).toString('utf8').trim();
-            const stderrText = Buffer.concat(stderrChunks).toString('utf8');
+            const stdoutText = streamText(stdoutChunks).trim();
+            const stderrText = streamText(stderrChunks);
             const lastLine = stdoutText ? stdoutText.split('\n').pop() : '';
             let parsed = null;
             try {
@@ -294,10 +368,10 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs }) {
                 parsed = null;
             }
             if (parsed && typeof parsed === 'object') {
-                resolve(parsed);
+                finish(parsed);
                 return;
             }
-            resolve({
+            finish({
                 ok: false,
                 error: {
                     code: killed ? 'OI_LOCAL_RUNNER_TIMEOUT' : 'OI_LOCAL_RUNNER_BAD_OUTPUT',
@@ -310,7 +384,7 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs }) {
             });
         });
 
-        child.stdin.end(JSON.stringify(payload));
+        child.stdin.end(`${JSON.stringify(payload)}\n`);
     });
 }
 
@@ -369,8 +443,48 @@ async function main() {
             return;
         }
 
-        const sandboxInput = buildSandboxPayload(task);
-        const runnerResult = await invokeLocalRunner(sandboxInput, { runtimeRoot, timeoutMs: task.timeoutMs });
+        const resolution = await resolveOpenInterpreterRuntimeConfig({ env: process.env });
+        if (!modelConfigIsPresent(resolution.config)) {
+            writeOk(missingModelConfigurationResult(task, resolution));
+            return;
+        }
+
+        let broker = null;
+        let runtimeConfig = resolution.config;
+        if (resolution.source === 'achilles-soul-gateway') {
+            try {
+                const sandboxApiKey = `oi-broker-${crypto.randomBytes(24).toString('hex')}`;
+                broker = await startOpenAICompatibleBroker({
+                    upstreamUrl: resolution.broker.upstreamUrl,
+                    upstreamApiKey: resolution.broker.upstreamApiKey,
+                    upstreamModel: resolution.broker.upstreamModel,
+                    sandboxApiKey,
+                    upstreamTimeoutMs: Math.max(1000, Math.min(task.timeoutMs, 70000)),
+                });
+                runtimeConfig = buildBrokeredRuntimeConfig(resolution, {
+                    apiBase: broker.apiBase,
+                    sandboxApiKey,
+                });
+            } catch (error) {
+                writeOk(brokerFailureResult(task, error));
+                return;
+            }
+        }
+
+        let runnerResult;
+        try {
+            const sandboxInput = buildSandboxPayload(task, runtimeConfig);
+            runnerResult = await invokeLocalRunner(sandboxInput, {
+                runtimeRoot,
+                timeoutMs: task.timeoutMs,
+                allowNetwork: Boolean(resolution.sandbox?.allowNetwork),
+            });
+        } finally {
+            if (broker) {
+                await broker.close();
+            }
+        }
+
         const stdout = String(runnerResult?.stdout?.text || '').trim();
         const stderr = String(runnerResult?.stderr?.text || '').trim();
         const finalAnswer = naturalLanguageFromBwrap(runnerResult);

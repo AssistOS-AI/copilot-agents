@@ -55,6 +55,19 @@ make enabled agents safe for hostile multi-tenant execution. The documentation
 must state that operators are intentionally enabling trusted local research
 code inside a workspace.
 
+Provider credentials must stay outside inner sandbox payloads by default.
+For Open Interpreter's normal hosted path, `SOUL_GATEWAY_API_KEY` is exposed
+to `openInterpreterAgent` only. The provider starts a short-lived
+OpenAI-compatible loopback broker outside the inner bwrap sandbox, stages only
+the broker `/v1` URL and a dummy broker token into
+`/work/config/open-interpreter.json`, and injects the raw Soul Gateway bearer
+token only when the broker forwards the chat-completions request. The broker
+must not log prompt bodies, response bodies, authorization headers, or raw
+provider keys. Because loopback broker access requires the inner bwrap job to
+inherit the provider container network, this path protects the raw provider
+key but must not be described as blocking all outbound network access from
+that sandbox job.
+
 `/shared` is a convenience and coordination channel among trusted, explicitly
 enabled agents in a single workspace. It is not a hostile-agent security
 boundary. Enabled agents can write to `/shared`, so `/shared` must not be the
@@ -110,6 +123,16 @@ providers depend on and would require runtime handoff through shared storage.
 Running the same local sandbox runner inside each provider keeps the sandbox
 policy common while preserving provider ownership of backend dependencies and
 reducing cross-agent coupling.
+
+### Question #6: Why use a local broker for Open Interpreter provider credentials?
+
+Response:
+Open Interpreter is configured through a staged runtime file inside the inner
+sandbox, while Soul Gateway authentication must stay in the outer provider
+process. A broker separates those concerns: the sandbox can call a narrow
+OpenAI-compatible loopback endpoint with a dummy token, and the provider-owned
+broker can inject `SOUL_GATEWAY_API_KEY` without placing it in sandbox env,
+argv, staged files, stdout, or stderr.
 
 ## Conclusion
 

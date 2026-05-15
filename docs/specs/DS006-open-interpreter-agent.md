@@ -18,9 +18,9 @@ only through the Research Relay's `@open-interpreter` tag.
 
 ## Core Content
 
-The agent must run inside a Linux container based on
-`assistos/bwrap-runner:node24-python-bookworm` or a documented derived image
-that preserves the shared sandbox base. This gives Open Interpreter runtime
+The agent must run inside a Linux container based on the fully qualified
+`docker.io/assistos/bwrap-runner:node24-python-bookworm` image or a documented
+derived image that preserves the shared sandbox base. This gives Open Interpreter runtime
 preparation and inner bwrap execution the same Linux Python ABI on macOS and
 Linux hosts. The agent must not use `lite-sandbox: true`, because it is itself
 a containerized sandbox host and must run the local bwrap runner. The provider

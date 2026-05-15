@@ -1,5 +1,5 @@
 {
-    "container": "assistos/bwrap-runner:node24-python-bookworm",
+    "container": "docker.io/assistos/bwrap-runner:node24-python-bookworm",
     "about": "Open Interpreter provider agent. Prepares its own runtime under /data/research-runtimes/open-interpreter/<version>/ inside the provider container and executes research tasks in a local bwrap sandbox started inside the same container. Does not call basic/bwrap-runner.",
     "containerSecurity": {
         "privileged": true

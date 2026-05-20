@@ -1,118 +1,154 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import fs from 'node:fs/promises';
-import os from 'node:os';
 
 import {
-    TARGET_AGENT,
-    BUNDLE_ENABLE_COMMAND,
-    isPathSafe,
-    buildLaunchUrl,
-    detectDeployment,
-    describeDeployment,
+    BACKEND,
+    LIST_TOOL,
+    PROVIDER_AGENT,
+    PROVIDER_STATUS_TOOL,
+    RELAY_AGENT,
+    SUBMIT_TOOL,
     action,
 } from '../../achilles-skills/launch-open-interpreter/src/index.mjs';
 
-test('TARGET_AGENT references the openInterpreterAgent', () => {
-    assert.equal(TARGET_AGENT, 'openInterpreterAgent');
-});
-
-test('isPathSafe rejects path traversal and accepts paths with spaces', () => {
-    const root = '/workspace';
-    assert.equal(isPathSafe('/workspace/sub', root), true);
-    assert.equal(isPathSafe('../etc/passwd', root), false);
-    assert.equal(isPathSafe('/workspace/with space', root), true);
-});
-
-test('isPathSafe accepts relative paths confined to the workspace', () => {
-    const root = '/workspace';
-    assert.equal(isPathSafe('sub/dir', root), true);
-    assert.equal(isPathSafe('sub/../other', root), true);
-    assert.equal(isPathSafe('sub/../../escape', root), false);
-});
-
-test('buildLaunchUrl emits agent only when no workingDir', () => {
-    const url = buildLaunchUrl();
-    assert.equal(url, '/webchat?agent=openInterpreterAgent');
-});
-
-test('buildLaunchUrl includes safe absolute workingDir', () => {
-    const root = '/workspace';
-    const url = buildLaunchUrl({ workingDir: '/workspace/projects/lab', workspaceRoot: root });
-    assert.equal(url, '/webchat?agent=openInterpreterAgent&dir=%2Fworkspace%2Fprojects%2Flab');
-});
-
-test('buildLaunchUrl drops unsafe workingDir', () => {
-    const root = '/workspace';
-    const url = buildLaunchUrl({ workingDir: '../etc/passwd', workspaceRoot: root });
-    assert.equal(url, '/webchat?agent=openInterpreterAgent');
-});
-
-test('buildLaunchUrl resolves relative workingDir against workspace', () => {
-    const root = '/workspace';
-    const url = buildLaunchUrl({ workingDir: 'projects/lab', workspaceRoot: root });
-    const decoded = decodeURIComponent(url.split('dir=')[1]);
-    assert.equal(decoded, path.resolve(root, 'projects/lab'));
-});
-
-test('describeDeployment mentions the supported bundle enable command', () => {
-    assert.equal(describeDeployment({ deployed: true }), null);
-    const note = describeDeployment({ deployed: false });
-    assert.ok(note && note.startsWith('note:'));
-    assert.ok(note.includes(BUNDLE_ENABLE_COMMAND));
-});
-
-test('action returns a URL line; includes deployment note when agent missing', async () => {
-    const original = process.env.PLOINKY_WORKSPACE_ROOT;
-    process.env.PLOINKY_WORKSPACE_ROOT = '/workspace';
-    try {
-        const output = await action({ context: { workingDir: '/workspace' } });
-        const [firstLine, secondLine] = output.split('\n');
-        assert.ok(firstLine.startsWith('/webchat?agent=openInterpreterAgent'));
-        assert.ok(secondLine && secondLine.startsWith('note:'));
-    } finally {
-        if (original === undefined) {
-            delete process.env.PLOINKY_WORKSPACE_ROOT;
-        } else {
-            process.env.PLOINKY_WORKSPACE_ROOT = original;
+function jsonResponse(payload) {
+    return {
+        result: {
+            content: [{ type: 'text', text: JSON.stringify(payload) }]
         }
-    }
+    };
+}
+
+test('launcher metadata targets researchRelay and Open Interpreter backend', () => {
+    assert.equal(BACKEND, 'open-interpreter');
+    assert.equal(RELAY_AGENT, 'researchRelay');
+    assert.equal(PROVIDER_AGENT, 'openInterpreterAgent');
+    assert.equal(LIST_TOOL, 'research_relay_list_backends');
+    assert.equal(SUBMIT_TOOL, 'research_task_submit');
+    assert.equal(PROVIDER_STATUS_TOOL, 'oi_status');
 });
 
-test('detectDeployment finds openInterpreterAgent in Ploinky routing', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'copilot-agent-launcher-'));
-    try {
-        await fs.mkdir(path.join(workspace, '.ploinky'), { recursive: true });
-        await fs.writeFile(
-            path.join(workspace, '.ploinky', 'routing.json'),
-            JSON.stringify({ routes: { openInterpreterAgent: { port: 7001 } } })
-        );
-        const deployment = detectDeployment({ workspaceRoot: workspace, workingDir: workspace });
-        assert.equal(deployment.deployed, true);
-    } finally {
-        await fs.rm(workspace, { recursive: true, force: true });
-    }
-});
-
-test('action omits the deployment note when routing contains openInterpreterAgent', async () => {
-    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'copilot-agent-launcher-'));
-    const original = process.env.PLOINKY_WORKSPACE_ROOT;
-    process.env.PLOINKY_WORKSPACE_ROOT = workspace;
-    try {
-        await fs.mkdir(path.join(workspace, '.ploinky'), { recursive: true });
-        await fs.writeFile(
-            path.join(workspace, '.ploinky', 'routing.json'),
-            JSON.stringify({ routes: { openInterpreterAgent: { port: 7001 } } })
-        );
-        const output = await action({ context: { workingDir: workspace } });
-        assert.ok(!output.includes('note:'));
-    } finally {
-        await fs.rm(workspace, { recursive: true, force: true });
-        if (original === undefined) {
-            delete process.env.PLOINKY_WORKSPACE_ROOT;
-        } else {
-            process.env.PLOINKY_WORKSPACE_ROOT = original;
+test('action refuses to dispatch without a router invocation token', async () => {
+    const calls = [];
+    const result = await action({
+        prompt: 'run this code',
+        callAgentTool: (...args) => {
+            calls.push(args);
+            throw new Error('unexpected call');
         }
-    }
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.cacheable, false);
+    assert.equal(result.diagnostics.missingInvocationToken, true);
+    assert.equal(calls.length, 0);
+});
+
+test('@open-interpreter is ordinary chat text and never calls research_task_submit', async () => {
+    const calls = [];
+    const result = await action({
+        prompt: '@open-interpreter list primes',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: (...args) => {
+            calls.push(args);
+            throw new Error('unexpected call');
+        }
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.cacheable, false);
+    assert.equal(result.diagnostics.deprecatedToken, true);
+    assert.match(result.result_text, /ordinary chat text/);
+    assert.equal(calls.length, 0);
+});
+
+test('action dispatches through researchRelay with invocation token and resources', async () => {
+    const calls = [];
+    const result = await action({
+        prompt: 'run a quick diagnostic',
+        context: {
+            invocationToken: 'caller-token',
+            workingDir: '/workspace/project',
+            webchatResources: [{ name: 'notes.md', content: 'hello' }],
+            webchatPaths: [
+                { path: 'docs', type: 'directory', label: 'Docs' },
+                { path: 'src/diagnostic.mjs', type: 'file', label: 'Diagnostic' },
+            ],
+            webchatOrigin: { tabId: 'tab-1' },
+            webchatResourceWarnings: ['missing reference']
+        },
+        callAgentTool: async (...args) => {
+            calls.push(args);
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({ backends: [{ id: BACKEND, tags: [BACKEND], provider: { agent: PROVIDER_AGENT } }] });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({ agent: PROVIDER_AGENT, status: 'ok' });
+            }
+            return jsonResponse({ ok: true, backend: BACKEND, final_answer: 'diagnostic complete', jobId: 'job-1' });
+        }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.cacheable, false);
+    assert.equal(result.result_text, 'diagnostic complete');
+    assert.equal(calls.length, 3);
+    assert.deepEqual(calls.map((call) => [call[0], call[1]]), [
+        [RELAY_AGENT, LIST_TOOL],
+        [PROVIDER_AGENT, PROVIDER_STATUS_TOOL],
+        [RELAY_AGENT, SUBMIT_TOOL],
+    ]);
+    assert.equal(calls[0][3].invocationToken, 'caller-token');
+    assert.equal(calls[1][3].invocationToken, 'caller-token');
+    assert.equal(calls[2][3].invocationToken, 'caller-token');
+    const submitArguments = calls[2][2];
+    assert.equal(submitArguments.backend, BACKEND);
+    assert.match(submitArguments.prompt, /run a quick diagnostic/);
+    assert.match(submitArguments.prompt, /Reference forwarding notes:/);
+    assert.match(submitArguments.prompt, /Workspace reference "Docs" is a directory path/);
+    assert.deepEqual(submitArguments.resources, [{ name: 'notes.md', content: 'hello' }]);
+    assert.deepEqual(submitArguments.paths, ['src/diagnostic.mjs']);
+    assert.equal(submitArguments.origin.tabId, 'tab-1');
+    assert.equal(submitArguments.origin.type, 'semantic-copilot');
+    assert.equal(result.diagnostics.providerAgent, PROVIDER_AGENT);
+});
+
+test('action reports missing backend without Ploinky enable guidance', async () => {
+    const result = await action({
+        prompt: 'run a quick diagnostic',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async () => jsonResponse({ backends: [] })
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.cacheable, false);
+    assert.equal(result.diagnostics.missingBackend, BACKEND);
+    assert.match(result.result_text, /launcher is available/);
+    assert.doesNotMatch(result.result_text, /ploinky enable/i);
+});
+
+test('action returns unavailable when Open Interpreter provider route is missing', async () => {
+    const calls = [];
+    const result = await action({
+        prompt: 'run a quick diagnostic',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async (...args) => {
+            calls.push(args);
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({ backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }] });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                throw new Error('route not found');
+            }
+            throw new Error('submit should not be called');
+        }
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.cacheable, false);
+    assert.equal(result.diagnostics.providerAvailability, 'not_deployed');
+    assert.match(result.result_text, /provider agent openInterpreterAgent is not reachable/);
+    assert.deepEqual(calls.map((call) => [call[0], call[1]]), [
+        [RELAY_AGENT, LIST_TOOL],
+        [PROVIDER_AGENT, PROVIDER_STATUS_TOOL],
+    ]);
 });

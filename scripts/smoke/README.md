@@ -24,12 +24,14 @@ ploinky enable agent copilot-agents/research-agents global
 ploinky start explorer 8080
 ```
 
-The bundle enables `researchRelay` and `openInterpreterAgent`. Active backend
-tags route through provider agents; the relay does not own backend command
-environment variables and the bundle must not enable a separate
-`basic/bwrap-runner` Ploinky agent. Provider agents execute their inner bwrap
-job locally inside their own container based on the shared `assistos/bwrap-runner`
-image.
+The bundle enables `researchRelay`, `openInterpreterAgent`, and
+`webSearchAgent`. Active backend tags route through provider agents; the relay
+does not own backend command environment variables and the bundle must not
+enable a separate `basic/bwrap-runner` Ploinky agent. Code-execution providers
+execute their inner bwrap job locally inside their own container based on the
+shared `assistos/bwrap-runner` image. `webSearchAgent` owns a local headless
+browser service inside its container and does not call an external search
+gateway.
 
 ## 3. Verify tool discovery
 
@@ -37,6 +39,7 @@ image.
 ploinky client methods research-agents
 ploinky client methods researchRelay
 ploinky client methods openInterpreterAgent
+ploinky client methods webSearchAgent
 ```
 
 Expected tools:
@@ -46,14 +49,15 @@ Expected tools:
   `research_relay_dispatch`, `research_task_submit`
 - `openInterpreterAgent`: `oi_status`, `prepare_runtime`,
   `open_interpreter_run_task`
+- `webSearchAgent`: `web_search_status`, `web_search_run_task`
 
-## 4. Verify Copilot tags
+## 4. Verify semantic Copilot routing
 
-Open Explorer, then open Research Relay from the toolbar or context menu. The
-URL should include:
+Open Explorer, then use `Open Copilot here` from the toolbar or context menu.
+The URL should include generic envelope forwarding only:
 
 ```text
-agent=achilles-cli&research-tags=1&forward-envelope=1&tag-relay-agent=researchRelay&tag-relay-submit-tool=research_task_submit&tag-relay-tags=open-interpreter&tag-relay-list-tool=research_relay_list_backends
+agent=achilles-cli&forward-envelope=1
 ```
 
 When opened from a file or directory context, the URL should use
@@ -62,7 +66,7 @@ When opened from a file or directory context, the URL should use
 Send:
 
 ```text
-@open-interpreter Give a one sentence configuration status.
+Run a one sentence Open Interpreter configuration status check.
 ```
 
 On a fresh workspace the provider should prepare or reuse the Open Interpreter
@@ -72,7 +76,36 @@ to the same chat. If no local model endpoint is configured, the reply should
 be a natural-language model/local-endpoint configuration message, not a
 Python traceback.
 
-## 5. Verify WebMeet tags
+Send this separately to confirm provider-looking text remains ordinary chat:
+
+```text
+@open-interpreter Give a one sentence configuration status.
+```
+
+That message must not dispatch a provider task by itself.
+
+## 5. Verify web search
+
+Send:
+
+```text
+Search online for the latest Node.js release date.
+```
+
+AchillesCLI should route this to `launch-web-search`, which submits through
+`researchRelay` to `webSearchAgent`. The reply should include a markdown
+answer with citations, or a clear unavailable/configuration message if
+the local browser runtime cannot start.
+
+Send this separately to confirm provider-looking text remains ordinary chat:
+
+```text
+@web-search latest Node.js release
+```
+
+That message must not dispatch a provider task by itself.
+
+## 6. Verify WebMeet chat
 
 Open a WebMeet room through the WebMeet plugin and send:
 
@@ -80,10 +113,11 @@ Open a WebMeet room through the WebMeet plugin and send:
 @open-interpreter summarize the current meeting goal
 ```
 
-The user message should remain in chat. A second agent-kind message should be
-appended with the research relay result or a natural-language error.
+The user message should remain in chat and no research relay call should be
+made. WebMeet provider routing belongs to AchillesCLI Copilot, not the meeting
+chat surface.
 
-## 6. Confirm log hygiene
+## 7. Confirm log hygiene
 
 Tail the router and watchdog logs while exercising the tools:
 

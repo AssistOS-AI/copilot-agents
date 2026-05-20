@@ -1,20 +1,36 @@
 ---
 id: DS012
-title: Tagged Research Chat Relay
-status: planned
+title: Superseded Tagged Research Chat Relay
+status: superseded
 owner: copilot-agents-team
-summary: Defines the Copilot/WebMeet @tag relay contract, provider routing, local sandbox execution, and natural-language reply invariant.
+summary: Superseded by DS013; visible @tag dispatch is no longer the user contract.
 ---
 
-# DS012 - Tagged Research Chat Relay
+# DS012 - Superseded Tagged Research Chat Relay
 
 ## Introduction
 
-Research agents are invoked by tagging them from Copilot chat or WebMeet
-chat. The tag is the user-facing contract. Direct backend chat sessions are
-not the contract.
+This specification records the former tagged research chat relay contract. It
+is superseded by DS013. Users no longer invoke research providers with visible
+`@agent` tags from Copilot or WebMeet chat.
 
 ## Core Content
+
+The active contract is:
+
+1. AchillesCLI Copilot chooses providers semantically through the
+   `copilot-router` oskill.
+2. Deterministic launcher cskills dispatch provider tasks through
+   `researchRelay.research_task_submit`.
+3. Ploinky WebChat remains transport-only and agent-agnostic.
+4. WebMeet chat treats `@open-interpreter` and other `@word` tokens as ordinary
+   chat text; any future meeting-to-agent behavior must be an explicit Copilot
+   bridge, not inline tag parsing.
+
+The historical tag-relay behavior below is retained only for migration context
+and must not be used as implementation authority.
+
+## Historical Context
 
 The active supported tag is `@open-interpreter`. Each active backend must
 advertise exactly one tag so autocomplete can present one user-facing agent

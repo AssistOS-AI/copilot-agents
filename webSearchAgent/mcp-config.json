@@ -1,0 +1,49 @@
+{
+    "tools": [
+        {
+            "name": "web_search_status",
+            "title": "Web Search Status",
+            "description": "Report readiness, local browser-pool state, cacheability, TTL, and any configuration issue.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/status.mjs"
+            ],
+            "cwd": "/code",
+            "inputSchema": {}
+        },
+        {
+            "name": "web_search_run_task",
+            "title": "Run Web Search Task",
+            "description": "Execute a cacheable web search through the agent-owned local headless browser runtime and return a normalized answer with citations.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/run-task.mjs"
+            ],
+            "cwd": "/code",
+            "timeoutMs": 120000,
+            "inputSchema": {
+                "prompt": {
+                    "type": "string",
+                    "optional": false,
+                    "maxLength": 4000
+                },
+                "query": {
+                    "type": "string",
+                    "optional": true,
+                    "maxLength": 4000
+                },
+                "timeoutMs": {
+                    "type": "number",
+                    "optional": true,
+                    "min": 1000,
+                    "max": 90000
+                },
+                "origin": {
+                    "type": "object",
+                    "optional": true,
+                    "additionalProperties": true
+                }
+            }
+        }
+    ]
+}

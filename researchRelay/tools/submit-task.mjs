@@ -43,6 +43,9 @@ async function runProviderBackend(task, invocationToken) {
         natural_language_output: normalized.final_answer,
         final_answer: normalized.final_answer,
         resources: normalized.resources,
+        sources: normalized.sources,
+        cacheable: normalized.cacheable,
+        ttl_hint_seconds: normalized.ttl_hint_seconds,
         origin: task.origin,
         diagnostics: {
             exitCode: normalized.exitCode,

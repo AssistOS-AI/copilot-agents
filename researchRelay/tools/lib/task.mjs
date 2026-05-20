@@ -211,6 +211,9 @@ export function normalizeProviderResult(providerPayload, task) {
             final_answer: `Backend ${task?.backend?.label || 'provider'} returned no response.`,
             stderr_preview: '',
             resources,
+            sources: [],
+            cacheable: false,
+            ttl_hint_seconds: null,
             timedOut: false,
             stdout_truncated: false,
             stderr_truncated: false,
@@ -234,6 +237,11 @@ export function normalizeProviderResult(providerPayload, task) {
             ? providerPayload.stderr_preview.slice(-STDERR_PREVIEW_CHARS)
             : '',
         resources: Array.isArray(providerPayload.resources) ? providerPayload.resources : resources,
+        sources: Array.isArray(providerPayload.sources) ? providerPayload.sources : [],
+        cacheable: providerPayload.cacheable !== undefined ? Boolean(providerPayload.cacheable) : false,
+        ttl_hint_seconds: Number.isFinite(Number(providerPayload.ttl_hint_seconds))
+            ? Number(providerPayload.ttl_hint_seconds)
+            : null,
         timedOut: Boolean(providerPayload.timedOut),
         stdout_truncated: Boolean(providerPayload.stdout_truncated),
         stderr_truncated: Boolean(providerPayload.stderr_truncated),

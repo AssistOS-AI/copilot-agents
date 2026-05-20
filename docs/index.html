@@ -25,8 +25,8 @@
     <h1>Ploinky Research Agents</h1>
     <p>
         <code>copilot-agents</code> is a Ploinky agent repository that integrates Open Interpreter,
-        Agentic Data Scientist, OpenHands, MLJAR, and DeepAnalyze as tagged research backends.
-        Users invoke them from Copilot or WebMeet chat with <code>@backend</code> mentions; execution is
+        Agentic Data Scientist, OpenHands, MLJAR, and DeepAnalyze as provider-backed research runtimes.
+        AchillesCLI Copilot selects providers semantically from prompt and context; execution is
         relayed through <code>researchRelay</code> to provider agents that run local bwrap sandboxes from
         the shared bwrap-runner image. The suite is not a
         default AssistOSExplorer dependency. It deploys only through an explicit <code>research-agents</code> bundle.
@@ -47,32 +47,34 @@ ploinky enable repo copilot-agents
 ploinky enable agent copilot-agents/research-agents global
 ploinky start explorer 8080</pre>
     <p>
-        The bundle enables <code>researchRelay</code> and <code>openInterpreterAgent</code>. Backend
-        availability is controlled by provider agents, not by direct backend chat agents, a separate
-        bwrap-runner agent, or relay-owned command strings.
+        The bundle enables <code>researchRelay</code>, <code>openInterpreterAgent</code>, and
+        <code>webSearchAgent</code>. Backend availability is controlled by provider agents, not by
+        direct backend chat agents, a separate bwrap-runner agent, or relay-owned command strings.
+        <code>webSearchAgent</code> owns its local headless browser runtime and does not depend on
+        an external search gateway.
     </p>
 
     <h2>Agent Inventory</h2>
     <ul>
         <li><code>research-agents</code> - explicit deployment bundle</li>
-        <li><code>researchRelay</code> - Copilot launch-extension and tagged task relay</li>
+        <li><code>researchRelay</code> - secure provider task relay</li>
         <li><code>openInterpreterAgent</code> - Open Interpreter provider agent</li>
-        <li><code>@open-interpreter</code> - active Open Interpreter backend tag</li>
+        <li><code>webSearchAgent</code> - cacheable web-search provider with a local headless browser runtime</li>
+        <li><code>launch-open-interpreter</code> - deterministic AchillesCLI launcher for execution tasks</li>
+        <li><code>launch-web-search</code> - deterministic AchillesCLI launcher for cacheable web search</li>
     </ul>
 
-    <h2>Chat Tags</h2>
+    <h2>Semantic Copilot Routing</h2>
     <p>
-        Explorer exposes the normal <strong>Open Copilot here</strong> action. The
-        <code>researchRelay</code> launch extension adds <code>research-tags=1</code>,
-        <code>forward-envelope=1</code>, and explicit tag-relay parameters to that Copilot
-        WebChat launch. Messages like
-        <code>@open-interpreter summarize this file</code> are intercepted by AchillesCLI's configured
-        tag-relay mode, sent to <code>research_task_submit</code>, delegated to
-        <code>openInterpreterAgent</code>, executed inside that provider's local bwrap sandbox, and
-        returned to the same chat.
-        Unknown <code>@word</code> mentions remain ordinary chat. Explorer launch URLs use workspace-relative
-        directory parameters so absolute host workspace paths do not appear in copied browser URLs. WebMeet MCP
-        chat uses the same relay and appends the result as an agent-kind chat message.
+        Explorer exposes the normal <strong>Open Copilot here</strong> action. Copilot WebChat may
+        forward a sanitized envelope and invocation token to AchillesCLI. AchillesCLI's
+        <code>copilot-router</code> decides whether to answer normally or call a deterministic launcher
+        such as <code>launch-open-interpreter</code>. The launcher submits to
+        <code>research_task_submit</code>, delegated to <code>openInterpreterAgent</code>, executed inside
+        that provider's local bwrap sandbox, and returned to the same chat. Text such as
+        <code>@open-interpreter summarize this file</code> is ordinary chat text, not a dispatch token.
+        Search prompts route through <code>launch-web-search</code> to <code>webSearchAgent</code>, which
+        performs local browser search and returns citations.
     </p>
 
     <h2>Specifications</h2>
@@ -87,9 +89,11 @@ ploinky start explorer 8080</pre>
         <li><a href="specsLoader.html?spec=DS007-openhands-agent.md">DS007 - OpenHands Backend</a></li>
         <li><a href="specsLoader.html?spec=DS008-agent-laboratory-agent.md">DS008 - Agentic Data Scientist Backend</a></li>
         <li><a href="specsLoader.html?spec=DS009-ai-scientist-agent.md">DS009 - MLJAR and DeepAnalyze Backends</a></li>
-        <li><a href="specsLoader.html?spec=DS010-achilles-cli-launch-integration.md">DS010 - AchillesCLI Tagged Chat Integration</a></li>
+        <li><a href="specsLoader.html?spec=DS010-achilles-cli-launch-integration.md">DS010 - AchillesCLI Semantic Copilot Integration</a></li>
         <li><a href="specsLoader.html?spec=DS011-security-observability.md">DS011 - Security and Observability</a></li>
-        <li><a href="specsLoader.html?spec=DS012-tagged-research-chat-relay.md">DS012 - Tagged Research Chat Relay</a></li>
+        <li><a href="specsLoader.html?spec=DS012-tagged-research-chat-relay.md">DS012 - Superseded Tagged Research Chat Relay</a></li>
+        <li><a href="specsLoader.html?spec=DS013-semantic-copilot-routing.md">DS013 - Semantic Copilot Routing and Launcher Skills</a></li>
+        <li><a href="specsLoader.html?spec=DS014-headless-search-agent.md">DS014 - Web Search Provider Agent</a></li>
     </ul>
 
     <h2>Implementation Plan</h2>

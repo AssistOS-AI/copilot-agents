@@ -3,22 +3,22 @@ id: DS005
 title: Research Relay Agent (researchRelay)
 status: planned
 owner: copilot-agents-team
-summary: Defines the Explorer-facing tagged research-task relay under the `researchRelay` agent id.
+summary: Defines the Explorer-facing semantic research-task relay under the `researchRelay` agent id.
 ---
 
 # DS005 - Research Relay Agent
 
 ## Introduction
 
-The Research Relay is the tagged-task relay for research tasks. Its agent id
-is `researchRelay`. It provides Copilot launch metadata, the backend tag catalog
-tools, and the secure relay that routes tagged research tasks to provider
+The Research Relay is the secure relay for semantic research tasks. Its agent id
+is `researchRelay`. It provides Copilot launch metadata, the backend catalog
+tools, and the secure relay that routes semantic research tasks to provider
 agents. The relay must not own backend runtime setup and must not call a
 sandbox runner directly for backend execution.
 
 **Naming note.** The previous agent id was `researchCopilot`. The
 implementation is now renamed to `researchRelay`; bundle enable entries, MCP
-helper names, tests, Explorer plugin folders, and AchillesCLI tag-relay launch
+helper names, tests, Explorer plugin folders, and AchillesCLI semantic launcher
 parameters must use the new id. Ploinky framework code must not reference this
 agent id directly.
 
@@ -30,47 +30,49 @@ container, `lite-sandbox: true`, and the default `AgentServer` with
 
 The agent must expose:
 
-- `research_relay_status`: reports relay mode, backend tag configuration,
+- `research_relay_status`: reports relay mode, backend configuration,
   and provider reachability.
-- `research_relay_list_backends`: returns the canonical backend tag
+- `research_relay_list_backends`: returns the canonical backend
   catalog, including `provider` metadata for provider-backed backends.
-- `research_task_submit`: accepts a backend tag, natural-language prompt,
+- `research_task_submit`: accepts a backend id, natural-language prompt,
   optional resource payloads or workspace-confined paths, and origin metadata.
   It forwards the task to the declared provider agent's MCP tool and returns a
   natural-language result.
-- `research_relay_dispatch`: compatibility helper that returns a Copilot
-  WebChat URL with research tag handling enabled. It must not return direct
-  backend WebChat URLs.
+- `research_relay_dispatch`: compatibility helper that returns a generic
+  AchillesCLI Copilot WebChat URL with envelope forwarding enabled. It must
+  not return direct backend WebChat URLs or tag-relay launch parameters.
 
 The relay must not expose direct chat endpoints for Open Interpreter,
 OpenHands, Agentic Data Scientist, MLJAR, or DeepAnalyze. Backend-specific
-logic lives in provider agents. The only active provider-backed backend in
-this implementation is `@open-interpreter` through `openInterpreterAgent`.
-Future backends such as DeepAnalyze, OpenHands, Agentic Data Scientist, and
-MLJAR must not be added to the active relay catalog until they have provider
-agents that own their runtime setup and local sandbox execution.
+logic lives in provider agents. The active provider-backed backends are
+`open-interpreter` through `openInterpreterAgent` and `web-search` through
+`webSearchAgent`. Future backends such as DeepAnalyze, OpenHands, Agentic
+Data Scientist, and MLJAR must not be added to the active relay catalog until
+they have provider agents that own their runtime setup and execution.
 
 The relay must not embed backend command strings for backends that have a
 provider agent. It must not own runtime ids, package versions, shim
-paths, or model/provider configuration. When invoked for `@open-interpreter`,
+paths, or model/provider configuration. When invoked for `open-interpreter`,
 the relay forwards the task to
 `openInterpreterAgent.open_interpreter_run_task` and returns that tool's
-natural-language output. Backend execution through a local sandbox runner
-belongs to provider agents, not to the relay.
+natural-language output. When invoked for `web-search`, the relay forwards to
+`webSearchAgent.web_search_run_task` and returns the search result with
+citations. The `web-search` backend declares `cacheable: true` and
+`ttl_hint_seconds: 86400`. Backend execution belongs to provider agents, not
+to the relay.
 
 The agent must not expose a separate user-facing Explorer menu item or toolbar
 button for research chat. Explorer should show one primary chat entry point:
 the existing AchillesCLI action labeled `Open Copilot here`. Research Relay
-adds tag handling to that normal Copilot launch through a metadata-only
+adds envelope forwarding metadata to that normal Copilot launch through a metadata-only
 Explorer plugin in `file-exp:copilot-launch-extension`.
 
-The launch-extension plugin must contribute `copilotLaunch.query` values for
-`research-tags=1`, `forward-envelope=1`, `tag-relay-agent=researchRelay`,
-`tag-relay-submit-tool=research_task_submit`,
-`tag-relay-list-tool=research_relay_list_backends`, and the explicit
-`tag-relay-tags` allowlist. It should set `workspaceDirParam` to
-`workspace-dir` so the Copilot launcher can prefer workspace-relative
-directory parameters over absolute host paths.
+The launch-extension plugin must contribute only generic `copilotLaunch.query`
+values, currently `forward-envelope=1`. It must not contribute
+`research-tags`, `tag-relay-*`, backend tags, provider agent ids, or provider
+MCP tool names. It should set `workspaceDirParam` to `workspace-dir` so the
+Copilot launcher can prefer workspace-relative directory parameters over
+absolute host paths.
 
 Explorer and helper-generated WebChat URLs must prefer workspace-relative
 query parameters such as `workspace-dir` instead of placing absolute host
@@ -78,11 +80,10 @@ workspace paths in the browser URL. Ploinky WebChat resolves those relative
 values server-side before spawning AchillesCLI.
 
 The relay may keep `research_relay_dispatch` as a compatibility helper that
-returns the same Copilot WebChat URL shape, but the durable Explorer path is
-the normal Copilot launch plus launch-extension metadata. The list tool may
-remain in the URL as a fallback catalog source, but the explicit tag allowlist
-is preferred because it avoids a preflight MCP call before the actual
-delegated task submit.
+returns the same generic Copilot WebChat URL shape, but the durable Explorer
+path is the normal Copilot launch plus launch-extension metadata. Backend
+catalog lookup belongs to AchillesCLI launcher execution, not to the WebChat
+launch URL.
 
 Browser-side status calls must go through Explorer `appServices.callTool`
 or an equivalent MCP session-aware helper. The plugin must not post raw
@@ -122,13 +123,13 @@ Explorer's contract is to host plugins and preserve the shell. Research-agent
 launch behavior belongs to the agent that owns the research integration, so
 the IDE shell does not accumulate domain-specific logic.
 
-### Question #2: Why use chat tags instead of direct backend WebChat links?
+### Question #2: Why use semantic Copilot launchers instead of direct backend WebChat links?
 
 Response:
-The invariant is that users tag a research backend from Copilot chat or
-WebMeet chat and receive a natural-language answer in the same chat. Direct
-backend WebChat links create a second interaction model, bypass origin reply
-handling, and make attachments harder to relay safely.
+The invariant is that users ask naturally in Copilot and receive a
+natural-language answer in the same chat. Direct backend WebChat links create
+a second interaction model, bypass origin reply handling, and make attachments
+harder to relay safely.
 
 ### Question #3: Why require Explorer SDK calls for plugin status?
 
@@ -151,16 +152,16 @@ with provider agents.
 
 Response:
 The old id sounded like an assistant or executor. The implementation role is
-a relay: validate known tags, forward to provider agents, and return the
+a relay: validate known backend ids, forward to provider agents, and return the
 provider's natural-language answer. The rename is implemented across
 bundle enable entries, MCP helper names, tests, Explorer plugins, and
-AchillesCLI tag-relay launch parameters so there is one durable runtime
+AchillesCLI semantic launcher configuration so there is one durable runtime
 identity without coupling Ploinky core to the relay.
 
 ## Conclusion
 
 The Research Relay (`researchRelay`) must remain a thin launch-extension and
-secure tagged-task relay that routes natural-language research tasks through
+secure semantic-task relay that routes natural-language research tasks through
 provider agents and returns normalized natural-language output to the
 originating chat. It must not own backend runtimes or a separate visible
 Explorer chat entry point.

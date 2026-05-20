@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
     buildProviderInput,
+    normalizeProviderResult,
     normalizeResearchTaskInput,
 } from '../../researchRelay/tools/lib/task.mjs';
 
@@ -51,6 +52,24 @@ test('provider input keeps the natural-language prompt and resources', () => {
         content: 'a,b\n1,2\n',
         size: 8,
     });
+});
+
+test('provider result preserves search cache and citation metadata', () => {
+    const normalized = normalizeProviderResult({
+        ok: true,
+        backend_ok: true,
+        final_answer: 'answer',
+        cacheable: true,
+        ttl_hint_seconds: 123,
+        sources: [{ title: 'Example', url: 'https://example.com' }],
+    }, {
+        backend: { label: 'Web Search' },
+        resources: [],
+    });
+
+    assert.equal(normalized.cacheable, true);
+    assert.equal(normalized.ttl_hint_seconds, 123);
+    assert.deepEqual(normalized.sources, [{ title: 'Example', url: 'https://example.com' }]);
 });
 
 test('non-provider research tags are not advertised until they have provider agents', () => {

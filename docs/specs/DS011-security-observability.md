@@ -42,18 +42,20 @@ generated papers, experiment outputs, or prompt transcripts in plugin asset
 folders or static documentation. Manuscript-generating agents must preserve
 upstream disclosure requirements.
 
-Runtime isolation is defense in depth. Backend execution must happen inside a
-local inner bubblewrap sandbox started by the provider agent container. Each
-provider that executes research code must use the shared bwrap-runner Docker
-image as its sandbox base, either directly or through a documented derived
-image. Provider agents must not call a separate `basic/bwrap-runner` Ploinky
-agent for research execution. The Research Relay must pass prompt and resource
-content through staged data and must not pass caller-supplied mounts, bwrap
-flags, network selectors, generated setup programs, or inline executable
-driver code. Container, lite-sandbox, nested bwrap, or profile choices do not
-make enabled agents safe for hostile multi-tenant execution. The documentation
-must state that operators are intentionally enabling trusted local research
-code inside a workspace.
+Runtime isolation is defense in depth. Code-execution backend work must happen
+inside a local inner bubblewrap sandbox started by the provider agent
+container. Each provider that executes research code must use the shared
+bwrap-runner Docker image as its sandbox base, either directly or through a
+documented derived image. Browser-search providers may use a browser-enabled
+container when their provider task is limited to browser navigation and result
+normalization. Provider agents must not call a separate `basic/bwrap-runner`
+Ploinky agent for research execution. The Research Relay must pass prompt and
+resource content through staged data and must not pass caller-supplied mounts,
+bwrap flags, network selectors, generated setup programs, or inline executable
+driver code. Container, lite-sandbox, nested bwrap, browser image, or profile
+choices do not make enabled agents safe for hostile multi-tenant execution.
+The documentation must state that operators are intentionally enabling trusted
+local research code and browser automation inside a workspace.
 
 Provider credentials must stay outside inner sandbox payloads by default.
 For Open Interpreter's normal hosted path, `SOUL_GATEWAY_API_KEY` is exposed

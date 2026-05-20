@@ -1,13 +1,14 @@
-export const BACKEND = 'open-interpreter';
+export const BACKEND = 'web-search';
 export const RELAY_AGENT = 'researchRelay';
-export const PROVIDER_AGENT = 'openInterpreterAgent';
+export const PROVIDER_AGENT = 'webSearchAgent';
 export const LIST_TOOL = 'research_relay_list_backends';
 export const SUBMIT_TOOL = 'research_task_submit';
-export const PROVIDER_STATUS_TOOL = 'oi_status';
+export const PROVIDER_STATUS_TOOL = 'web_search_status';
 
-const DEFAULT_TIMEOUT_MS = 110000;
-const MAX_TASK_TIMEOUT_MS = 120000;
-const PROVIDER_TOKEN_RE = /(^|\s)@open-interpreter(?=\s|$|[.,:;!?])/i;
+const DEFAULT_TIMEOUT_MS = 60000;
+const MAX_TASK_TIMEOUT_MS = 90000;
+const DEFAULT_TTL_SECONDS = 86400;
+const PROVIDER_TOKEN_RE = /(^|\s)@(?:web-search|search)(?=\s|$|[.,:;!?])/i;
 
 function trim(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -112,14 +113,11 @@ function normalizeArgs(args = {}) {
         ...args,
         prompt: trim(args.prompt || fromPrompt.prompt || args.promptText),
         workingDir: trim(args.workingDir || args.working_directory || fromPrompt.workingDir || context.workingDir || process.cwd()),
-        resources: asArray(args.resources?.length ? args.resources : fromPrompt.resources?.length ? fromPrompt.resources : context.webchatResources),
-        paths: asArray(args.paths?.length ? args.paths : fromPrompt.paths?.length ? fromPrompt.paths : context.webchatPaths),
         origin: args.origin && typeof args.origin === 'object'
             ? args.origin
             : fromPrompt.origin && typeof fromPrompt.origin === 'object'
             ? fromPrompt.origin
             : context.webchatOrigin || {},
-        warnings: asArray(context.webchatResourceWarnings),
         invocationToken: trim(args.invocationToken || fromPrompt.invocationToken || context.invocationToken),
         timeoutMs: normalizeTimeout(args.timeoutMs ?? fromPrompt.timeoutMs),
         env: args.env || context.env || process.env,
@@ -134,7 +132,7 @@ function resultBase(overrides = {}) {
         cacheable: false,
         result_text: '',
         persistence_hint: {
-            ku_type: 'code_work',
+            ku_type: 'agent.result.web-search',
             record_result: false,
             ttl_hint_seconds: null,
         },
@@ -155,39 +153,8 @@ function normalizeRelayAnswer(payload) {
         payload?.final_answer
         || payload?.natural_language_output
         || payload?.error
-        || 'Open Interpreter completed without a response.'
+        || 'Web search completed without a response.',
     ).trim();
-}
-
-function withForwardingWarnings(prompt, warnings = []) {
-    const cleanWarnings = warnings.map((entry) => trim(entry)).filter(Boolean);
-    if (!cleanWarnings.length) return prompt;
-    return `${prompt}\n\nReference forwarding notes:\n${cleanWarnings.map((entry) => `- ${entry}`).join('\n')}`;
-}
-
-function normalizeForwardablePaths(paths = []) {
-    const forwarded = [];
-    const warnings = [];
-    for (const entry of asArray(paths)) {
-        if (typeof entry === 'string') {
-            const text = trim(entry);
-            if (text) forwarded.push(text);
-            continue;
-        }
-        if (!entry || typeof entry !== 'object') continue;
-        const entryPath = trim(entry.path);
-        if (!entryPath) continue;
-        if (String(entry.type || '').toLowerCase() === 'file') {
-            forwarded.push(entryPath);
-            continue;
-        }
-        const label = trim(entry.label) || entryPath;
-        warnings.push(`Workspace reference "${label}" is a ${trim(entry.type) || 'non-file'} path and was not forwarded as a relay path. Attach or reference specific files to send file paths.`);
-    }
-    return {
-        paths: [...new Set(forwarded)],
-        warnings,
-    };
 }
 
 async function checkProviderAvailability(input, backend) {
@@ -195,7 +162,7 @@ async function checkProviderAvailability(input, backend) {
     if (!providerAgent) {
         return {
             ok: false,
-            result_text: 'Open Interpreter is unavailable because the Research Relay backend has no provider route.',
+            result_text: 'Web search is unavailable because the Research Relay backend has no provider route.',
             diagnostics: { providerAvailability: 'not_deployed', missingProviderRoute: true },
         };
     }
@@ -209,7 +176,7 @@ async function checkProviderAvailability(input, backend) {
     } catch (error) {
         return {
             ok: false,
-            result_text: `Open Interpreter is unavailable because provider agent ${providerAgent} is not reachable: ${error?.message || 'provider status failed'}`,
+            result_text: `Web search is unavailable because provider agent ${providerAgent} is not reachable: ${error?.message || 'provider status failed'}`,
             diagnostics: {
                 providerAvailability: 'not_deployed',
                 providerAgent,
@@ -225,7 +192,7 @@ function rememberLauncherResult(context, result, extra = {}) {
             context.providerLauncherResults = [];
         }
         context.providerLauncherResults.push({
-            launcher: 'launch-open-interpreter',
+            launcher: 'launch-web-search',
             backend: BACKEND,
             prompt: extra.prompt || '',
             result,
@@ -242,19 +209,19 @@ export async function action(args = {}) {
     const input = normalizeArgs(args);
     if (!input.prompt) {
         return finish(input, resultBase({
-            result_text: 'Open Interpreter needs a natural-language task to run.',
+            result_text: 'Web search needs a search query.',
             diagnostics: { providerAvailability: 'active' },
         }));
     }
     if (PROVIDER_TOKEN_RE.test(input.prompt)) {
         return finish(input, resultBase({
-            result_text: '`@open-interpreter` is ordinary chat text now. I did not start Open Interpreter from that token.',
+            result_text: '`@web-search` is ordinary chat text now. I did not start a web search from that token.',
             diagnostics: { providerAvailability: 'active', deprecatedToken: true },
         }));
     }
     if (!input.invocationToken) {
         return finish(input, resultBase({
-            result_text: 'Open Interpreter is unavailable in this chat because no router invocation token was provided.',
+            result_text: 'Web search is unavailable in this chat because no router invocation token was provided.',
             diagnostics: { providerAvailability: 'disabled', missingInvocationToken: true },
         }));
     }
@@ -268,14 +235,14 @@ export async function action(args = {}) {
         }));
     } catch (error) {
         return finish(input, resultBase({
-            result_text: `Open Interpreter is unavailable because the Research Relay is not reachable: ${error?.message || 'relay lookup failed'}`,
+            result_text: `Web search is unavailable because the Research Relay is not reachable: ${error?.message || 'relay lookup failed'}`,
             diagnostics: { providerAvailability: 'not_deployed', relayLookupError: error?.message || String(error) },
         }));
     }
     const catalogBackend = findCatalogBackend(catalog);
     if (!catalogBackend) {
         return finish(input, resultBase({
-            result_text: 'Open Interpreter launcher is available, but the Research Relay catalog does not currently expose the open-interpreter backend.',
+            result_text: 'Web search launcher is available, but the Research Relay catalog does not currently expose the web-search backend.',
             diagnostics: { providerAvailability: 'not_deployed', missingBackend: BACKEND },
         }));
     }
@@ -288,14 +255,9 @@ export async function action(args = {}) {
         }));
     }
 
-    const forwardablePaths = normalizeForwardablePaths(input.paths);
     const submitArguments = {
         backend: BACKEND,
-        prompt: withForwardingWarnings(input.prompt, [
-            ...input.warnings,
-            ...forwardablePaths.warnings,
-        ]),
-        resources: input.resources,
+        prompt: input.prompt,
         origin: {
             type: 'semantic-copilot',
             surface: 'webchat',
@@ -304,36 +266,34 @@ export async function action(args = {}) {
         },
         timeoutMs: input.timeoutMs,
     };
-    if (forwardablePaths.paths.length) {
-        submitArguments.paths = forwardablePaths.paths;
-    }
 
     try {
         const payload = extractToolJson(await input.callAgentTool(RELAY_AGENT, SUBMIT_TOOL, submitArguments, {
             invocationToken: input.invocationToken,
-            timeoutMs: input.timeoutMs + 330000,
+            timeoutMs: input.timeoutMs + 30000,
             env: input.env,
         }));
+        const cacheable = Boolean(payload.cacheable ?? (payload.backend_ok && payload.ok));
         return finish(input, resultBase({
             ok: payload.ok !== undefined ? Boolean(payload.ok) : true,
+            cacheable,
             result_text: normalizeRelayAnswer(payload),
             persistence_hint: {
-                ku_type: 'code_work',
-                record_result: true,
-                ttl_hint_seconds: null,
+                ku_type: 'agent.result.web-search',
+                record_result: cacheable,
+                ttl_hint_seconds: cacheable ? (payload.ttl_hint_seconds || DEFAULT_TTL_SECONDS) : null,
             },
             diagnostics: {
                 providerAvailability: 'active',
                 relayBackend: payload.backend || BACKEND,
-                jobId: payload.jobId || null,
-                sandboxOk: payload.sandbox_ok ?? null,
                 backendOk: payload.backend_ok ?? null,
                 providerAgent: providerAvailability.providerAgent,
+                sources: payload.sources || [],
             },
         }));
     } catch (error) {
         return finish(input, resultBase({
-            result_text: `Open Interpreter task failed: ${error?.message || 'delegated task failed'}`,
+            result_text: `Web search task failed: ${error?.message || 'delegated task failed'}`,
             diagnostics: { providerAvailability: 'active', submitError: error?.message || String(error) },
         }));
     }

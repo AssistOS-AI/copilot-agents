@@ -7,31 +7,36 @@
     ],
     "enable": [
         "researchRelay global",
-        "openInterpreterAgent global no-wait"
+        "openInterpreterAgent global no-wait",
+        "webSearchAgent global no-wait"
     ],
     "profiles": {
         "default": {
             "enable": [
                 "researchRelay global",
-                "openInterpreterAgent global no-wait"
+                "openInterpreterAgent global no-wait",
+                "webSearchAgent global no-wait"
             ]
         },
         "dev": {
             "enable": [
                 "researchRelay global",
-                "openInterpreterAgent global no-wait"
+                "openInterpreterAgent global no-wait",
+                "webSearchAgent global no-wait"
             ]
         },
         "qa": {
             "enable": [
                 "researchRelay global",
-                "openInterpreterAgent global no-wait"
+                "openInterpreterAgent global no-wait",
+                "webSearchAgent global no-wait"
             ]
         },
         "prod": {
             "enable": [
                 "researchRelay global",
-                "openInterpreterAgent global no-wait"
+                "openInterpreterAgent global no-wait",
+                "webSearchAgent global no-wait"
             ]
         }
     }

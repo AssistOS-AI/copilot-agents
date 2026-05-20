@@ -1,0 +1,39 @@
+{
+    "container": "ghcr.io/puppeteer/puppeteer:latest",
+    "lite-sandbox": true,
+    "about": "Web Search provider agent. Executes cacheable web searches with its own local headless browser pool. The agent is self-contained and does not call external LLM/search gateways.",
+    "agent": "sh /code/scripts/startAgent.sh",
+    "readiness": {
+        "protocol": "mcp"
+    },
+    "env": [
+        "PLOINKY_WORKSPACE_ROOT",
+        "PLOINKY_ROUTER_URL",
+        "WEB_SEARCH_SERVICE_HOST",
+        "WEB_SEARCH_SERVICE_PORT",
+        "WEB_SEARCH_SERVICE_URL",
+        "WEB_SEARCH_TIMEOUT_MS",
+        "WEB_SEARCH_DEBUG_SCREENSHOTS",
+        "BROWSER_POOL_SIZE",
+        "BROWSER_EXECUTABLE_PATH",
+        "BROWSER_HEADLESS_MODE",
+        "BROWSER_PROXY_URL",
+        "BROWSER_USER_DATA_DIR",
+        "BROWSER_MIN_REQUEST_INTERVAL_MS"
+    ],
+    "profiles": {
+        "default": {
+            "env": {
+                "WEB_SEARCH_SERVICE_HOST": "127.0.0.1",
+                "WEB_SEARCH_SERVICE_PORT": "47731",
+                "WEB_SEARCH_TIMEOUT_MS": "60000",
+                "BROWSER_POOL_SIZE": "1",
+                "BROWSER_HEADLESS_MODE": "new",
+                "BROWSER_MIN_REQUEST_INTERVAL_MS": "2000"
+            }
+        }
+    },
+    "volumes": {
+        ".ploinky/data/webSearchAgent": "/data"
+    }
+}

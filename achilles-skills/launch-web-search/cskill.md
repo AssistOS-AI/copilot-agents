@@ -1,13 +1,13 @@
-# Launch Open Interpreter
+# Launch Web Search
 
-Dispatch an execution-oriented Copilot task to Open Interpreter through
+Dispatch a cacheable web-search task through
 `researchRelay.research_task_submit`.
 
 ## Backend
-open-interpreter
+web-search
 
 ## Cacheable
-false
+true
 
 ## RequiresInvocationToken
 true
@@ -15,9 +15,9 @@ true
 ## Input Format
 Accepts a JSON object or plain prompt text.
 
-- **prompt** (string): natural-language execution task.
+- **prompt** (string): natural-language search query.
 - **workingDir** (string, optional): current working directory.
-- **resources**, **paths**, **origin** (optional): safe Copilot context.
+- **origin** (optional): safe Copilot context.
 
 In normal WebChat use, AchillesCLI provides `context.invocationToken` and safe
 materialized context.
@@ -27,6 +27,6 @@ Returns a structured launcher result with `ok`, `backend`, `cacheable`,
 `result_text`, `persistence_hint`, and `diagnostics`.
 
 ## Constraints
-- Never call `openInterpreterAgent` directly.
+- Never call `webSearchAgent` directly.
 - Always dispatch through `researchRelay.research_task_submit`.
-- `@open-interpreter` is ordinary chat text and must not trigger provider dispatch.
+- `@web-search` or `@search` is ordinary chat text and must not trigger dispatch.

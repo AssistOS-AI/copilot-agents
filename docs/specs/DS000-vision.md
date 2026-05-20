@@ -10,26 +10,26 @@ summary: Defines the purpose, boundaries, and success criteria for the Ploinky r
 
 ## Introduction
 
-`copilot-agents` is a Ploinky agent repository for explicitly deployed tagged research agents. It integrates provider-owned research backends that receive natural-language tasks from chat and execute inside each provider's own local bubblewrap sandbox while preserving AssistOSExplorer, WebMeet, AchillesCLI, and Ploinky boundaries. The active backend in this implementation is Open Interpreter through `openInterpreterAgent`; additional backends require provider agents before their tags become active.
+`copilot-agents` is a Ploinky agent repository for explicitly deployed research providers. It integrates provider-owned research backends that receive natural-language tasks through AchillesCLI Copilot launchers and execute inside each provider's own local bubblewrap sandbox while preserving AssistOSExplorer, WebMeet, AchillesCLI, and Ploinky boundaries. The active backend in this implementation is Open Interpreter through `openInterpreterAgent`; additional backends require provider agents before semantic launchers can use them.
 
 ## Core Content
 
-The repository must provide research-task infrastructure that is usable inside a Ploinky workspace without becoming a default AssistOSExplorer dependency. A user or operator must explicitly enable the `research-agents` bundle before any research relay surface becomes active.
+The repository must provide research-task infrastructure that is usable inside a Ploinky workspace without becoming a default AssistOSExplorer dependency. Runtime relay and provider containers are deployed explicitly through the `research-agents` bundle, while Copilot availability is determined by launcher skills discovered by the selected chat agent.
 
 The repository must treat Ploinky as the runtime and trust broker. Browser launches, MCP calls, delegated calls, status checks, and any HTTP services must flow through Ploinky routing and authentication. Direct agent ports must not become public or documented integration surfaces.
 
 The repository must treat AssistOSExplorer as the host shell. Explorer may discover and mount `IDE-plugins` after the research bundle is enabled, but Explorer must not absorb research-agent domain logic.
 
-The repository must treat Copilot chat and WebMeet chat as tag surfaces, not as direct research-agent terminals. Messages such as `@open-interpreter summarize these notes` must be relayed to `researchRelay`, delegated to `openInterpreterAgent`, executed inside that provider's own local sandbox, and returned as natural-language chat output.
+The repository must treat AchillesCLI Copilot as the semantic routing owner, not as a user-visible tag dispatcher. Launcher skills submit routed provider tasks to `researchRelay`, which delegates to provider agents such as `openInterpreterAgent`, executes inside that provider's own local sandbox, and returns natural-language output. User text such as `@open-interpreter summarize these notes` is ordinary chat text unless the semantic router chooses a provider from the actual request.
 
-The implementation is complete only when the bundle deploys `researchRelay` and provider agents such as `openInterpreterAgent` without enabling a separate `bwrap-runner` agent, AchillesCLI Copilot chat can intercept configured research tags through explicit tag-relay launch parameters, WebMeet MCP chat can dispatch the same tags, and the relay returns a natural-language result or a clear backend-configuration error without exposing direct backend chat endpoints. Ploinky WebChat remains a generic transport and must not know the research relay agent id.
+The implementation is complete only when the bundle deploys `researchRelay` and provider agents such as `openInterpreterAgent` without enabling a separate `bwrap-runner` agent, AchillesCLI Copilot can route execution requests through deterministic provider launcher skills, WebMeet treats provider-looking `@word` text as ordinary chat, and the relay returns a natural-language result or a clear backend-configuration error without exposing direct backend chat endpoints. Ploinky WebChat remains a generic transport and must not know the research relay agent id.
 
 ## Decisions & Questions
 
 ### Question #1: Why is this repository not enabled by Explorer by default?
 
 Response:
-The upstream research agents can execute code, run long research workflows, or require heavy Python and LaTeX dependencies. Keeping them behind an explicit Ploinky bundle command preserves Explorer's normal startup behavior and makes operator intent visible.
+The upstream research agents can execute code, run long research workflows, or require heavy Python and LaTeX dependencies. Keeping runtime containers behind an explicit manifest bundle preserves Explorer's normal startup behavior and makes operator intent visible. The bundle is not a chat availability switch: Copilot can select a provider only when AchillesCLI or another selected chat agent exposes the matching launcher skill.
 
 ### Question #2: Why keep Explorer, AchillesCLI, and Ploinky responsibilities separate?
 
@@ -38,4 +38,4 @@ Explorer owns the IDE shell, AchillesCLI owns Copilot chat and skills, and Ploin
 
 ## Conclusion
 
-The repository must deliver explicitly deployed tagged research agents that remain router-mediated, workspace-confined, plugin-hosted, chat-originated, and sandbox-executed inside provider containers based on the shared bwrap-runner image.
+The repository must deliver explicitly deployed research providers that remain router-mediated, workspace-confined, plugin-hosted, Copilot-routed, and sandbox-executed inside provider containers based on the shared bwrap-runner image.

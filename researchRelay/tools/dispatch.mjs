@@ -68,19 +68,11 @@ function toWorkspaceRelative(value, workspaceRoot) {
     return relative || '.';
 }
 
-function buildRelayLaunchPath(workingDir, skillRoot, workspaceRoot, backend) {
-    const relayTags = backend && Array.isArray(backend.tags) ? backend.tags.join(',') : '';
+function buildRelayLaunchPath(workingDir, skillRoot, workspaceRoot) {
     const params = new URLSearchParams({
         agent: 'achilles-cli',
-        'research-tags': '1',
         'forward-envelope': '1',
-        'tag-relay-agent': 'researchRelay',
-        'tag-relay-submit-tool': 'research_task_submit',
-        'tag-relay-list-tool': 'research_relay_list_backends',
     });
-    if (relayTags) {
-        params.set('tag-relay-tags', relayTags);
-    }
     const relativeWorkingDir = toWorkspaceRelative(workingDir, workspaceRoot);
     if (relativeWorkingDir) {
         params.set('workspace-dir', relativeWorkingDir);
@@ -117,11 +109,10 @@ async function main() {
         writeOk({
             backend: backend.id,
             agent: 'researchRelay',
-            tag: `@${backend.tags[0]}`,
-            launch_url: buildRelayLaunchPath(dir.value, skill.value, process.env.PLOINKY_WORKSPACE_ROOT, backend),
-            relay_url: buildRelayLaunchPath(dir.value, skill.value, process.env.PLOINKY_WORKSPACE_ROOT, backend),
+            launch_url: buildRelayLaunchPath(dir.value, skill.value, process.env.PLOINKY_WORKSPACE_ROOT),
+            relay_url: buildRelayLaunchPath(dir.value, skill.value, process.env.PLOINKY_WORKSPACE_ROOT),
             default_profile: backend.default_profile,
-            note: 'Research backends are invoked by @tag from Copilot chat; direct backend WebChat launch is deprecated.',
+            note: 'Compatibility launch helper only opens AchillesCLI Copilot with envelope forwarding. New calls should use research_task_submit.',
         });
     } catch (error) {
         writeError(error && error.message ? error.message : 'research_relay_dispatch failed');

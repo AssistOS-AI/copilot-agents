@@ -12,6 +12,7 @@ const AGENT_DIRS = [
     'research-agents',
     'researchRelay',
     'openInterpreterAgent',
+    'webSearchAgent',
 ];
 
 const PLUGIN_ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*$/;

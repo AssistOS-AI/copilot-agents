@@ -14,7 +14,7 @@ summary: Defines the Open Interpreter provider agent. The agent owns Open Interp
 preparation of the Open Interpreter runtime and execution of bounded research
 tasks inside a local inner bubblewrap sandbox. It does not delegate execution
 to a separate `basic/bwrap-runner` Ploinky agent. Chat-facing tasks reach it
-only through the Research Relay's `@open-interpreter` tag.
+only through the Research Relay's `open-interpreter` backend id.
 
 ## Core Content
 
@@ -51,7 +51,7 @@ The agent must own:
   fail with a natural-language repair message instead of deleting or replacing
   the directory in place.
 - `openInterpreterAgent/tools/open-interpreter-run-task.mjs`: the provider
-  tool the Research Relay invokes for `@open-interpreter` tasks. It must
+  tool the Research Relay invokes for `open-interpreter` tasks. It must
   validate input, refuse to proceed without a router invocation token,
   ensure the runtime exists by reusing or preparing it when
   `OI_RUNTIME_AUTO_PREPARE` is enabled, resolve Open Interpreter LLM
@@ -115,7 +115,7 @@ minimal OpenAI-compatible server-sent event stream back to the sandbox, so
 provider-specific streaming behavior does not leak into the runtime shim.
 The broker must also forward the provider container's `AGENT_NAME` or
 `PLOINKY_AGENT_NAME` as `X-Soul-Agent` so Soul Gateway observability records
-the tagged provider agent instead of `unknown`.
+the provider agent instead of `unknown`.
 
 Broker-backed jobs require the inner bwrap runner to inherit the provider
 container network so the sandbox can reach the loopback broker. This network
@@ -205,7 +205,7 @@ Interpreter as defense in depth for direct invocations.
 Response:
 The chat path must work in a fresh workspace after the `research-agents`
 bundle is enabled. Requiring a manual `prepare_runtime` call before the first
-`@open-interpreter` task would make the advertised flow incomplete. The
+semantic Open Interpreter task would make the advertised flow incomplete. The
 explicit `prepare_runtime` tool remains useful for operators who want to warm
 the runtime before chat use or diagnose preparation failures.
 

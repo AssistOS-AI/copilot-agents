@@ -15,6 +15,16 @@ export const RESEARCH_BACKENDS = Object.freeze([
         provider: { agent: 'openInterpreterAgent', tool: 'open_interpreter_run_task' },
         description: 'Bounded local coding and analysis backend provided by the openInterpreterAgent. The provider executes tasks in its own local bwrap sandbox inside a container based on the shared bwrap-runner image.',
     },
+    {
+        id: 'web-search',
+        tags: ['web-search'],
+        label: 'Web Search',
+        default_profile: 'default',
+        provider: { agent: 'webSearchAgent', tool: 'web_search_run_task' },
+        cacheable: true,
+        ttl_hint_seconds: 86400,
+        description: 'Cacheable web-search provider backed by the webSearchAgent local headless browser runtime.',
+    },
 ]);
 
 export function findBackend(id) {
@@ -35,6 +45,8 @@ export function publicBackendView(backend, env = process.env) {
         label: backend.label,
         default_profile: backend.default_profile,
         provider: backend.provider ? { agent: backend.provider.agent, tool: backend.provider.tool } : null,
+        cacheable: Boolean(backend.cacheable),
+        ttl_hint_seconds: backend.ttl_hint_seconds ?? null,
         configured: isBackendConfigured(backend, env),
         description: backend.description,
     };

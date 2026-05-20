@@ -48,8 +48,8 @@
         },
         {
             "name": "research_task_submit",
-            "title": "Submit Tagged Research Task",
-            "description": "Forward a tagged research task to its provider agent and return the backend's natural-language result.",
+            "title": "Submit Research Task",
+            "description": "Forward a semantic Copilot research task to its provider agent and return the backend's natural-language result.",
             "command": "/usr/local/bin/node",
             "args": [
                 "/code/tools/submit-task.mjs"
@@ -60,7 +60,7 @@
                 "backend": {
                     "type": "string",
                     "optional": false,
-                    "description": "Research backend id or chat tag, such as @open-interpreter."
+                    "description": "Research backend id, such as open-interpreter."
                 },
                 "prompt": {
                     "type": "string",

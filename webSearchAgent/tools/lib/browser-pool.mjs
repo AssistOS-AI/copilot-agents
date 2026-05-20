@@ -46,12 +46,12 @@ export class BrowserPool {
         }
 
         const slot = this._slots.find((candidate) => (
-            !candidate.busy && candidate.browser?.isConnected()
+            !candidate.busy && browserIsConnected(candidate.browser)
         ));
         if (slot) return this._checkout(slot, signal);
 
         const crashed = this._slots.find((candidate) => (
-            !candidate.busy && !candidate.browser?.isConnected()
+            !candidate.busy && !browserIsConnected(candidate.browser)
         ));
         if (crashed) {
             crashed.browser = await this._launchBrowser();
@@ -81,7 +81,7 @@ export class BrowserPool {
 
     status() {
         const available = this._slots.filter((slot) => (
-            !slot.busy && slot.browser?.isConnected()
+            !slot.busy && browserIsConnected(slot.browser)
         )).length;
         const busy = this._slots.filter((slot) => slot.busy).length;
         return {
@@ -267,7 +267,7 @@ export class BrowserPool {
             const now = Date.now();
             for (const slot of this._slots) {
                 if (!slot.busy
-                    && slot.browser?.isConnected()
+                    && browserIsConnected(slot.browser)
                     && now - slot.lastUsed > IDLE_TIMEOUT_MS) {
                     slot.browser.close().catch(() => {});
                     slot.browser = null;
@@ -297,6 +297,12 @@ async function loadPuppeteer({ preferCore = false } = {}) {
 
 function normalizePuppeteerModule(moduleValue) {
     return moduleValue?.default || moduleValue;
+}
+
+function browserIsConnected(browser) {
+    if (!browser) return false;
+    if (typeof browser.isConnected === 'function') return browser.isConnected();
+    return Boolean(browser.connected);
 }
 
 function noopLog() {

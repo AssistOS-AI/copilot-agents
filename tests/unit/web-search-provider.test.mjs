@@ -149,6 +149,37 @@ describe('web-search-provider local browser runtime helpers', () => {
         assert.deepEqual(pool.status(), { total: 1, available: 1, busy: 0 });
     });
 
+    it('BrowserPool acquire supports Puppeteer connected property', async () => {
+        const page = {
+            setUserAgent: async () => {},
+            evaluateOnNewDocument: async () => {},
+        };
+        const context = {
+            newPage: async () => page,
+            close: async () => {},
+        };
+        const pool = new BrowserPool({
+            poolSize: 1,
+            executablePath: '/usr/bin/chromium',
+            headlessMode: 'new',
+            proxyUrl: null,
+            userDataDir: null,
+        });
+        pool._slots.push({
+            browser: {
+                connected: true,
+                createBrowserContext: async () => context,
+            },
+            busy: false,
+            lastUsed: Date.now(),
+        });
+
+        const handle = await pool.acquire();
+        assert.equal(handle.page, page);
+        await pool.release(handle);
+        assert.deepEqual(pool.status(), { total: 1, available: 1, busy: 0 });
+    });
+
     it('declares Puppeteer Core and a Chromium install hook for the browser runtime', () => {
         const manifest = JSON.parse(readFileSync(
             join(repoRoot, 'webSearchAgent', 'manifest.json'),

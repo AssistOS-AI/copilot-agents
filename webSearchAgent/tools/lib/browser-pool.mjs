@@ -157,7 +157,7 @@ export class BrowserPool {
             throw signal.reason || new Error('Aborted');
         }
 
-        if (!slot.browser?.isConnected()) {
+        if (!browserIsConnected(slot.browser)) {
             slot.browser = await this._launchBrowser();
         }
 

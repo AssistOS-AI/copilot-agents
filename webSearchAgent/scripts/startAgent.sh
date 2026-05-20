@@ -1,6 +1,21 @@
 #!/bin/sh
 set -eu
 
+detect_browser_executable() {
+    if [ -n "${BROWSER_EXECUTABLE_PATH:-}" ]; then
+        return
+    fi
+
+    for candidate in chromium chromium-browser google-chrome; do
+        if command -v "$candidate" >/dev/null 2>&1; then
+            export BROWSER_EXECUTABLE_PATH="$(command -v "$candidate")"
+            return
+        fi
+    done
+}
+
+detect_browser_executable
+
 node /code/server/headless-search-service.mjs &
 SEARCH_SERVICE_PID="$!"
 

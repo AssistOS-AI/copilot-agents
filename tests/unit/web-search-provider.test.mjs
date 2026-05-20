@@ -133,7 +133,7 @@ describe('web-search-provider local browser runtime helpers', () => {
         assert.deepEqual(pool.status(), { total: 1, available: 0, busy: 0 });
     });
 
-    it('declares Puppeteer as an agent dependency matching the browser image tag', () => {
+    it('declares Puppeteer Core and a Chromium install hook for the browser runtime', () => {
         const manifest = JSON.parse(readFileSync(
             join(repoRoot, 'webSearchAgent', 'manifest.json'),
             'utf8',
@@ -143,7 +143,9 @@ describe('web-search-provider local browser runtime helpers', () => {
             'utf8',
         ));
 
-        assert.equal(manifest.container, 'ghcr.io/puppeteer/puppeteer:25.0.4');
-        assert.equal(packageJson.dependencies.puppeteer, '25.0.4');
+        assert.equal(manifest.container, 'node:24.15.0-bookworm-slim');
+        assert.equal(manifest.profiles.default.install, 'sh /code/scripts/install.sh');
+        assert.equal(packageJson.dependencies['puppeteer-core'], '25.0.4');
+        assert.equal(packageJson.dependencies.puppeteer, undefined);
     });
 });

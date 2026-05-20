@@ -43,10 +43,11 @@ The agent must expose:
 The local browser runtime must preserve the tested headless-search patterns:
 
 - lazy Puppeteer import from the Ploinky-managed `/code/node_modules`
-  dependency tree, with `puppeteer` preferred unless an explicit browser
+  dependency tree, with `puppeteer-core` preferred when an explicit browser
   executable path is configured;
-- a `webSearchAgent/package.json` dependency on Puppeteer that matches the
-  pinned `ghcr.io/puppeteer/puppeteer` browser image version;
+- a `webSearchAgent/package.json` dependency on `puppeteer-core` and a
+  manifest install hook that installs Chromium into the agent container when
+  the browser pool is enabled;
 - config-gated browser pool controlled by `BROWSER_POOL_SIZE`;
 - isolated browser contexts per request;
 - user-agent rotation;
@@ -101,6 +102,8 @@ The agent supports these environment variables:
 - `BROWSER_POOL_SIZE` (optional): local browser pool size; defaults to 1. A
   value of 0 disables search and returns a clear unavailable message.
 - `BROWSER_EXECUTABLE_PATH` (optional): Chrome/Chromium executable override.
+  If unset, the start script auto-detects `chromium`, `chromium-browser`, or
+  `google-chrome` after the install hook runs.
 - `BROWSER_HEADLESS_MODE` (optional): headless mode; defaults to `new`.
 - `BROWSER_PROXY_URL` (optional): browser proxy server.
 - `BROWSER_USER_DATA_DIR` (optional): browser user-data directory.
@@ -140,15 +143,16 @@ The token mirrors the security contract of `open_interpreter_run_task`. It
 ensures the caller has a valid Ploinky session and prevents unauthorized tool
 invocation.
 
-### Question #5: Why declare Puppeteer in `webSearchAgent/package.json`?
+### Question #5: Why declare `puppeteer-core` in `webSearchAgent/package.json`?
 
 Response:
 Ploinky installs agent npm dependencies into a prepared read-only
-`/code/node_modules` cache before starting the container. Declaring Puppeteer
-there keeps `webSearchAgent` aligned with normal Ploinky dependency staging and
-avoids relying on modules installed under the browser image user's home
-directory. The browser image is pinned to the same Puppeteer version so the
-runtime package and bundled browser stay in sync.
+`/code/node_modules` cache before starting the container. Declaring
+`puppeteer-core` there keeps `webSearchAgent` aligned with normal Ploinky
+dependency staging. The agent uses a Debian Node image plus a manifest install
+hook for Chromium, mirroring the Soul Gateway headless-browser deployment
+shape and avoiding reliance on image-user-local Node modules or amd64-only
+browser images in local arm64 deployments.
 
 ## Conclusion
 

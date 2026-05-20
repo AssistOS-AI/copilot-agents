@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "puppeteer": "25.0.4"
+    "puppeteer-core": "25.0.4"
   }
 }

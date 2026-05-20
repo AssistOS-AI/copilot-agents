@@ -1,5 +1,5 @@
 {
-    "container": "ghcr.io/puppeteer/puppeteer:latest",
+    "container": "ghcr.io/puppeteer/puppeteer:25.0.4",
     "lite-sandbox": true,
     "about": "Web Search provider agent. Executes cacheable web searches with its own local headless browser pool. The agent is self-contained and does not call external LLM/search gateways.",
     "agent": "sh /code/scripts/startAgent.sh",

@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
     resolveSearchConfig,
@@ -12,6 +15,8 @@ import {
 } from '../../webSearchAgent/server/headless-search-service.mjs';
 import { formatAiModeResponse } from '../../webSearchAgent/tools/lib/headless-search-converter.mjs';
 import { BrowserPool } from '../../webSearchAgent/tools/lib/browser-pool.mjs';
+
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 describe('web-search-provider resolveSearchConfig', () => {
     it('reports configured=true when local browser pool is enabled', () => {
@@ -126,5 +131,19 @@ describe('web-search-provider local browser runtime helpers', () => {
             userDataDir: null,
         });
         assert.deepEqual(pool.status(), { total: 1, available: 0, busy: 0 });
+    });
+
+    it('declares Puppeteer as an agent dependency matching the browser image tag', () => {
+        const manifest = JSON.parse(readFileSync(
+            join(repoRoot, 'webSearchAgent', 'manifest.json'),
+            'utf8',
+        ));
+        const packageJson = JSON.parse(readFileSync(
+            join(repoRoot, 'webSearchAgent', 'package.json'),
+            'utf8',
+        ));
+
+        assert.equal(manifest.container, 'ghcr.io/puppeteer/puppeteer:25.0.4');
+        assert.equal(packageJson.dependencies.puppeteer, '25.0.4');
     });
 });

@@ -26,7 +26,9 @@ export class BrowserPool {
     }
 
     async warmUp() {
-        this._puppeteer = await loadPuppeteer();
+        this._puppeteer = await loadPuppeteer({
+            preferCore: Boolean(this._executablePath),
+        });
 
         for (let i = 0; i < this._poolSize; i++) {
             const browser = await this._launchBrowser();
@@ -278,16 +280,23 @@ export class BrowserPool {
     }
 }
 
-async function loadPuppeteer() {
-    try {
-        return (await import('puppeteer-core')).default;
-    } catch {
+async function loadPuppeteer({ preferCore = false } = {}) {
+    const candidates = preferCore
+        ? ['puppeteer-core', 'puppeteer']
+        : ['puppeteer', 'puppeteer-core'];
+    const errors = [];
+    for (const candidate of candidates) {
         try {
-            return (await import('puppeteer')).default;
+            return normalizePuppeteerModule(await import(candidate));
         } catch (error) {
-            throw new Error(`puppeteer runtime not available: ${error.message}`);
+            errors.push(`${candidate}: ${error.message}`);
         }
     }
+    throw new Error(`puppeteer runtime not available: ${errors.join('; ') || 'no candidates found'}`);
+}
+
+function normalizePuppeteerModule(moduleValue) {
+    return moduleValue?.default || moduleValue;
 }
 
 function noopLog() {

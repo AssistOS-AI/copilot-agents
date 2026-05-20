@@ -42,8 +42,11 @@ The agent must expose:
 
 The local browser runtime must preserve the tested headless-search patterns:
 
-- lazy Puppeteer import, with `puppeteer-core` preferred and `puppeteer` as a
-  runtime fallback;
+- lazy Puppeteer import from the Ploinky-managed `/code/node_modules`
+  dependency tree, with `puppeteer` preferred unless an explicit browser
+  executable path is configured;
+- a `webSearchAgent/package.json` dependency on Puppeteer that matches the
+  pinned `ghcr.io/puppeteer/puppeteer` browser image version;
 - config-gated browser pool controlled by `BROWSER_POOL_SIZE`;
 - isolated browser contexts per request;
 - user-agent rotation;
@@ -136,6 +139,16 @@ Response:
 The token mirrors the security contract of `open_interpreter_run_task`. It
 ensures the caller has a valid Ploinky session and prevents unauthorized tool
 invocation.
+
+### Question #5: Why declare Puppeteer in `webSearchAgent/package.json`?
+
+Response:
+Ploinky installs agent npm dependencies into a prepared read-only
+`/code/node_modules` cache before starting the container. Declaring Puppeteer
+there keeps `webSearchAgent` aligned with normal Ploinky dependency staging and
+avoids relying on modules installed under the browser image user's home
+directory. The browser image is pinned to the same Puppeteer version so the
+runtime package and bundled browser stay in sync.
 
 ## Conclusion
 

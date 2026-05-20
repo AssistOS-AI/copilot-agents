@@ -1,0 +1,8 @@
+{
+  "name": "web-search-agent",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "puppeteer": "25.0.4"
+  }
+}

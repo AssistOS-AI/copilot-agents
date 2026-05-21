@@ -8,35 +8,40 @@
     "enable": [
         "copilotProviderRelay global",
         "openInterpreterAgent global no-wait",
-        "webSearchAgent global no-wait"
+        "webSearchAgent global no-wait",
+        "browserUseAgent global no-wait"
     ],
     "profiles": {
         "default": {
             "enable": [
                 "copilotProviderRelay global",
                 "openInterpreterAgent global no-wait",
-                "webSearchAgent global no-wait"
+                "webSearchAgent global no-wait",
+                "browserUseAgent global no-wait"
             ]
         },
         "dev": {
             "enable": [
                 "copilotProviderRelay global",
                 "openInterpreterAgent global no-wait",
-                "webSearchAgent global no-wait"
+                "webSearchAgent global no-wait",
+                "browserUseAgent global no-wait"
             ]
         },
         "qa": {
             "enable": [
                 "copilotProviderRelay global",
                 "openInterpreterAgent global no-wait",
-                "webSearchAgent global no-wait"
+                "webSearchAgent global no-wait",
+                "browserUseAgent global no-wait"
             ]
         },
         "prod": {
             "enable": [
                 "copilotProviderRelay global",
                 "openInterpreterAgent global no-wait",
-                "webSearchAgent global no-wait"
+                "webSearchAgent global no-wait",
+                "browserUseAgent global no-wait"
             ]
         }
     }

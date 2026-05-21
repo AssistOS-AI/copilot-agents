@@ -1,0 +1,106 @@
+{
+    "tools": [
+        {
+            "name": "browser_use_status",
+            "title": "Browser Use Status",
+            "description": "Report agent readiness, configured viewer transport, Chromium availability, and active session count.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/status.mjs"
+            ],
+            "cwd": "/code",
+            "inputSchema": {}
+        },
+        {
+            "name": "browser_use_run_task",
+            "title": "Run Browser Use Task",
+            "description": "Execute an interactive browser task through the agent-owned local Chromium runtime. Returns a viewer URL when user login is required.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/run-task.mjs"
+            ],
+            "cwd": "/code",
+            "timeoutMs": 300000,
+            "inputSchema": {
+                "prompt": {
+                    "type": "string",
+                    "optional": false,
+                    "maxLength": 4000
+                },
+                "provider": {
+                    "type": "string",
+                    "optional": true,
+                    "maxLength": 100
+                },
+                "timeoutMs": {
+                    "type": "number",
+                    "optional": true,
+                    "min": 1000,
+                    "max": 300000
+                },
+                "origin": {
+                    "type": "object",
+                    "optional": true,
+                    "additionalProperties": true
+                }
+            }
+        },
+        {
+            "name": "browser_use_task_status",
+            "title": "Browser Use Task Status",
+            "description": "Return task and session state by jobId.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/task-status.mjs"
+            ],
+            "cwd": "/code",
+            "inputSchema": {
+                "jobId": {
+                    "type": "string",
+                    "optional": false
+                }
+            }
+        },
+        {
+            "name": "browser_use_continue_task",
+            "title": "Continue Browser Use Task",
+            "description": "Resume a browser task after the user has completed login or OAuth in the viewer.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/continue-task.mjs"
+            ],
+            "cwd": "/code",
+            "timeoutMs": 300000,
+            "inputSchema": {
+                "jobId": {
+                    "type": "string",
+                    "optional": false
+                }
+            }
+        },
+        {
+            "name": "browser_use_close_session",
+            "title": "Close Browser Use Session",
+            "description": "Close one browser session or clear a provider profile when explicitly requested.",
+            "command": "/usr/local/bin/node",
+            "args": [
+                "/code/tools/close-session.mjs"
+            ],
+            "cwd": "/code",
+            "inputSchema": {
+                "sessionId": {
+                    "type": "string",
+                    "optional": true
+                },
+                "provider": {
+                    "type": "string",
+                    "optional": true
+                },
+                "clearProfile": {
+                    "type": "boolean",
+                    "optional": true
+                }
+            }
+        }
+    ]
+}

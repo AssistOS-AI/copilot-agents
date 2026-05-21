@@ -54,6 +54,31 @@ test('provider input keeps the natural-language prompt and resources', () => {
     });
 });
 
+test('provider input preserves browser provider selection', () => {
+    const task = normalizeProviderTaskInput({
+        backend: 'browser-use',
+        provider: 'gemini',
+        prompt: 'ask Gemini to translate hello',
+    }, {
+        PLOINKY_WORKSPACE_ROOT: process.cwd(),
+    });
+    const payload = buildProviderInput(task);
+    assert.equal(payload.provider, 'gemini');
+    assert.equal(payload.prompt, 'ask Gemini to translate hello');
+});
+
+test('provider input does not leak browser provider selection to other backends', () => {
+    const task = normalizeProviderTaskInput({
+        backend: 'open-interpreter',
+        provider: 'gemini',
+        prompt: 'run a script',
+    }, {
+        PLOINKY_WORKSPACE_ROOT: process.cwd(),
+    });
+    const payload = buildProviderInput(task);
+    assert.equal(payload.provider, undefined);
+});
+
 test('provider result preserves search cache and citation metadata', () => {
     const normalized = normalizeProviderResult({
         ok: true,

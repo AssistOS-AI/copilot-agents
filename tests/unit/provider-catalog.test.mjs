@@ -23,9 +23,10 @@ test('list_backends returns the canonical provider catalog', () => {
     assert.equal(payload.ok, true);
     assert.ok(Array.isArray(payload.backends));
     const ids = payload.backends.map((b) => b.id).sort();
-    assert.deepEqual(ids, ['open-interpreter', 'web-search']);
+    assert.deepEqual(ids, ['browser-use', 'open-interpreter', 'web-search']);
     assert.equal(payload.backends.find((backend) => backend.id === 'open-interpreter').tags, undefined);
     assert.equal(payload.backends.find((backend) => backend.id === 'web-search').tags, undefined);
+    assert.equal(payload.backends.find((backend) => backend.id === 'browser-use').tags, undefined);
 });
 
 test('list_backends web-search entry declares cacheable and ttl', () => {

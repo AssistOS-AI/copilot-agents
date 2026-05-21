@@ -49,14 +49,30 @@ container. Each provider that executes research code must use the shared
 bwrap-runner Docker image as its sandbox base, either directly or through a
 documented derived image. Browser-search providers may use a browser-enabled
 container when their provider task is limited to browser navigation and result
-normalization. Provider agents must not call a separate `basic/bwrap-runner`
-Ploinky agent for research execution. The Copilot Provider Relay must pass prompt and
-resource content through staged data and must not pass caller-supplied mounts,
-bwrap flags, network selectors, generated setup programs, or inline executable
-driver code. Container, lite-sandbox, nested bwrap, browser image, or profile
-choices do not make enabled agents safe for hostile multi-tenant execution.
-The documentation must state that operators are intentionally enabling trusted
-local research code and browser automation inside a workspace.
+normalization. Interactive browser providers such as `browserUseAgent` use a
+browser-enabled container with persistent user profiles; their viewer surface
+must be `auth: "protected"` and browser profiles must be isolated per
+authenticated user and provider. Provider agents must not call a separate
+`basic/bwrap-runner` Ploinky agent for research execution. The Copilot
+Provider Relay must pass prompt and resource content through staged data and
+must not pass caller-supplied mounts, bwrap flags, network selectors,
+generated setup programs, or inline executable driver code. Container,
+lite-sandbox, nested bwrap, browser image, or profile choices do not make
+enabled agents safe for hostile multi-tenant execution. The documentation must
+state that operators are intentionally enabling trusted local research code
+and browser automation inside a workspace.
+
+Interactive browser providers must not log credentials, cookies,
+localStorage, sessionStorage, OAuth callback URLs, authorization codes,
+screenshots, DOM dumps, raw auth headers, or invocation tokens by default.
+Debug screenshots, if ever added, must be opt-in and written under the
+agent data volume, not tracked source.
+
+Interactive browser providers must bind sessions to the verified authenticated
+user from secure-wire invocation metadata or protected HTTP service auth
+headers. They must reject viewer access when the authenticated user id is
+missing or does not match the session owner, and must not use a shared
+`anonymous` profile for browser tasks that can hold cookies.
 
 Provider credentials must stay outside inner sandbox payloads by default.
 For Open Interpreter's normal hosted path, `SOUL_GATEWAY_API_KEY` is exposed

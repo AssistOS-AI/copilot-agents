@@ -1,0 +1,45 @@
+{
+    "container": "node:24.15.0-bookworm",
+    "lite-sandbox": true,
+    "about": "Interactive browser automation provider with protected user viewer for login and OAuth flows. Controls Chromium sessions and exposes a viewer URL where the authenticated user can complete login, 2FA, or CAPTCHA steps.",
+    "agent": "sh /code/scripts/startAgent.sh",
+    "readiness": {
+        "protocol": "mcp"
+    },
+    "env": [
+        "PLOINKY_WORKSPACE_ROOT",
+        "PLOINKY_ROUTER_URL",
+        "BROWSER_USE_SERVICE_HOST",
+        "BROWSER_USE_BIND_HOST",
+        "BROWSER_USE_SERVICE_PORT",
+        "BROWSER_USE_MCP_PORT",
+        "BROWSER_USE_TIMEOUT_MS",
+        "BROWSER_EXECUTABLE_PATH",
+        "BROWSER_HEADLESS_MODE"
+    ],
+    "httpServices": [
+        {
+            "slug": "browser-use",
+            "externalPrefix": "/services/browser-use/",
+            "internalPrefix": "/browser-use/",
+            "auth": "protected",
+            "notFoundMessage": "Browser-use route not found."
+        }
+    ],
+    "profiles": {
+        "default": {
+            "install": "sh /code/scripts/install.sh",
+            "env": {
+                "BROWSER_USE_SERVICE_HOST": "127.0.0.1",
+                "BROWSER_USE_BIND_HOST": "0.0.0.0",
+                "BROWSER_USE_SERVICE_PORT": "7000",
+                "BROWSER_USE_MCP_PORT": "7001",
+                "BROWSER_USE_TIMEOUT_MS": "120000",
+                "BROWSER_HEADLESS_MODE": "new"
+            }
+        }
+    },
+    "volumes": {
+        ".ploinky/data/browserUseAgent": "/data"
+    }
+}

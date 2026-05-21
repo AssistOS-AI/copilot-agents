@@ -69,6 +69,19 @@ runtime is not configured, the provider returns a clear unavailable message
 instead of fabricating information. Deprecated tokens such as `@web-search`
 and `@search` are ordinary chat text and must not trigger provider dispatch.
 
+Browser Use is an interactive provider. Its launcher `launch-browser-use`
+declares `cacheable: false`. The `browserUseAgent` provider controls persistent
+Chromium sessions for logged-in web application tasks. When login is required,
+the launcher returns a protected viewer URL and waiting instructions. The
+`persistence_hint.ku_type` is `agent.result.browser-use`. Deprecated tokens
+such as `@browser-use` and `@browser` are ordinary chat text and must not
+trigger provider dispatch.
+
+Browser-use launcher dispatch may include a provider id. Prompts that mention
+Gemini must submit `provider: "gemini"` to the relay; other browser-use prompts
+default to `provider: "chatgpt"`. The relay preserves this provider selection
+when calling `browserUseAgent.browser_use_run_task`.
+
 AKU result caching is AchillesCLI policy. Cache lookup and persistence must go
 through `AkuMemoryAdapter` and the public `AgenticKnowledgeUnits` APIs only.
 Launchers and adapters must not store secrets, invocation tokens, hidden

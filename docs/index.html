@@ -60,8 +60,10 @@ ploinky start explorer 8080</pre>
         <li><code>copilotProviderRelay</code> - secure provider task relay</li>
         <li><code>openInterpreterAgent</code> - Open Interpreter provider agent</li>
         <li><code>webSearchAgent</code> - cacheable web-search provider with a local headless browser runtime</li>
+        <li><code>browserUseAgent</code> - interactive browser provider with protected viewer for ChatGPT/Gemini login and OAuth flows</li>
         <li><code>launch-open-interpreter</code> - deterministic AchillesCLI launcher for execution tasks</li>
         <li><code>launch-web-search</code> - deterministic AchillesCLI launcher for cacheable web search</li>
+        <li><code>launch-browser-use</code> - deterministic AchillesCLI launcher for logged-in browser tasks</li>
     </ul>
 
     <h2>Semantic Copilot Routing</h2>
@@ -74,7 +76,9 @@ ploinky start explorer 8080</pre>
         that provider's local bwrap sandbox, and returned to the same chat. Text such as
         <code>@open-interpreter summarize this file</code> is ordinary chat text, not a dispatch token.
         Search prompts route through <code>launch-web-search</code> to <code>webSearchAgent</code>, which
-        performs local browser search and returns citations.
+        performs local browser search and returns citations. Logged-in web application tasks
+        route through <code>launch-browser-use</code> to <code>browserUseAgent</code>, which controls a
+        persistent Chromium session and exposes a protected viewer URL for ChatGPT and Gemini login flows.
     </p>
 
     <h2>Specifications</h2>
@@ -93,6 +97,7 @@ ploinky start explorer 8080</pre>
         <li><a href="specsLoader.html?spec=DS011-security-observability.md">DS011 - Security and Observability</a></li>
         <li><a href="specsLoader.html?spec=DS012-semantic-copilot-routing.md">DS012 - Semantic Copilot Routing and Launcher Skills</a></li>
         <li><a href="specsLoader.html?spec=DS013-headless-search-agent.md">DS013 - Web Search Provider Agent</a></li>
+        <li><a href="specsLoader.html?spec=DS014-browser-use-agent.md">DS014 - Browser Use Provider Agent</a></li>
     </ul>
 
     <h2>Implementation Plan</h2>

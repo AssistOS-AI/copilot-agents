@@ -41,6 +41,11 @@ async function runProviderBackend(task, invocationToken) {
         sources: normalized.sources,
         cacheable: normalized.cacheable,
         ttl_hint_seconds: normalized.ttl_hint_seconds,
+        state: normalized.state,
+        sessionId: normalized.sessionId,
+        viewerUrl: normalized.viewerUrl,
+        requires_user_action: normalized.requires_user_action,
+        interactive: normalized.interactive,
         origin: task.origin,
         diagnostics: {
             exitCode: normalized.exitCode,

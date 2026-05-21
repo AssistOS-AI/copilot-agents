@@ -32,9 +32,10 @@ The agent must expose exactly these MCP tools:
 - `copilot_provider_list_backends`: returns the canonical backend catalog,
   including `provider` metadata for provider-backed backends.
 - `copilot_provider_task_submit`: accepts a backend id, natural-language
-  prompt, optional resource payloads or workspace-confined paths, and origin
-  metadata. It forwards the task to the declared provider agent's MCP tool and
-  returns normalized natural-language output.
+  prompt, browser-use provider id when the backend supports it, optional
+  resource payloads or workspace-confined paths, and origin metadata. It
+  forwards the task to the declared provider agent's MCP tool and returns
+  normalized natural-language output.
 
 The relay must not expose compatibility dispatch tools, direct WebChat launch
 helpers, backend chat endpoints, or visible provider-tag dispatch. The durable
@@ -45,6 +46,7 @@ The active provider-backed backend ids are:
 
 - `open-interpreter` through `openInterpreterAgent.open_interpreter_run_task`
 - `web-search` through `webSearchAgent.web_search_run_task`
+- `browser-use` through `browserUseAgent.browser_use_run_task` (interactive, not cacheable)
 
 The backend catalog must use backend ids, not visible chat tags. Catalog
 entries must not advertise `tags`, and `copilot_provider_task_submit` must not

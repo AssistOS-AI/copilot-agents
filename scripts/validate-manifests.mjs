@@ -13,6 +13,7 @@ const AGENT_DIRS = [
     'copilotProviderRelay',
     'openInterpreterAgent',
     'webSearchAgent',
+    'browserUseAgent',
 ];
 
 const PLUGIN_ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*$/;

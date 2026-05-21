@@ -23,6 +23,15 @@ export const COPILOT_PROVIDER_BACKENDS = Object.freeze([
         ttl_hint_seconds: 86400,
         description: 'Cacheable web-search provider backed by the webSearchAgent local headless browser runtime.',
     },
+    {
+        id: 'browser-use',
+        label: 'Browser Use',
+        default_profile: 'default',
+        provider: { agent: 'browserUseAgent', tool: 'browser_use_run_task' },
+        cacheable: false,
+        interactive: true,
+        description: 'Interactive browser provider for logged-in web application tasks.',
+    },
 ]);
 
 export function findBackend(id) {
@@ -34,7 +43,7 @@ export function findBackend(id) {
 }
 
 export function publicBackendView(backend, env = process.env) {
-    return {
+    const view = {
         id: backend.id,
         label: backend.label,
         default_profile: backend.default_profile,
@@ -44,6 +53,10 @@ export function publicBackendView(backend, env = process.env) {
         configured: isBackendConfigured(backend, env),
         description: backend.description,
     };
+    if (backend.interactive) {
+        view.interactive = true;
+    }
+    return view;
 }
 
 export function isBackendConfigured(backend, env = process.env) {

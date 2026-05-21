@@ -24,11 +24,15 @@ The repository must contain these Ploinky agents:
    runtime preparation and runs research tasks in its own local bwrap sandbox.
 4. `webSearchAgent`: the Web Search provider agent that executes cacheable
    web searches through its own local headless browser runtime.
+5. `browserUseAgent`: the Browser Use provider agent that controls interactive
+   Chromium sessions for logged-in web application tasks and exposes a
+   protected viewer URL for login, OAuth, 2FA, and CAPTCHA flows.
 
 The repository must expose these active backend ids through `copilotProviderRelay`:
 
 - `open-interpreter`
 - `web-search` (cacheable, TTL 86400s)
+- `browser-use` (interactive, not cacheable)
 
 The provider backends are not public chat or slash-command targets. They are
 adapter records inside `copilotProviderRelay`. Each adapter receives a
@@ -45,8 +49,8 @@ to a sandbox runner.
 
 Only the `research-agents` bundle may auto-enable the relay. The default,
 `dev`, `qa`, and `prod` bundle profiles must enable `copilotProviderRelay`,
-`openInterpreterAgent`, and `webSearchAgent`; they must not enable
-`basic/bwrap-runner` or direct backend chat agents by default.
+`openInterpreterAgent`, `webSearchAgent`, and `browserUseAgent`; they must not
+enable `basic/bwrap-runner` or direct backend chat agents by default.
 
 ## Decisions & Questions
 

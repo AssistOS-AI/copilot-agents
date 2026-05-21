@@ -30,10 +30,11 @@ The default bundle profile should enable:
 - `copilotProviderRelay global`
 - `openInterpreterAgent global no-wait`
 - `webSearchAgent global no-wait`
+- `browserUseAgent global no-wait`
 
 Current Ploinky only selects the global profile names `default`, `dev`, `qa`, and `prod`. The bundle must therefore use those names until Ploinky supports bundle-local profile selectors. The supported bundle profile mapping is:
 
-- `default`: `copilotProviderRelay global`, `openInterpreterAgent global no-wait`, and `webSearchAgent global no-wait`
+- `default`: `copilotProviderRelay global`, `openInterpreterAgent global no-wait`, `webSearchAgent global no-wait`, and `browserUseAgent global no-wait`
 - `dev`: same as `default`
 - `qa`: same as `default`
 - `prod`: same as `default`

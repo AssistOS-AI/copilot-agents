@@ -36,8 +36,10 @@ Semantic provider execution must flow from AchillesCLI launcher skills to
 `copilotProviderRelay.copilot_provider_task_submit`, then to the backend provider
 agent. For code-execution backends, the provider then starts its own local
 sandbox runner. For `web-search`, `webSearchAgent` executes in its local
-headless browser service. Provider backends receive a natural-language prompt
-and materialized resources; callers must not pass host paths as bwrap mounts or
+headless browser service. For `browser-use`, `browserUseAgent` controls a
+persistent Chromium session with a protected viewer for login flows. Provider
+backends receive a natural-language prompt and materialized resources; callers
+must not pass host paths as bwrap mounts or
 direct runtime flags.
 
 Chat surfaces must not intercept provider-looking `@name` mentions. Unknown

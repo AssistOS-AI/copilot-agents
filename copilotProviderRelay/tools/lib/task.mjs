@@ -165,6 +165,9 @@ export function normalizeProviderTaskInput(input = {}, env = process.env) {
     return {
         backend,
         prompt,
+        provider: backend.id === 'browser-use' && typeof input.provider === 'string'
+            ? input.provider.trim().toLowerCase()
+            : '',
         resources,
         timeoutMs: Math.floor(timeoutMs),
         origin: input.origin && typeof input.origin === 'object' ? input.origin : {},
@@ -179,6 +182,7 @@ export function isProviderBackend(task) {
 export function buildProviderInput(task) {
     return {
         prompt: task.prompt,
+        ...(task.provider ? { provider: task.provider } : {}),
         timeoutMs: task.timeoutMs,
         resources: task.resources.map((resource) => ({
             name: resource.name,
@@ -245,5 +249,10 @@ export function normalizeProviderResult(providerPayload, task) {
         timedOut: Boolean(providerPayload.timedOut),
         stdout_truncated: Boolean(providerPayload.stdout_truncated),
         stderr_truncated: Boolean(providerPayload.stderr_truncated),
+        state: typeof providerPayload.state === 'string' ? providerPayload.state : null,
+        sessionId: providerPayload.sessionId || null,
+        viewerUrl: providerPayload.viewerUrl || null,
+        requires_user_action: Boolean(providerPayload.requires_user_action),
+        interactive: Boolean(providerPayload.interactive || task?.backend?.interactive),
     };
 }

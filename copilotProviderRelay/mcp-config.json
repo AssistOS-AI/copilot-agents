@@ -43,6 +43,12 @@
                     "optional": false,
                     "maxLength": 16000
                 },
+                "provider": {
+                    "type": "string",
+                    "optional": true,
+                    "maxLength": 100,
+                    "description": "Provider id for interactive browser-use tasks, such as chatgpt or gemini."
+                },
                 "resources": {
                     "type": "array",
                     "optional": true,

@@ -62,7 +62,10 @@ When `forward-envelope=1` is present, WebChat may forward the full WebChat
 envelope to AchillesCLI. AchillesCLI must normalize that envelope back to plain
 text before invoking slash or natural-language paths so ordinary chat is not
 polluted by raw JSON. Attachment metadata may be appended as readable context
-for non-provider prompts.
+for non-provider prompts. If the envelope includes a sanitized
+`origin.publicBaseUrl` hint, AchillesCLI should pass it through launcher context
+so user-facing provider links can use the same browser origin as WebChat rather
+than container-internal router hosts.
 
 The `launch-open-interpreter` cskill is the deterministic launcher for Open
 Interpreter execution. It is discoverable from AchillesCLI's built-in skill

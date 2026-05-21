@@ -253,6 +253,7 @@ export function normalizeProviderResult(providerPayload, task) {
         sessionId: providerPayload.sessionId || null,
         viewerUrl: providerPayload.viewerUrl || null,
         requires_user_action: Boolean(providerPayload.requires_user_action),
+        session_reused: Boolean(providerPayload.session_reused || providerPayload.sessionReused),
         interactive: Boolean(providerPayload.interactive || task?.backend?.interactive),
     };
 }

@@ -1,0 +1,9 @@
+{
+    "id": "chatgpt",
+    "label": "ChatGPT",
+    "aliases": ["chatgpt", "chat gpt", "openai"],
+    "startUrl": "https://chatgpt.com/",
+    "default": true,
+    "enabled": true,
+    "order": 10
+}

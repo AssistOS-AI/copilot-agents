@@ -41,9 +41,21 @@ function normalizeTimeout(value) {
     return Math.max(1000, Math.min(MAX_TASK_TIMEOUT_MS, Math.floor(numeric)));
 }
 
-function normalizeProvider(value, prompt = '') {
+function normalizeProvider(value, prompt = '', providerCatalog = []) {
     const explicit = trim(value).toLowerCase();
     if (explicit) return explicit;
+    if (Array.isArray(providerCatalog) && providerCatalog.length > 0) {
+        const lowerPrompt = prompt.toLowerCase();
+        for (const entry of providerCatalog) {
+            for (const alias of asArray(entry.aliases)) {
+                if (typeof alias === 'string' && lowerPrompt.includes(alias.toLowerCase())) {
+                    return entry.id;
+                }
+            }
+        }
+        const defaultEntry = providerCatalog.find((e) => e.default);
+        if (defaultEntry) return defaultEntry.id;
+    }
     if (/\bgemini\b/i.test(prompt)) return 'gemini';
     return 'chatgpt';
 }
@@ -54,6 +66,67 @@ function resolveRouterUrl(env = process.env) {
     const host = String(env.PLOINKY_ROUTER_HOST || '127.0.0.1').trim() || '127.0.0.1';
     const port = String(env.PLOINKY_ROUTER_PORT || '8080').trim() || '8080';
     return `http://${host}:${port}`;
+}
+
+function publicBaseFromOrigin(origin = {}) {
+    const candidates = [
+        origin.publicBaseUrl,
+        origin.public_base_url,
+        origin.webchatOrigin,
+        origin.origin,
+        origin.baseUrl,
+        origin.base_url,
+        origin.routerUrl,
+        origin.router_url,
+        origin.url,
+    ];
+    for (const candidate of candidates) {
+        const value = trim(candidate);
+        if (!/^https?:\/\//i.test(value)) continue;
+        try {
+            const parsed = new URL(value);
+            return parsed.origin;
+        } catch {
+            // Ignore malformed origin hints.
+        }
+    }
+    return '';
+}
+
+function routerUrlForUser(env = process.env, origin = {}) {
+    const originBase = publicBaseFromOrigin(origin);
+    if (originBase) return originBase.replace(/\/+$/, '');
+
+    const explicitPublic = trim(env.PLOINKY_PUBLIC_ROUTER_URL || env.PLOINKY_PUBLIC_URL || env.PUBLIC_ROUTER_URL);
+    if (explicitPublic) return explicitPublic.replace(/\/+$/, '');
+
+    const internalHosts = new Set(['host.containers.internal', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
+    const configuredHost = trim(env.PLOINKY_ROUTER_HOST).toLowerCase();
+    const configuredPort = trim(env.PLOINKY_ROUTER_PORT) || '8080';
+    if (internalHosts.has(configuredHost)) {
+        return `http://localhost:${configuredPort}`;
+    }
+
+    const resolved = resolveRouterUrl(env);
+    try {
+        const parsed = new URL(resolved);
+        if (internalHosts.has(parsed.hostname.toLowerCase())) {
+            return `http://localhost:${parsed.port || configuredPort}`;
+        }
+    } catch {
+        // Fall back to the resolved value below.
+    }
+    return resolved;
+}
+
+function resolveViewerFullUrl(viewerUrl, env = process.env, origin = {}) {
+    const raw = trim(viewerUrl);
+    if (!raw) return '';
+    try {
+        return new URL(raw, `${routerUrlForUser(env, origin)}/`).href;
+    } catch {
+        return raw;
+    }
 }
 
 export async function callAgentTool(agent, toolName, input = {}, options = {}) {
@@ -118,6 +191,7 @@ function normalizeArgs(args = {}) {
         ...fromPrompt,
         ...args,
         prompt: trim(args.prompt || fromPrompt.prompt || args.promptText),
+        explicitProvider: trim(args.provider || fromPrompt.provider),
         provider: normalizeProvider(args.provider || fromPrompt.provider, args.prompt || fromPrompt.prompt || args.promptText),
         workingDir: trim(args.workingDir || args.working_directory || fromPrompt.workingDir || context.workingDir || process.cwd()),
         origin: args.origin && typeof args.origin === 'object'
@@ -161,6 +235,13 @@ function normalizeRelayAnswer(payload) {
         || payload?.error
         || 'Browser task completed without a response.',
     ).trim();
+}
+
+function interactiveInstruction(payload) {
+    if (payload?.session_reused) {
+        return 'A browser-use session is already open for this provider. Open the full URL below to continue in that session; if it is on a login screen, sign in there and the task will resume when the browser session is ready.';
+    }
+    return 'This task requires you to log in first. Open the full URL below to complete login; the task will continue automatically after the browser session is ready.';
 }
 
 async function checkProviderAvailability(input, backend) {
@@ -261,10 +342,17 @@ export async function action(args = {}) {
         }));
     }
 
+    const providerCatalog = asArray(providerAvailability.status?.providers);
+    const resolvedProvider = normalizeProvider(
+        input.explicitProvider,
+        input.prompt,
+        providerCatalog,
+    );
+
     const submitArguments = {
         backend: BACKEND,
         prompt: input.prompt,
-        provider: input.provider,
+        provider: resolvedProvider,
         origin: {
             type: 'semantic-copilot',
             surface: 'webchat',
@@ -282,9 +370,13 @@ export async function action(args = {}) {
         }));
 
         if (payload.requires_user_action || payload.state === 'waiting_for_user') {
+            const viewerFullUrl = resolveViewerFullUrl(payload.viewerUrl, input.env, input.origin);
+            const viewerText = viewerFullUrl
+                ? `Viewer URL:\n${viewerFullUrl}`
+                : 'Viewer URL: not available';
             return finish(input, resultBase({
                 ok: true,
-                result_text: `This task requires you to log in first. Please open the viewer to complete login, then the task will continue automatically.\n\nViewer URL: ${payload.viewerUrl || 'not available'}`,
+                result_text: `${interactiveInstruction(payload)}\n\n${viewerText}`,
                 persistence_hint: {
                     ku_type: 'agent.result.browser-use',
                     record_result: false,
@@ -299,7 +391,9 @@ export async function action(args = {}) {
                     jobId: payload.jobId,
                     sessionId: payload.sessionId,
                     viewerUrl: payload.viewerUrl,
+                    viewerFullUrl,
                     requires_user_action: true,
+                    session_reused: Boolean(payload.session_reused),
                     interactive: true,
                 },
             }));

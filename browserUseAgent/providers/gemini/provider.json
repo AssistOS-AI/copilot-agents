@@ -1,0 +1,9 @@
+{
+    "id": "gemini",
+    "label": "Gemini",
+    "aliases": ["gemini", "google gemini", "google ai"],
+    "startUrl": "https://gemini.google.com/app",
+    "default": false,
+    "enabled": true,
+    "order": 20
+}

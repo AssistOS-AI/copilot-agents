@@ -77,10 +77,13 @@ the launcher returns a protected viewer URL and waiting instructions. The
 such as `@browser-use` and `@browser` are ordinary chat text and must not
 trigger provider dispatch.
 
-Browser-use launcher dispatch may include a provider id. Prompts that mention
-Gemini must submit `provider: "gemini"` to the relay; other browser-use prompts
-default to `provider: "chatgpt"`. The relay preserves this provider selection
-when calling `browserUseAgent.browser_use_run_task`.
+Browser-use launcher dispatch may include a provider id. Provider selection
+uses explicit provider input first, then provider aliases from the
+`browser_use_status` provider catalog matched against the prompt, then the
+provider marked `default` in the `browserUseAgent` registry. Browser
+providers are subproviders of `browserUseAgent`, not separate relay backends.
+The relay preserves this provider selection when calling
+`browserUseAgent.browser_use_run_task`.
 
 AKU result caching is AchillesCLI policy. Cache lookup and persistence must go
 through `AkuMemoryAdapter` and the public `AgenticKnowledgeUnits` APIs only.

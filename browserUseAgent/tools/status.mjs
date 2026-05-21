@@ -50,6 +50,7 @@ async function main() {
                 totalSessions: service.totalSessions ?? 0,
                 reason: service.reason || null,
             },
+            providers: Array.isArray(service.providers) ? service.providers : [],
             cache: {
                 cacheable: false,
             },

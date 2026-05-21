@@ -48,6 +48,11 @@ The active provider-backed backend ids are:
 - `web-search` through `webSearchAgent.web_search_run_task`
 - `browser-use` through `browserUseAgent.browser_use_run_task` (interactive, not cacheable)
 
+Browser providers such as ChatGPT, Gemini, and Perplexity are subproviders of
+`browserUseAgent`, not separate relay backends. The relay forwards the optional
+`provider` string to `browserUseAgent`, which validates it through its own
+agent-local provider adapter registry.
+
 The backend catalog must use backend ids, not visible chat tags. Catalog
 entries must not advertise `tags`, and `copilot_provider_task_submit` must not
 accept `@backend` aliases. Future backends such as DeepAnalyze, OpenHands,

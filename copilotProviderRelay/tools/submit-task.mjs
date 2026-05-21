@@ -45,6 +45,7 @@ async function runProviderBackend(task, invocationToken) {
         sessionId: normalized.sessionId,
         viewerUrl: normalized.viewerUrl,
         requires_user_action: normalized.requires_user_action,
+        session_reused: normalized.session_reused,
         interactive: normalized.interactive,
         origin: task.origin,
         diagnostics: {

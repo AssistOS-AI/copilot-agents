@@ -13,6 +13,7 @@ import {
 } from '../../copilotProviderRelay/tools/lib/task.mjs';
 
 const submitTaskScript = fileURLToPath(new URL('../../copilotProviderRelay/tools/submit-task.mjs', import.meta.url));
+const relayMcpConfigPath = fileURLToPath(new URL('../../copilotProviderRelay/mcp-config.json', import.meta.url));
 
 test('normalizeProviderTaskInput accepts backend ids and inline resources', () => {
     const task = normalizeProviderTaskInput({
@@ -65,6 +66,14 @@ test('provider input preserves browser provider selection', () => {
     const payload = buildProviderInput(task);
     assert.equal(payload.provider, 'gemini');
     assert.equal(payload.prompt, 'ask Gemini to translate hello');
+});
+
+test('relay MCP schema allows browser provider selection through tool calls', () => {
+    const config = JSON.parse(fs.readFileSync(relayMcpConfigPath, 'utf8'));
+    const submitTool = config.tools.find((tool) => tool.name === 'copilot_provider_task_submit');
+    assert.ok(submitTool, 'copilot_provider_task_submit must be declared');
+    assert.equal(submitTool.inputSchema.provider?.type, 'string');
+    assert.equal(submitTool.inputSchema.provider?.optional, true);
 });
 
 test('provider input does not leak browser provider selection to other backends', () => {
@@ -144,6 +153,50 @@ test('normalizeProviderTaskInput rejects symlink paths escaping the workspace', 
     } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
     }
+});
+
+test('normalizeProviderResult preserves waiting_for_user state from browser-use', () => {
+    const browserUsePayload = {
+        ok: true,
+        state: 'waiting_for_user',
+        requires_user_action: true,
+        session_reused: true,
+        jobId: 'job_abc123',
+        sessionId: 'sess_def456',
+        viewerUrl: '/services/browser-use/sessions/sess_def456',
+        final_answer: '',
+    };
+    const task = {
+        backend: { id: 'browser-use', label: 'Browser Use', interactive: true },
+        resources: [],
+    };
+    const normalized = normalizeProviderResult(browserUsePayload, task);
+
+    assert.equal(normalized.state, 'waiting_for_user');
+    assert.equal(normalized.requires_user_action, true);
+    assert.equal(normalized.session_reused, true);
+    assert.equal(normalized.interactive, true);
+    assert.equal(normalized.sessionId, 'sess_def456');
+    assert.equal(normalized.viewerUrl, '/services/browser-use/sessions/sess_def456');
+    assert.equal(normalized.jobId, 'job_abc123');
+    assert.equal(normalized.ok, true);
+    assert.match(normalized.final_answer, /did not return a natural-language response/);
+});
+
+test('normalizeProviderResult with completed state and empty answer falls back', () => {
+    const normalized = normalizeProviderResult({
+        ok: true,
+        state: 'completed',
+        final_answer: '',
+        sessionId: 'sess_xyz',
+    }, {
+        backend: { id: 'browser-use', label: 'Browser Use', interactive: true },
+        resources: [],
+    });
+
+    assert.equal(normalized.state, 'completed');
+    assert.equal(normalized.requires_user_action, false);
+    assert.match(normalized.final_answer, /did not return a natural-language response/);
 });
 
 test('submit-task rejects non-provider backends instead of invoking bwrap-runner directly', () => {

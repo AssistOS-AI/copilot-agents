@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 
 const SESSION_EXPIRY_MS = 30 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60 * 1000;
+const DEFAULT_TASK_TIMEOUT_MS = 120000;
+const MIN_TASK_TIMEOUT_MS = 1000;
+const MAX_TASK_TIMEOUT_MS = 300000;
 
 const VALID_STATES = new Set([
     'starting',
@@ -16,6 +20,11 @@ const VALID_STATES = new Set([
 ]);
 
 const TERMINAL_STATES = new Set(['completed', 'failed', 'closed']);
+const CHROMIUM_SINGLETON_FILES = [
+    'SingletonCookie',
+    'SingletonLock',
+    'SingletonSocket',
+];
 
 function safeUserId(raw) {
     return String(raw || 'anonymous').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 128);
@@ -25,12 +34,25 @@ function safeProvider(raw) {
     return String(raw || 'chatgpt').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 64);
 }
 
+function normalizeTaskTimeout(value) {
+    if (value === undefined || value === null || value === '') return DEFAULT_TASK_TIMEOUT_MS;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return DEFAULT_TASK_TIMEOUT_MS;
+    return Math.max(MIN_TASK_TIMEOUT_MS, Math.min(MAX_TASK_TIMEOUT_MS, Math.floor(numeric)));
+}
+
+function safeErrorMessage(prefix, error) {
+    const message = error && error.message ? error.message : String(error || 'unknown error');
+    return `${prefix}: ${message}`;
+}
+
 export class BrowserSessionManager {
     constructor(options = {}) {
         this._dataDir = options.dataDir || '/data';
         this._headlessMode = options.headlessMode || 'new';
         this._executablePath = options.executablePath || null;
         this._sessions = new Map();
+        this._profileOperations = new Map();
         this._cleanupTimer = null;
     }
 
@@ -59,6 +81,31 @@ export class BrowserSessionManager {
         );
     }
 
+    profileKey(userId, provider) {
+        return `${safeUserId(userId)}:${safeProvider(provider)}`;
+    }
+
+    async withProfileLock(userId, provider, operation) {
+        const key = this.profileKey(userId, provider);
+        const previous = this._profileOperations.get(key) || Promise.resolve();
+        let release;
+        const operationDone = new Promise((resolve) => {
+            release = resolve;
+        });
+        const current = previous.catch(() => {}).then(() => operationDone);
+        this._profileOperations.set(key, current);
+
+        await previous.catch(() => {});
+        try {
+            return await operation();
+        } finally {
+            release();
+            if (this._profileOperations.get(key) === current) {
+                this._profileOperations.delete(key);
+            }
+        }
+    }
+
     async createSession(userId, provider, options = {}) {
         const sessionId = `sess_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
         const jobId = `job_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
@@ -72,6 +119,7 @@ export class BrowserSessionManager {
             viewerUrl: `/services/browser-use/sessions/${sessionId}`,
             pageUrl: '',
             prompt: options.prompt || '',
+            timeoutMs: normalizeTaskTimeout(options.timeoutMs),
             createdAt: now,
             updatedAt: now,
             browser: null,
@@ -79,7 +127,9 @@ export class BrowserSessionManager {
             page: null,
             screenshot: null,
             error: null,
+            diagnosticError: null,
             continuationPromise: null,
+            resourceClosePromise: null,
         };
         this._sessions.set(sessionId, session);
         return session;
@@ -94,6 +144,49 @@ export class BrowserSessionManager {
             if (session.jobId === jobId) return session;
         }
         return null;
+    }
+
+    getReusableSession(userId, provider) {
+        const ownerUserId = safeUserId(userId);
+        const normalizedProvider = safeProvider(provider);
+        for (const session of this._sessions.values()) {
+            if (
+                session.ownerUserId === ownerUserId
+                && session.provider === normalizedProvider
+                && !TERMINAL_STATES.has(session.state)
+            ) {
+                return session;
+            }
+        }
+        return null;
+    }
+
+    updateSessionPrompt(session, prompt, options = {}) {
+        if (!session) return null;
+        session.prompt = String(prompt || '');
+        if (options.timeoutMs !== undefined) {
+            session.timeoutMs = normalizeTaskTimeout(options.timeoutMs);
+        }
+        session.updatedAt = new Date().toISOString();
+        return session;
+    }
+
+    async waitForProfileRelease(userId, provider) {
+        const ownerUserId = safeUserId(userId);
+        const normalizedProvider = safeProvider(provider);
+        const pending = [];
+        for (const session of this._sessions.values()) {
+            if (
+                session.ownerUserId === ownerUserId
+                && session.provider === normalizedProvider
+                && session.resourceClosePromise
+            ) {
+                pending.push(session.resourceClosePromise);
+            }
+        }
+        if (pending.length > 0) {
+            await Promise.allSettled(pending);
+        }
     }
 
     getActiveSessions() {
@@ -118,11 +211,56 @@ export class BrowserSessionManager {
         if (!VALID_STATES.has(newState)) return;
         session.state = newState;
         session.updatedAt = new Date().toISOString();
+        if (TERMINAL_STATES.has(newState)) {
+            this._closeSessionResources(session);
+        }
+    }
+
+    _processExists(pid) {
+        if (!Number.isInteger(pid) || pid <= 0) return false;
+        try {
+            process.kill(pid, 0);
+            return true;
+        } catch (err) {
+            return err && err.code === 'EPERM';
+        }
+    }
+
+    _isSingletonLockStale(profilePath) {
+        const lockPath = path.join(profilePath, 'SingletonLock');
+        let target = '';
+        try {
+            target = fs.readlinkSync(lockPath);
+        } catch (err) {
+            if (err && err.code === 'ENOENT') return false;
+            return false;
+        }
+
+        const match = /^(.+)-(\d+)$/.exec(target);
+        if (!match) return false;
+
+        const [, hostname, pidText] = match;
+        const pid = Number(pidText);
+        if (hostname === os.hostname() && this._processExists(pid)) {
+            return false;
+        }
+        return true;
+    }
+
+    _clearStaleProfileSingletons(profilePath) {
+        if (!this._isSingletonLockStale(profilePath)) {
+            return false;
+        }
+        for (const name of CHROMIUM_SINGLETON_FILES) {
+            fs.rmSync(path.join(profilePath, name), { force: true });
+        }
+        return true;
     }
 
     async launchBrowser(session) {
         const profilePath = this.profileDir(session.ownerUserId, session.provider);
         fs.mkdirSync(profilePath, { recursive: true });
+        this._clearStaleProfileSingletons(profilePath);
 
         let playwright;
         try {
@@ -130,6 +268,7 @@ export class BrowserSessionManager {
         } catch {
             this._updateState(session, 'failed');
             session.error = 'playwright-core is not available';
+            session.diagnosticError = session.error;
             return session;
         }
 
@@ -162,7 +301,8 @@ export class BrowserSessionManager {
             this._updateState(session, 'ready');
         } catch (err) {
             this._updateState(session, 'failed');
-            session.error = `Browser launch failed: ${err.message}`;
+            session.error = 'browser launch failed';
+            session.diagnosticError = `Browser launch failed: ${err.message}`;
         }
         return session;
     }
@@ -174,33 +314,19 @@ export class BrowserSessionManager {
             session.pageUrl = url;
             session.updatedAt = new Date().toISOString();
         } catch (err) {
-            session.error = `Navigation failed: ${err.message}`;
+            session.error = 'navigation failed';
+            session.diagnosticError = `Navigation failed: ${err.message}`;
         }
     }
 
-    async detectLoginRequired(session, provider) {
-        if (!session.page) return false;
+    async detectLoginRequired(session, adapter, provider = session.provider) {
+        if (!session.page || !adapter) return false;
         try {
-            const url = session.page.url();
-            if (provider === 'chatgpt') {
-                const hasLoginButton = await session.page.locator(
-                    'button:has-text("Log in"), a:has-text("Log in"), [data-testid="login-button"]',
-                ).count().catch(() => 0);
-                const isAuthPage = url.includes('auth0.com')
-                    || url.includes('/auth/login')
-                    || url.includes('login.openai.com');
-                return hasLoginButton > 0 || isAuthPage;
-            }
-            if (provider === 'gemini') {
-                const hasSignInButton = await session.page.locator(
-                    'a:has-text("Sign in"), button:has-text("Sign in"), a[href*="accounts.google.com"]',
-                ).count().catch(() => 0);
-                const isAuthPage = url.includes('accounts.google.com')
-                    || url.includes('/signin/')
-                    || url.includes('/ServiceLogin');
-                return hasSignInButton > 0 || isAuthPage;
-            }
-            return false;
+            return await adapter.detectLoginRequired({
+                page: session.page,
+                session,
+                provider,
+            });
         } catch {
             return false;
         }
@@ -260,7 +386,7 @@ export class BrowserSessionManager {
         return { ok: true };
     }
 
-    startContinuation(session) {
+    startContinuation(session, adapter, provider = session.provider) {
         if (session.state === 'waiting_for_user') {
             this._updateState(session, 'running');
         }
@@ -268,10 +394,11 @@ export class BrowserSessionManager {
             return { ok: false, error: `cannot continue from state ${session.state}` };
         }
         if (!session.continuationPromise) {
-            session.continuationPromise = this.submitPrompt(session, session.prompt)
+            session.continuationPromise = this.submitPrompt(session, session.prompt, adapter, provider)
                 .catch((err) => {
                     this._updateState(session, 'failed');
-                    session.error = `Task execution failed: ${err.message || String(err)}`;
+                    session.error = 'Task execution failed.';
+                    session.diagnosticError = safeErrorMessage('Task execution failed', err);
                     return { ok: false, final_answer: '', error: session.error };
                 })
                 .finally(() => {
@@ -281,171 +408,65 @@ export class BrowserSessionManager {
         return { ok: true, state: session.state };
     }
 
-    async continueAfterUserReady(session) {
-        const started = this.startContinuation(session);
+    async continueAfterUserReady(session, adapter, provider = session.provider) {
+        const started = this.startContinuation(session, adapter, provider);
         if (!started.ok) {
             return { ok: false, final_answer: '', error: started.error };
         }
         return await session.continuationPromise;
     }
 
-    async submitPrompt(session, prompt) {
-        if (session.provider === 'gemini') {
-            return await this.submitPromptToGemini(session, prompt);
-        }
-        return await this.submitPromptToChatGPT(session, prompt);
-    }
-
-    async submitPromptToChatGPT(session, prompt) {
+    async submitPrompt(session, prompt, adapter, provider = session.provider) {
         if (!session.page) {
             this._updateState(session, 'failed');
             session.error = 'no active page';
             return { ok: false, final_answer: '', error: 'no active page' };
         }
-
-        this._updateState(session, 'running');
-
-        try {
-            const composer = session.page.locator(
-                '#prompt-textarea, [contenteditable="true"][data-placeholder], textarea[placeholder*="Message"]',
-            ).first();
-            await composer.waitFor({ state: 'visible', timeout: 15000 });
-            await composer.click();
-            await composer.fill(prompt);
-
-            const sendButton = session.page.locator(
-                'button[data-testid="send-button"], button[aria-label="Send prompt"]',
-            ).first();
-            await sendButton.click();
-
-            await session.page.waitForTimeout(3000);
-
-            const responseSelector = '[data-message-author-role="assistant"]:last-of-type, .agent-turn:last-of-type .markdown';
-            await session.page.waitForSelector(responseSelector, { timeout: 120000 });
-
-            await this._waitForResponseComplete(session);
-
-            const answer = await this._extractLastResponse(session);
-            this._updateState(session, 'completed');
-            return { ok: true, final_answer: answer };
-        } catch (err) {
+        if (!adapter) {
             this._updateState(session, 'failed');
-            session.error = `Task execution failed: ${err.message}`;
-            return { ok: false, final_answer: '', error: err.message };
-        }
-    }
-
-    async submitPromptToGemini(session, prompt) {
-        if (!session.page) {
-            this._updateState(session, 'failed');
-            session.error = 'no active page';
-            return { ok: false, final_answer: '', error: 'no active page' };
+            session.error = 'no provider adapter';
+            return { ok: false, final_answer: '', error: 'no provider adapter' };
         }
 
         this._updateState(session, 'running');
 
+        let result;
         try {
-            const composer = session.page.locator(
-                'rich-textarea [contenteditable="true"], div[contenteditable="true"][aria-label*="Enter"], textarea',
-            ).first();
-            await composer.waitFor({ state: 'visible', timeout: 15000 });
-            await composer.click();
-            await session.page.keyboard.type(prompt);
-            await session.page.keyboard.press('Enter');
-
-            await session.page.waitForTimeout(3000);
-
-            const responseSelector = 'message-content, .model-response-text, response-container, [data-response-index]';
-            await session.page.waitForSelector(responseSelector, { timeout: 120000 });
-
-            await this._waitForGeminiResponseComplete(session);
-
-            const answer = await this._extractLastGeminiResponse(session);
-            this._updateState(session, 'completed');
-            return { ok: true, final_answer: answer };
+            result = await adapter.submitPrompt({
+                page: session.page,
+                session,
+                provider,
+                prompt,
+                timeoutMs: normalizeTaskTimeout(session.timeoutMs),
+            });
         } catch (err) {
             this._updateState(session, 'failed');
-            session.error = `Task execution failed: ${err.message}`;
-            return { ok: false, final_answer: '', error: err.message };
+            session.error = 'Task execution failed.';
+            session.diagnosticError = safeErrorMessage('Provider adapter failed', err);
+            return { ok: false, final_answer: '', error: session.error };
         }
-    }
 
-    async _waitForResponseComplete(session) {
-        const maxWait = 120000;
-        const pollInterval = 2000;
-        let elapsed = 0;
-        let previousText = '';
-
-        while (elapsed < maxWait) {
-            await session.page.waitForTimeout(pollInterval);
-            elapsed += pollInterval;
-
-            const currentText = await this._extractLastResponse(session);
-            const stillStreaming = await session.page.locator(
-                'button[aria-label="Stop generating"], .result-streaming',
-            ).count().catch(() => 0);
-
-            if (stillStreaming === 0 && currentText === previousText && currentText.length > 0) {
-                break;
-            }
-            previousText = currentText;
+        if (!result || typeof result !== 'object') {
+            result = {
+                ok: false,
+                final_answer: '',
+                error: 'Provider adapter returned an invalid result.',
+            };
         }
-    }
 
-    async _extractLastResponse(session) {
-        try {
-            const messages = await session.page.locator(
-                '[data-message-author-role="assistant"]',
-            ).all();
-            if (messages.length === 0) return '';
-            const last = messages[messages.length - 1];
-            const text = await last.innerText();
-            return text.trim();
-        } catch {
-            return '';
+        if (result.ok) {
+            this._updateState(session, 'completed');
+        } else {
+            this._updateState(session, 'failed');
+            session.error = result.error || 'Task execution failed.';
         }
-    }
-
-    async _waitForGeminiResponseComplete(session) {
-        const maxWait = 120000;
-        const pollInterval = 2000;
-        let elapsed = 0;
-        let previousText = '';
-
-        while (elapsed < maxWait) {
-            await session.page.waitForTimeout(pollInterval);
-            elapsed += pollInterval;
-
-            const currentText = await this._extractLastGeminiResponse(session);
-            const stillStreaming = await session.page.locator(
-                'button[aria-label*="Stop"], mat-progress-bar, .loading',
-            ).count().catch(() => 0);
-
-            if (stillStreaming === 0 && currentText === previousText && currentText.length > 0) {
-                break;
-            }
-            previousText = currentText;
-        }
-    }
-
-    async _extractLastGeminiResponse(session) {
-        try {
-            const messages = await session.page.locator(
-                'message-content, .model-response-text, response-container, [data-response-index]',
-            ).all();
-            if (messages.length === 0) return '';
-            const last = messages[messages.length - 1];
-            const text = await last.innerText();
-            return text.trim();
-        } catch {
-            return '';
-        }
+        return result;
     }
 
     async closeSession(sessionId) {
         const session = this._sessions.get(sessionId);
         if (!session) return { ok: false, error: 'session not found' };
-        this._closeSessionResources(session);
+        await this._closeSessionResources(session);
         this._updateState(session, 'closed');
         return { ok: true };
     }
@@ -461,12 +482,25 @@ export class BrowserSessionManager {
     }
 
     _closeSessionResources(session) {
-        if (session.context) {
-            session.context.close().catch(() => {});
-            session.context = null;
-            session.browser = null;
-            session.page = null;
+        if (!session.context) {
+            return session.resourceClosePromise || Promise.resolve();
         }
+        const context = session.context;
+        session.context = null;
+        session.browser = null;
+        session.page = null;
+
+        let closePromise;
+        closePromise = Promise.resolve()
+            .then(() => context.close())
+            .catch(() => {})
+            .finally(() => {
+                if (session.resourceClosePromise === closePromise) {
+                    session.resourceClosePromise = null;
+                }
+            });
+        session.resourceClosePromise = closePromise;
+        return closePromise;
     }
 
     _cleanupExpired() {

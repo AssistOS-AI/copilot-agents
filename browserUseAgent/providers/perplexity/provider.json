@@ -1,0 +1,9 @@
+{
+    "id": "perplexity",
+    "label": "Perplexity",
+    "aliases": ["perplexity", "perplexity ai"],
+    "startUrl": "https://www.perplexity.ai/",
+    "default": false,
+    "enabled": true,
+    "order": 30
+}

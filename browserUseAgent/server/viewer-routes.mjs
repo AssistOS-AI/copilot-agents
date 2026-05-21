@@ -1,4 +1,5 @@
 import { URL } from 'node:url';
+import { providerAdapterContext } from './provider-registry.mjs';
 
 function parseSessionId(urlPath) {
     const match = urlPath.match(/^\/browser-use\/sessions\/(sess_[A-Za-z0-9]+)/);
@@ -172,7 +173,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 </body>
 </html>`;
 
-export function mountViewerRoutes(sessionManager) {
+export function mountViewerRoutes(sessionManager, getRegistry) {
     const sseClients = new Map();
 
     function broadcastToSession(sessionId, data) {
@@ -276,7 +277,14 @@ export function mountViewerRoutes(sessionManager) {
         }
 
         if (req.method === 'POST' && subPath === '/user-ready') {
-            const result = sessionManager.startContinuation(session);
+            const registry = typeof getRegistry === 'function' ? getRegistry() : null;
+            const resolved = registry ? registry.getProvider(session.provider) : null;
+            const adapter = resolved ? resolved.adapter : null;
+            const result = sessionManager.startContinuation(
+                session,
+                adapter,
+                providerAdapterContext(resolved),
+            );
             if (result.ok) {
                 broadcastToSession(sessionId, sessionManager.publicSessionView(session));
             }

@@ -17,7 +17,8 @@ a protected viewer URL where the authenticated user can complete login, OAuth,
 context and submits the original prompt to the target web application.
 
 The first provider targets are ChatGPT and Gemini. Additional browser-only
-services can be added after the session and viewer contract is stable.
+services can be added through agent-local provider adapters without modifying
+the session manager, relay, router, or launcher code.
 
 ## Core Content
 
@@ -59,12 +60,44 @@ the public agent port, serves `/browser-use/*` directly, and proxies `/mcp`,
 manifest-declared HTTP service reachable without adding browser-use-specific
 paths to Ploinky core.
 
+The agent owns an agent-local provider adapter registry. Provider-specific
+browser automation (login detection, prompt entry, send behavior, response
+streaming, and response extraction) lives in adapter modules under
+`browserUseAgent/providers/<providerId>/`. Each provider folder contains a
+declarative `provider.json` with safe metadata (`id`, `label`, `aliases`,
+`startUrl`, `default`, `enabled`, `order`) and an `adapter.mjs` that exports
+`detectLoginRequired({ page, session, provider })` and
+`submitPrompt({ page, session, provider, prompt, timeoutMs })`, where
+`provider` is the resolved provider metadata object. The session manager calls
+adapter hooks instead of branching on provider ids. The registry discovers
+providers from the local `providers/` tree, validates metadata and adapter
+exports, rejects duplicates, and ignores disabled providers. The service must
+fail startup when no enabled providers are available. The registry exposes
+`getProvider(id)`, `getDefaultProvider()`, `resolveProvider(value)`, and
+`listProviders()`. `listProviders()` returns only safe catalog metadata; it
+must not expose filesystem paths, selectors, profile directories, or internal
+diagnostics.
+
 Browser profiles persist per authenticated user and provider under
 `/data/profiles/<safeUserId>/<provider>/`. The manifest declares:
 
 ```json
 { ".ploinky/data/browserUseAgent": "/data" }
 ```
+
+Only one non-terminal Chromium context may be active for a given user/provider
+profile at a time. If a new `browser_use_run_task` request arrives while a
+same-user/same-provider session is still `starting`, `ready`,
+`waiting_for_user`, or `running`, the provider must return the existing
+session's viewer URL instead of launching a second browser against the same
+profile. Session creation and reuse checks for a user/provider profile must be
+serialized so concurrent requests cannot launch two Chromium contexts for the
+same persistent profile. When a task reaches `completed`, `failed`, or
+`closed`, browser resources must be closed immediately so the persistent
+profile lock is released before the next task. If a container restart leaves
+stale Chromium `Singleton*` lock symlinks for a profile and no live
+same-container Chromium process owns that lock, the agent may remove those
+stale profile locks before launching a new browser context.
 
 The MCP tools must derive the profile owner from verified secure-wire
 invocation metadata (`metadata.invocation.usr.id` or `sub`). Protected viewer
@@ -84,7 +117,8 @@ and screenshot updates, `POST /browser-use/sessions/:id/input` sends user
 input events, and `POST /browser-use/sessions/:id/user-ready` signals login
 completion. The user-ready signal starts the saved task prompt automatically in
 the same browser session; it must not only flip session state and wait for a
-separate manual MCP continuation call.
+separate manual MCP continuation call. The saved session must also preserve the
+task `timeoutMs` so continuation after login uses the original request timeout.
 
 The relay backend entry uses `id: "browser-use"` with
 `provider: { agent: "browserUseAgent", tool: "browser_use_run_task" }`,
@@ -94,11 +128,16 @@ include a `tags` field.
 The `launch-browser-use` deterministic cskill validates relay availability,
 probes the provider status, and dispatches through
 `copilotProviderRelay.copilot_provider_task_submit`. It returns the viewer URL
-and waiting instructions when login is required.
+and waiting instructions when login is required. Browser sessions may report a
+router-relative `viewerUrl`; user-facing launcher text must render it as a full
+absolute `http://` or `https://` URL using the public WebChat/router origin when
+available and a local `http://localhost:<router-port>` fallback for local
+container deployments.
 
-The launcher may pass a provider id to the relay. Prompts that mention Gemini
-must target `provider: "gemini"`; other browser-use prompts default to
-`provider: "chatgpt"`.
+The launcher may pass a provider id to the relay. Provider selection uses
+explicit provider input first, then provider aliases from the
+`browser_use_status` provider catalog matched against the prompt, then the
+provider marked `default` in the registry.
 
 The agent must not log credentials, cookies, localStorage, sessionStorage,
 OAuth callback URLs, authorization codes, screenshots, DOM dumps, raw auth
@@ -146,6 +185,19 @@ The viewer surface is a logged-in browser session. Exposing it without
 authentication would allow anyone with the URL to interact with the user's
 authenticated web application session. The protected auth mode ensures only
 the session owner can access the viewer.
+
+### Question #6: Why are browser providers agent-local adapters instead of separate Ploinky agents or Explorer IDE-plugins?
+
+Response:
+Browser providers share one Chromium lifecycle, one protected viewer contract,
+one per-user/per-provider profile store, and one session concurrency model.
+Splitting each provider into a separate Ploinky agent would duplicate all of
+that infrastructure and force the relay to maintain per-provider backend ids.
+Explorer IDE-plugins are UI and host-slot oriented; browser automation logic
+belongs where the browser session is owned. Agent-local provider adapters keep
+the extension point inside `browserUseAgent` while preserving one relay
+backend (`browser-use`), one protected HTTP service, and one profile isolation
+model.
 
 ## Conclusion
 

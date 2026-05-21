@@ -150,10 +150,11 @@ test('successful submit with waiting_for_user returns viewer URL', async () => {
     assert.equal(result.cacheable, false);
     assert.equal(result.backend, 'browser-use');
     assert.match(result.result_text, /log in first/);
-    assert.match(result.result_text, /\/services\/browser-use\/sessions\/sess_def456/);
+    assert.match(result.result_text, /http:\/\/localhost:8080\/services\/browser-use\/sessions\/sess_def456/);
     assert.equal(result.diagnostics.requires_user_action, true);
     assert.equal(result.diagnostics.interactive, true);
     assert.equal(result.diagnostics.viewerUrl, '/services/browser-use/sessions/sess_def456');
+    assert.equal(result.diagnostics.viewerFullUrl, 'http://localhost:8080/services/browser-use/sessions/sess_def456');
     assert.equal(result.diagnostics.jobId, 'job_abc123');
     assert.equal(result.persistence_hint.ku_type, 'agent.result.browser-use');
     assert.equal(result.persistence_hint.record_result, false);
@@ -166,6 +167,77 @@ test('successful submit with waiting_for_user returns viewer URL', async () => {
     assert.equal(calls[2][2].backend, BACKEND);
     assert.equal(calls[2][2].provider, 'chatgpt');
     assert.equal(calls[2][2].origin.type, 'semantic-copilot');
+});
+
+test('waiting_for_user viewer URL uses public webchat origin when supplied', async () => {
+    const result = await action({
+        prompt: 'use Gemini in the browser',
+        env: {
+            PLOINKY_ROUTER_HOST: 'host.containers.internal',
+            PLOINKY_ROUTER_PORT: '8080',
+        },
+        context: {
+            invocationToken: 'caller-token',
+            webchatOrigin: { publicBaseUrl: 'https://workspace.example.test/webchat?agent=achilles-cli' },
+        },
+        callAgentTool: async (...args) => {
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
+                });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({ agent: PROVIDER_AGENT, ok: true });
+            }
+            return jsonResponse({
+                ok: true,
+                backend_ok: true,
+                state: 'waiting_for_user',
+                requires_user_action: true,
+                sessionId: 'sess_public',
+                viewerUrl: '/services/browser-use/sessions/sess_public',
+            });
+        },
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.result_text, /https:\/\/workspace\.example\.test\/services\/browser-use\/sessions\/sess_public/);
+    assert.equal(result.diagnostics.viewerFullUrl, 'https://workspace.example.test/services/browser-use/sessions/sess_public');
+});
+
+test('reused browser-use sessions return the existing viewer URL without generic backend fallback', async () => {
+    const result = await action({
+        prompt: 'use Gemini to find the latest Node.js release',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async (...args) => {
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
+                });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({ agent: PROVIDER_AGENT, ok: true });
+            }
+            return jsonResponse({
+                ok: true,
+                backend_ok: true,
+                state: 'waiting_for_user',
+                requires_user_action: true,
+                session_reused: true,
+                sessionId: 'sess_reused',
+                viewerUrl: '/services/browser-use/sessions/sess_reused',
+                final_answer: '',
+            });
+        },
+    });
+
+    assert.equal(result.ok, true);
+    assert.match(result.result_text, /already open/);
+    assert.doesNotMatch(result.result_text, /did not return a natural-language response/);
+    assert.match(result.result_text, /http:\/\/localhost:8080\/services\/browser-use\/sessions\/sess_reused/);
+    assert.equal(result.diagnostics.session_reused, true);
 });
 
 test('Gemini prompts submit browser-use task with gemini provider', async () => {
@@ -225,4 +297,157 @@ test('successful submit with completed state returns final answer', async () => 
     assert.equal(result.cacheable, false);
     assert.equal(result.result_text, 'Bonjour');
     assert.equal(result.diagnostics.providerAvailability, 'active');
+});
+
+test('explicit provider input wins over prompt alias matching', async () => {
+    const calls = [];
+    const result = await action({
+        prompt: 'Ask Gemini to translate hello',
+        provider: 'perplexity',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async (...args) => {
+            calls.push(args);
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
+                });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({
+                    agent: PROVIDER_AGENT,
+                    ok: true,
+                    providers: [
+                        { id: 'chatgpt', label: 'ChatGPT', aliases: ['chatgpt', 'openai'], default: true },
+                        { id: 'gemini', label: 'Gemini', aliases: ['gemini', 'google gemini'] },
+                        { id: 'perplexity', label: 'Perplexity', aliases: ['perplexity'] },
+                    ],
+                });
+            }
+            return jsonResponse({ ok: true, state: 'completed', final_answer: 'done' });
+        },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(calls[2][2].provider, 'perplexity');
+});
+
+test('launcher matches provider aliases from status catalog', async () => {
+    const calls = [];
+    const result = await action({
+        prompt: 'use openai to translate hello',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async (...args) => {
+            calls.push(args);
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
+                });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({
+                    agent: PROVIDER_AGENT,
+                    ok: true,
+                    providers: [
+                        { id: 'chatgpt', label: 'ChatGPT', aliases: ['chatgpt', 'openai', 'chat gpt'], default: true },
+                        { id: 'gemini', label: 'Gemini', aliases: ['gemini'] },
+                    ],
+                });
+            }
+            return jsonResponse({ ok: true, state: 'completed', final_answer: 'done' });
+        },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(calls[2][2].provider, 'chatgpt');
+});
+
+test('launcher falls back to catalog default provider when prompt has no alias match', async () => {
+    const calls = [];
+    const result = await action({
+        prompt: 'translate hello to French',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async (...args) => {
+            calls.push(args);
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
+                });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({
+                    agent: PROVIDER_AGENT,
+                    ok: true,
+                    providers: [
+                        { id: 'chatgpt', label: 'ChatGPT', aliases: ['chatgpt', 'openai'], default: true },
+                        { id: 'gemini', label: 'Gemini', aliases: ['gemini'] },
+                    ],
+                });
+            }
+            return jsonResponse({ ok: true, state: 'completed', final_answer: 'done' });
+        },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(calls[2][2].provider, 'chatgpt');
+});
+
+test('launcher preserves origin.publicBaseUrl precedence from webchat', async () => {
+    const calls = [];
+    await action({
+        prompt: 'use ChatGPT to do something',
+        env: {
+            PLOINKY_ROUTER_HOST: 'host.containers.internal',
+            PLOINKY_ROUTER_PORT: '8080',
+        },
+        origin: { publicBaseUrl: 'https://my.domain.test' },
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async (...args) => {
+            calls.push(args);
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
+                });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({ agent: PROVIDER_AGENT, ok: true });
+            }
+            return jsonResponse({
+                ok: true,
+                state: 'waiting_for_user',
+                requires_user_action: true,
+                sessionId: 'sess_origin',
+                viewerUrl: '/services/browser-use/sessions/sess_origin',
+            });
+        },
+    });
+
+    const submitArgs = calls[2][3];
+    assert.equal(submitArgs.env.PLOINKY_ROUTER_HOST, 'host.containers.internal');
+});
+
+test('launcher uses hardcoded chatgpt fallback when status returns no provider catalog', async () => {
+    const calls = [];
+    await action({
+        prompt: 'translate hello to French',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async (...args) => {
+            calls.push(args);
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
+                });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({ agent: PROVIDER_AGENT, ok: true });
+            }
+            return jsonResponse({ ok: true, state: 'completed', final_answer: 'done' });
+        },
+    });
+
+    assert.equal(calls[2][2].provider, 'chatgpt');
 });

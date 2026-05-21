@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { BrowserSessionManager } from './browser-session-manager.mjs';
+import { loadProviderRegistry, providerAdapterContext } from './provider-registry.mjs';
 import { mountViewerRoutes } from './viewer-routes.mjs';
 
 const isContainerRuntime = Boolean(process.env.PLOINKY_CONTAINER_ID || process.env.PLOINKY_CONTAINER_NAME);
@@ -18,7 +19,16 @@ const sessionManager = new BrowserSessionManager({
 
 sessionManager.start();
 
-const handleViewer = mountViewerRoutes(sessionManager);
+let providerRegistry = null;
+
+async function initRegistry() {
+    providerRegistry = await loadProviderRegistry();
+    if (!providerRegistry || providerRegistry.size === 0) {
+        throw new Error('provider registry loaded zero enabled providers');
+    }
+}
+
+const handleViewer = mountViewerRoutes(sessionManager, () => providerRegistry);
 
 function jsonResponse(res, status, body) {
     res.writeHead(status, { 'content-type': 'application/json' });
@@ -67,10 +77,7 @@ function proxyAgentServer(req, res) {
     req.pipe(upstream, { end: true });
 }
 
-const PROVIDER_URLS = {
-    chatgpt: 'https://chatgpt.com/',
-    gemini: 'https://gemini.google.com/app',
-};
+const BROWSER_START_FAILED_MESSAGE = 'Browser session could not be started. Close any existing browser-use viewer for this provider and try again.';
 
 function parseAuthInfo(req) {
     const raw = req.headers['x-ploinky-auth-info'];
@@ -95,10 +102,27 @@ function requestUserId(req, body = {}) {
     return userIdFromAuthInfo(parseAuthInfo(req)) || String(body.userId || '').trim();
 }
 
+function interactiveSessionResponse(session, { sessionReused = false } = {}) {
+    return {
+        ok: true,
+        state: session.state,
+        requires_user_action: true,
+        session_reused: Boolean(sessionReused),
+        jobId: session.jobId,
+        sessionId: session.sessionId,
+        viewerUrl: session.viewerUrl,
+        final_answer: '',
+        natural_language_output: '',
+        resources: [],
+        sources: [],
+    };
+}
+
 export async function runTask(params) {
     const prompt = String(params.prompt || '').trim();
-    const provider = String(params.provider || 'chatgpt').trim().toLowerCase();
+    const requestedProvider = String(params.provider || '').trim().toLowerCase();
     const userId = String(params.userId || '').trim();
+    const timeoutMs = params.timeoutMs;
     if (!prompt) {
         return { ok: false, error: 'prompt is required' };
     }
@@ -106,53 +130,68 @@ export async function runTask(params) {
         return { ok: false, error: 'authenticated user identity is required' };
     }
 
-    const targetUrl = PROVIDER_URLS[provider];
-    if (!targetUrl) {
-        return { ok: false, error: `unsupported provider: ${provider}` };
+    const resolved = providerRegistry
+        ? providerRegistry.resolveProvider(requestedProvider)
+        : null;
+    if (!resolved) {
+        return { ok: false, error: `unsupported provider: ${requestedProvider || '(none)'}` };
     }
+    const provider = resolved.id;
+    const adapter = resolved.adapter;
+    const providerContext = providerAdapterContext(resolved);
 
-    const session = await sessionManager.createSession(userId, provider, { prompt });
-    await sessionManager.launchBrowser(session);
+    return await sessionManager.withProfileLock(userId, provider, async () => {
+        const reusableSession = sessionManager.getReusableSession(userId, provider);
+        if (reusableSession) {
+            if (reusableSession.state !== 'running') {
+                sessionManager.updateSessionPrompt(reusableSession, prompt, { timeoutMs });
+            }
+            return interactiveSessionResponse(reusableSession, { sessionReused: true });
+        }
 
-    if (session.state === 'failed') {
+        await sessionManager.waitForProfileRelease(userId, provider);
+
+        const session = await sessionManager.createSession(userId, provider, { prompt, timeoutMs });
+        await sessionManager.launchBrowser(session);
+
+        if (session.state === 'failed') {
+            return {
+                ok: false,
+                backend_ok: false,
+                state: 'failed',
+                error: 'browser_session_start_failed',
+                jobId: session.jobId,
+                sessionId: session.sessionId,
+                viewerUrl: session.viewerUrl,
+                final_answer: BROWSER_START_FAILED_MESSAGE,
+                natural_language_output: BROWSER_START_FAILED_MESSAGE,
+                resources: [],
+                sources: [],
+            };
+        }
+
+        await sessionManager.navigateTo(session, resolved.startUrl);
+        const loginRequired = await sessionManager.detectLoginRequired(session, adapter, providerContext);
+
+        if (loginRequired) {
+            session.state = 'waiting_for_user';
+            session.updatedAt = new Date().toISOString();
+            return interactiveSessionResponse(session);
+        }
+
+        const result = await sessionManager.submitPrompt(session, prompt, adapter, providerContext);
         return {
-            ok: false,
-            state: 'failed',
-            error: session.error,
-            jobId: session.jobId,
-            sessionId: session.sessionId,
-        };
-    }
-
-    await sessionManager.navigateTo(session, targetUrl);
-    const loginRequired = await sessionManager.detectLoginRequired(session, provider);
-
-    if (loginRequired) {
-        session.state = 'waiting_for_user';
-        session.updatedAt = new Date().toISOString();
-        return {
-            ok: true,
-            state: 'waiting_for_user',
-            requires_user_action: true,
+            ok: result.ok,
+            state: session.state,
             jobId: session.jobId,
             sessionId: session.sessionId,
             viewerUrl: session.viewerUrl,
-            final_answer: '',
+            final_answer: result.final_answer || '',
+            natural_language_output: result.final_answer || '',
+            resources: [],
+            sources: [],
         };
-    }
-
-    const result = await sessionManager.submitPrompt(session, prompt);
-    return {
-        ok: result.ok,
-        state: session.state,
-        jobId: session.jobId,
-        sessionId: session.sessionId,
-        viewerUrl: session.viewerUrl,
-        final_answer: result.final_answer || '',
-        natural_language_output: result.final_answer || '',
-        resources: [],
-        sources: [],
-    };
+    });
 }
 
 export async function continueTask(jobId) {
@@ -170,7 +209,15 @@ export async function continueTask(jobId) {
         };
     }
 
-    const result = await sessionManager.continueAfterUserReady(session);
+    const resolved = providerRegistry
+        ? providerRegistry.getProvider(session.provider)
+        : null;
+    const adapter = resolved ? resolved.adapter : null;
+    const result = await sessionManager.continueAfterUserReady(
+        session,
+        adapter,
+        providerAdapterContext(resolved),
+    );
     return {
         ok: result.ok,
         state: session.state,
@@ -201,6 +248,7 @@ const server = http.createServer(async (req, res) => {
             totalSessions: sessionManager.sessionCount(),
             chromiumAvailable: Boolean(process.env.BROWSER_EXECUTABLE_PATH),
             viewerTransport: 'http-sse',
+            providers: providerRegistry ? providerRegistry.listProviders() : [],
         });
         return;
     }
@@ -298,9 +346,17 @@ const server = http.createServer(async (req, res) => {
     jsonResponse(res, 404, { ok: false, error: 'not found' });
 });
 
-server.listen(PORT, HOST, () => {
-    process.stdout.write(`browserUseAgent service listening on ${HOST}:${PORT}; proxying MCP to ${MCP_HOST}:${MCP_PORT}\n`);
-});
+initRegistry()
+    .then(() => {
+        server.listen(PORT, HOST, () => {
+            const count = providerRegistry ? providerRegistry.size : 0;
+            process.stdout.write(`browserUseAgent service listening on ${HOST}:${PORT}; proxying MCP to ${MCP_HOST}:${MCP_PORT}; ${count} provider(s) loaded\n`);
+        });
+    })
+    .catch((err) => {
+        process.stderr.write(`provider registry failed to load: ${err.message}\n`);
+        process.exit(1);
+    });
 
 function shutdown() {
     sessionManager.stop();
@@ -311,4 +367,4 @@ function shutdown() {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-export { sessionManager };
+export { sessionManager, providerRegistry };

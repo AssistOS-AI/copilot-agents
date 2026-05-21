@@ -37,6 +37,8 @@ are discovered from the Ploinky repository skill roots, including
 It forwards tasks through router-mediated MCP calls using the invocation token
 from the selected AchillesCLI/WebChat session. `browserUseAgent` should follow
 that existing provider pattern rather than becoming a direct WebChat feature.
+The current relay contract uses backend ids only; do not add visible tag
+aliases or a `tags` field to the backend catalog.
 
 Ploinky user-visible downstream HTTP surfaces must be declared by the owning
 agent in `manifest.json` as `httpServices`. The viewer must therefore be a
@@ -66,6 +68,12 @@ browserUseAgent/
 The agent process must serve both MCP and browser viewer routes from the agent
 port. The default Ploinky AgentServer only handles `/health`, `/getTaskStatus`,
 and `/mcp`, so it is not sufficient by itself for `/browser-use/*` routes.
+
+The agent must also be added to:
+
+- `research-agents/manifest.json` as `browserUseAgent global no-wait`;
+- `scripts/validate-manifests.mjs` so static validation covers the new agent;
+- `docs/specs/matrix.md` after adding the browser-use DS file.
 
 ## Manifest Contract
 
@@ -258,13 +266,19 @@ Add a provider-backed backend to `copilotProviderRelay`:
 }
 ```
 
-Update relay normalization so it preserves interactive metadata:
+Do not add `tags` or `@browser-use` aliases. AchillesCLI chooses the launcher
+semantically; `copilotProviderRelay` accepts the literal backend id
+`browser-use`.
+
+Update `publicBackendView` and provider-result normalization so the relay
+preserves interactive metadata:
 
 - `state`
 - `jobId`
 - `sessionId`
 - `viewerUrl`
 - `requires_user_action`
+- `interactive`
 
 Do not make `copilotProviderRelay` own provider-specific browser behavior.
 
@@ -325,8 +339,19 @@ share one Chromium profile across users.
 
 ## Documentation And Specs
 
-Update `copilot-agents` docs/specs if the new agent, manifest, MCP tools, or
-security behavior become part of the implemented contract.
+Add `copilot-agents/docs/specs/DS014-browser-use-agent.md` for the new agent.
+Keep DS numbering contiguous and update `docs/specs/matrix.md` plus
+`docs/index.html`.
+
+Update existing `copilot-agents` specs if the implementation changes bundle
+membership, MCP tools, manifest behavior, security behavior, or relay metadata:
+
+- `DS002-ploinky-runtime-invariants.md`
+- `DS003-agent-inventory.md`
+- `DS004-research-agents-bundle.md`
+- `DS005-copilot-provider-relay-agent.md`
+- `DS011-security-observability.md`
+- `DS012-semantic-copilot-routing.md`
 
 If Ploinky generic WebSocket proxying is added, update:
 
@@ -347,8 +372,10 @@ Add focused tests for:
 
 - `copilotProviderRelay` backend catalog includes `browser-use`;
 - relay normalization preserves interactive metadata;
+- relay catalog output does not expose a `tags` field for `browser-use`;
 - `launch-browser-use` handles missing invocation tokens;
 - `launch-browser-use` returns viewer URL for `waiting_for_user`;
+- `research_agents_status` includes `browserUseAgent`;
 - manifest validation accepts the protected HTTP service.
 
 If Ploinky WebSocket proxying is added, run targeted Ploinky router tests and a

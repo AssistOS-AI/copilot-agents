@@ -52,6 +52,9 @@ Create `copilot-agents/browserUseAgent` and integrate it with the existing
 AchillesCLI -> `copilot-router` -> `launch-*` skill -> `copilotProviderRelay` ->
 provider-agent pattern.
 
+The relay contract is backend-id based. Do not add visible provider tags,
+`@browser-use` aliases, or a `tags` field to backend catalog entries.
+
 ## Step 1: Scaffold `browserUseAgent`
 
 Create:
@@ -75,6 +78,23 @@ Manifest requirements:
   ".ploinky/data/browserUseAgent": "/data"
 }
 ```
+
+Also update:
+
+```text
+copilot-agents/research-agents/manifest.json
+copilot-agents/scripts/validate-manifests.mjs
+```
+
+The `research-agents` bundle should enable:
+
+```text
+browserUseAgent global no-wait
+```
+
+The manifest validator must include `browserUseAgent` in its agent directory
+list and should validate the protected `httpServices` shape if it does not
+already.
 
 - Add protected HTTP service:
 
@@ -248,13 +268,18 @@ Add:
 }
 ```
 
-Update relay result normalization so interactive provider results preserve:
+Do not add `tags` to this catalog entry. `copilotProviderRelay` should accept
+the literal backend id `browser-use`.
+
+Update `publicBackendView` and relay result normalization so interactive
+provider results preserve:
 
 - `state`
 - `jobId`
 - `sessionId`
 - `viewerUrl`
 - `requires_user_action`
+- `interactive`
 
 Add or update unit tests.
 
@@ -306,8 +331,24 @@ dispatch.
 
 ## Step 9: Documentation And Specs
 
-Update `copilot-agents` docs/specs if the new agent, MCP tools, manifest, or
-security behavior become implemented contracts.
+Add:
+
+```text
+copilot-agents/docs/specs/DS014-browser-use-agent.md
+```
+
+Keep DS numbering contiguous. Update:
+
+```text
+copilot-agents/docs/specs/matrix.md
+copilot-agents/docs/index.html
+copilot-agents/docs/specs/DS002-ploinky-runtime-invariants.md
+copilot-agents/docs/specs/DS003-agent-inventory.md
+copilot-agents/docs/specs/DS004-research-agents-bundle.md
+copilot-agents/docs/specs/DS005-copilot-provider-relay-agent.md
+copilot-agents/docs/specs/DS011-security-observability.md
+copilot-agents/docs/specs/DS012-semantic-copilot-routing.md
+```
 
 If Ploinky router WebSocket support is added, update:
 
@@ -335,6 +376,8 @@ Acceptance criteria:
 
 - AchillesCLI can route a logged-in web-app prompt to `launch-browser-use`.
 - `browserUseAgent` returns a protected viewer URL when login is required.
+- `copilotProviderRelay` exposes backend id `browser-use` without a `tags`
+  field.
 - The user can open the viewer, log in, and signal Continue.
 - The agent resumes in the same browser session and submits the original prompt.
 - Browser cookies persist per authenticated user and provider under `/data`.

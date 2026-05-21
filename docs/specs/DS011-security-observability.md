@@ -17,10 +17,11 @@ and observability requirements.
 ## Core Content
 
 Every tool that can execute commands, mutate files, call external services, or
-start long-running research work must require explicit user intent in its
-schema. In the tagged-task model, the explicit intent is the chat message that
-names a supported `@backend` tag plus a natural-language task. Defaults must
-favor status or a clear "backend not configured" answer over silent execution.
+start long-running provider work must require explicit user intent in its
+schema. In the semantic Copilot model, the explicit intent is the
+natural-language task routed by AchillesCLI to a deterministic launcher and a
+known backend id. Defaults must favor status or a clear "backend not
+configured" answer over silent execution.
 
 Telemetry must be opt-in unless an upstream integration provides a documented
 local-only mode. Open Interpreter telemetry must be disabled by default, both
@@ -49,7 +50,7 @@ bwrap-runner Docker image as its sandbox base, either directly or through a
 documented derived image. Browser-search providers may use a browser-enabled
 container when their provider task is limited to browser navigation and result
 normalization. Provider agents must not call a separate `basic/bwrap-runner`
-Ploinky agent for research execution. The Research Relay must pass prompt and
+Ploinky agent for research execution. The Copilot Provider Relay must pass prompt and
 resource content through staged data and must not pass caller-supplied mounts,
 bwrap flags, network selectors, generated setup programs, or inline executable
 driver code. Container, lite-sandbox, nested bwrap, browser image, or profile
@@ -102,10 +103,10 @@ without expanding the default data exposure surface.
 ### Question #3: Why redact raw prompts and resources from MCP server logs?
 
 Response:
-The tagged relay intentionally accepts user prompts and document contents as
-tool arguments. The MCP server may log tool arguments and payload metadata
-for debugging, so redaction must treat prompt, content, base64, resources,
-stdin, task, message, and payload fields as sensitive by default.
+The provider relay intentionally accepts user prompts and document contents as
+tool arguments. The MCP server may log tool arguments and payload metadata for
+debugging, so redaction must treat prompt, content, base64, resources, stdin,
+task, message, and payload fields as sensitive by default.
 
 ### Question #4: Why is `/shared` not a security boundary against hostile agents?
 

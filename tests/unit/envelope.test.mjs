@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { normalizeEnvelope } from '../../research-agents/tools/lib/envelope.mjs';
-import { normalizeEnvelope as normalizeEnvelopeRelay } from '../../researchRelay/tools/lib/envelope.mjs';
+import { normalizeEnvelope as normalizeEnvelopeRelay } from '../../copilotProviderRelay/tools/lib/envelope.mjs';
 
 test('normalizeEnvelope returns defaults for null', () => {
     const result = normalizeEnvelope(null);
@@ -30,7 +30,7 @@ test('normalizeEnvelope rejects non-object string inputs cleanly', () => {
     assert.deepEqual(result.input, {});
 });
 
-test('researchRelay envelope matches bundle envelope semantics', () => {
+test('copilotProviderRelay envelope matches bundle envelope semantics', () => {
     const a = normalizeEnvelope({ input: { backend: 'open-interpreter' } });
     const b = normalizeEnvelopeRelay({ input: { backend: 'open-interpreter' } });
     assert.deepEqual(a, b);

@@ -17,7 +17,7 @@ function byteLength(text) {
 
 function reject(message) {
     const error = new Error(message);
-    error.code = 'RESEARCH_TASK_INVALID_INPUT';
+    error.code = 'COPILOT_PROVIDER_TASK_INVALID_INPUT';
     throw error;
 }
 
@@ -123,10 +123,10 @@ function normalizePathResource(raw, index, workspaceRoot) {
     };
 }
 
-export function normalizeResearchTaskInput(input = {}, env = process.env) {
-    const backend = findBackend(input.backend || input.tag || input.agent);
+export function normalizeProviderTaskInput(input = {}, env = process.env) {
+    const backend = findBackend(input.backend);
     if (!backend) {
-        reject('backend is required and must match a known research tag');
+        reject('backend is required and must match a known provider backend id');
     }
 
     const prompt = String(input.prompt || input.task || '').trim();

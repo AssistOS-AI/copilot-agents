@@ -1,7 +1,7 @@
 # Launch Open Interpreter
 
 Dispatch an execution-oriented Copilot task to Open Interpreter through
-`researchRelay.research_task_submit`.
+`copilotProviderRelay.copilot_provider_task_submit`.
 
 ## Backend
 open-interpreter
@@ -28,5 +28,5 @@ Returns a structured launcher result with `ok`, `backend`, `cacheable`,
 
 ## Constraints
 - Never call `openInterpreterAgent` directly.
-- Always dispatch through `researchRelay.research_task_submit`.
+- Always dispatch through `copilotProviderRelay.copilot_provider_task_submit`.
 - `@open-interpreter` is ordinary chat text and must not trigger provider dispatch.

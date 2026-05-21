@@ -1,4 +1,4 @@
-// Minimal Ploinky MCP client for researchRelay tools.
+// Minimal Ploinky MCP client for copilotProviderRelay tools.
 // Routes calls through the workspace router rather than direct agent ports,
 // preserving the secure-wire contract in DS002.
 

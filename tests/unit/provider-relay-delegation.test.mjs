@@ -1,4 +1,4 @@
-// Tests that researchRelay.research_task_submit delegates @open-interpreter to
+// Tests that copilotProviderRelay.copilot_provider_task_submit delegates open-interpreter to
 // the openInterpreterAgent provider tool through MCP and normalizes natural-
 // language output, instead of calling bwrap-runner directly.
 
@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const submitTaskScript = path.resolve(__dirname, '../../researchRelay/tools/submit-task.mjs');
+const submitTaskScript = path.resolve(__dirname, '../../copilotProviderRelay/tools/submit-task.mjs');
 
 function startStubRouter(handler) {
     const calls = [];
@@ -67,7 +67,7 @@ function runSubmitTask(input, env) {
     });
 }
 
-test('relay forwards @open-interpreter to openInterpreterAgent via MCP', async () => {
+test('relay forwards open-interpreter to openInterpreterAgent via MCP', async () => {
     const providerResponse = {
         ok: true,
         jobId: 'job-1',
@@ -90,7 +90,7 @@ test('relay forwards @open-interpreter to openInterpreterAgent via MCP', async (
     }));
     try {
         const child = await runSubmitTask({
-            input: { backend: '@open-interpreter', prompt: 'hello' },
+            input: { backend: 'open-interpreter', prompt: 'hello' },
             metadata: { invocationToken: 'relay-token' },
         }, {
             PLOINKY_ROUTER_URL: `http://127.0.0.1:${port}`,

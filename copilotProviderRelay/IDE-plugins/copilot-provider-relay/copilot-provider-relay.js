@@ -1,4 +1,4 @@
-export class ResearchRelay {
+export class CopilotProviderRelay {
     constructor(element, invalidate) {
         this.element = element;
         this.invalidate = invalidate;

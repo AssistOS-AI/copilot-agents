@@ -10,13 +10,13 @@ summary: Reserves the future MLJAR and DeepAnalyze provider backend contracts.
 
 ## Introduction
 
-`@mljar` and `@deepanalyze` are reserved future research tags. They are not
-currently exposed by `researchRelay` and are not direct Ploinky chat agents in
-the current architecture.
+`mljar` and `deepanalyze` are reserved future provider backend ids. They are
+not currently exposed by `copilotProviderRelay` and are not direct Ploinky chat
+agents in the current architecture.
 
 ## Core Content
 
-Before either tag becomes active, the repository must add a provider agent
+Before either backend becomes active, the repository must add a provider agent
 that owns the backend's runtime preparation, task staging, and local sandbox
 execution from a container based on the shared bwrap-runner image.
 
@@ -36,5 +36,5 @@ agents define different runtime and artifact needs.
 
 ## Conclusion
 
-`@mljar` and `@deepanalyze` remain reserved until provider agents own runtime
+`mljar` and `deepanalyze` remain reserved until provider agents own runtime
 setup and local sandbox execution.

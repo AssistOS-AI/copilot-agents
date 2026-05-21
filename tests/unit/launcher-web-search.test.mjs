@@ -19,12 +19,12 @@ function jsonResponse(payload) {
     };
 }
 
-test('launcher metadata targets researchRelay and web-search backend', () => {
+test('launcher metadata targets copilotProviderRelay and web-search backend', () => {
     assert.equal(BACKEND, 'web-search');
-    assert.equal(RELAY_AGENT, 'researchRelay');
+    assert.equal(RELAY_AGENT, 'copilotProviderRelay');
     assert.equal(PROVIDER_AGENT, 'webSearchAgent');
-    assert.equal(LIST_TOOL, 'research_relay_list_backends');
-    assert.equal(SUBMIT_TOOL, 'research_task_submit');
+    assert.equal(LIST_TOOL, 'copilot_provider_list_backends');
+    assert.equal(SUBMIT_TOOL, 'copilot_provider_task_submit');
     assert.equal(PROVIDER_STATUS_TOOL, 'web_search_status');
 });
 
@@ -43,7 +43,7 @@ test('action refuses to dispatch without a router invocation token', async () =>
     assert.equal(calls.length, 0);
 });
 
-test('@web-search is ordinary chat text and never calls research_task_submit', async () => {
+test('@web-search is ordinary chat text and never calls copilot_provider_task_submit', async () => {
     const calls = [];
     const result = await action({
         prompt: '@web-search latest news',
@@ -98,7 +98,7 @@ test('action returns unavailable when provider status fails', async () => {
             const [, toolName] = args;
             if (toolName === LIST_TOOL) {
                 return jsonResponse({
-                    backends: [{ id: BACKEND, tags: ['web-search'], provider: { agent: PROVIDER_AGENT } }],
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
                 });
             }
             if (toolName === PROVIDER_STATUS_TOOL) {
@@ -127,7 +127,7 @@ test('successful submit returns cacheable=true and correct persistence_hint', as
             const [, toolName] = args;
             if (toolName === LIST_TOOL) {
                 return jsonResponse({
-                    backends: [{ id: BACKEND, tags: ['web-search'], provider: { agent: PROVIDER_AGENT } }],
+                    backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }],
                 });
             }
             if (toolName === PROVIDER_STATUS_TOOL) {

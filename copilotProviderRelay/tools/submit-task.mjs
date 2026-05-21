@@ -5,7 +5,7 @@ import {
     buildProviderInput,
     isProviderBackend,
     normalizeProviderResult,
-    normalizeResearchTaskInput,
+    normalizeProviderTaskInput,
 } from './lib/task.mjs';
 
 const PROVIDER_PREPARE_TIMEOUT_MS = 330000;
@@ -14,10 +14,6 @@ function getInvocationToken(envelope) {
     return envelope.metadata && typeof envelope.metadata.invocationToken === 'string'
         ? envelope.metadata.invocationToken
         : '';
-}
-
-function tagFor(task) {
-    return `@${task.backend.tags[0]}`;
 }
 
 async function runProviderBackend(task, invocationToken) {
@@ -33,7 +29,6 @@ async function runProviderBackend(task, invocationToken) {
     writeOk({
         backend: task.backend.id,
         label: task.backend.label,
-        tag: tagFor(task),
         provider_agent: task.backend.provider.agent,
         provider_tool: task.backend.provider.tool,
         bwrap_agent: null,
@@ -62,18 +57,18 @@ async function main() {
         const envelope = await readEnvelope();
         const invocationToken = getInvocationToken(envelope);
         if (!invocationToken) {
-            writeError('research_task_submit requires a router invocation token');
+            writeError('copilot_provider_task_submit requires a router invocation token');
             return;
         }
 
-        const task = normalizeResearchTaskInput(envelope.input || {});
+        const task = normalizeProviderTaskInput(envelope.input || {});
         if (isProviderBackend(task)) {
             await runProviderBackend(task, invocationToken);
             return;
         }
         writeError(`backend '${task.backend.id}' does not have a provider agent`);
     } catch (error) {
-        writeError(error && error.message ? error.message : 'research_task_submit failed');
+        writeError(error && error.message ? error.message : 'copilot_provider_task_submit failed');
     }
 }
 

@@ -28,7 +28,7 @@ Important constraints:
 - Do not restore visible `@agent` dispatch.
 - Ploinky WebChat must stay transport-only.
 - AchillesCLI owns semantic routing and AKU result-cache policy.
-- `researchRelay` remains the secure dispatcher.
+- `copilotProviderRelay` remains the secure dispatcher.
 - Provider agents own provider-specific setup and execution.
 - `webSearchAgent` must not use external search gateway URLs, gateway API keys,
   `achillesAgentLib.callSearch()`, or OpenAI-compatible chat-completions
@@ -43,7 +43,7 @@ Implementation shape:
 2. Start the local browser service from the agent process before AgentServer.
 3. Implement browser-pool and result-converter modules based on the reference
    headless-browser patterns.
-4. Keep `researchRelay` generic while preserving search `sources`,
+4. Keep `copilotProviderRelay` generic while preserving search `sources`,
    `cacheable`, and `ttl_hint_seconds` metadata.
 5. Keep `launch-web-search` as the deterministic cacheable launcher cskill.
 6. Update validation, specs, docs, and smoke docs when behavior changes.

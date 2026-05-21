@@ -1,12 +1,12 @@
 {
     "pluginCategory": "application",
-    "id": "research-relay",
-    "component": "research-relay",
+    "id": "copilot-provider-relay",
+    "component": "copilot-provider-relay",
     "location": ["file-exp:copilot-launch-extension"],
-    "label": "Research relay provider metadata",
+    "label": "Copilot provider relay metadata",
     "tooltip": "Keeps Copilot envelope forwarding enabled for semantic provider routing",
     "icon": "./icon.svg",
-    "presenter": "ResearchRelay",
+    "presenter": "CopilotProviderRelay",
     "type": "embedded",
     "autoPin": false,
     "copilotLaunch": {

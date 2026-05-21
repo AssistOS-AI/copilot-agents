@@ -1,12 +1,12 @@
 ---
-id: DS013
+id: DS012
 title: Semantic Copilot Routing and Launcher Skills
 status: implemented
 owner: copilot-agents-team
-summary: Defines the semantic AchillesCLI Copilot routing contract, deterministic provider launchers, and cacheability boundaries for provider-backed research tasks.
+summary: Defines the semantic AchillesCLI Copilot routing contract, deterministic provider launchers, and cacheability boundaries for provider-backed tasks.
 ---
 
-# DS013 - Semantic Copilot Routing and Launcher Skills
+# DS012 - Semantic Copilot Routing and Launcher Skills
 
 ## Introduction
 
@@ -19,7 +19,7 @@ not dispatch providers with visible `@agent` syntax.
 AchillesCLI owns semantic routing. Ploinky WebChat remains a transport-only
 surface that forwards prompt text, sanitized WebChat envelopes, attachments,
 workspace references, and the selected-agent invocation token. Ploinky WebChat
-must not know `researchRelay`, `openInterpreterAgent`, backend tags, provider
+must not know `copilotProviderRelay`, `openInterpreterAgent`, backend ids, provider
 MCP tool names, or AKU result-cache policy.
 
 The `copilot-router` skill is an AchillesCLI orchestration skill using
@@ -31,8 +31,9 @@ reference syntax.
 
 Each provider launcher is a deterministic cskill. A launcher validates that
 the provider path is available, materializes only safe context supplied by
-AchillesCLI, calls `researchRelay.research_task_submit` through router-mediated
-MCP with the current invocation token, and returns structured output:
+AchillesCLI, calls `copilotProviderRelay.copilot_provider_task_submit` through
+router-mediated MCP with the current invocation token, and returns structured
+output:
 
 ```json
 {
@@ -49,7 +50,7 @@ MCP with the current invocation token, and returns structured output:
 }
 ```
 
-`researchRelay` remains the secure dispatcher to provider agents. AchillesCLI
+`copilotProviderRelay` remains the secure dispatcher to provider agents. AchillesCLI
 launchers must not bypass it by directly calling provider agents such as
 `openInterpreterAgent` for task execution. A provider-specific launcher may call
 that provider's status tool through router-mediated MCP with the current
@@ -82,20 +83,20 @@ owned by AchillesCLI.
 
 ## Decisions & Questions
 
-### Question #1: Why replace visible tags with semantic routing?
+### Question #1: Why route semantically?
 
 Response:
 Users should ask for the work they want, not memorize provider names. Semantic
 routing also keeps Ploinky WebChat agent-agnostic and places provider policy in
 AchillesCLI, where prompt interpretation already belongs.
 
-### Question #2: Why keep `researchRelay` between Copilot launchers and providers?
+### Question #2: Why keep `copilotProviderRelay` between Copilot launchers and providers?
 
 Response:
-The relay is the secure dispatcher that validates backend ids and forwards
-provider tasks with router invocation grants. Keeping it in the path prevents
-AchillesCLI launchers from learning provider-specific MCP tools, sandbox
-runtimes, credentials, or deployment details.
+The relay is the secure dispatcher that validates backend ids, materializes
+bounded resources, and forwards provider tasks with router invocation grants.
+Keeping it in the path prevents AchillesCLI launchers from duplicating path
+confinement and result normalization logic.
 
 ### Question #3: Why is Open Interpreter not cacheable?
 
@@ -111,7 +112,7 @@ Static relay catalogs can show a backend contract while the provider route is
 not actually reachable. A bounded provider status probe lets the launcher return
 an explicit unavailable-provider result before task submission. The probe uses
 router-mediated MCP and the current invocation token, and execution still flows
-through `researchRelay.research_task_submit`.
+through `copilotProviderRelay.copilot_provider_task_submit`.
 
 ## Conclusion
 

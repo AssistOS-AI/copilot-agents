@@ -14,7 +14,7 @@ summary: Defines the Open Interpreter provider agent. The agent owns Open Interp
 preparation of the Open Interpreter runtime and execution of bounded research
 tasks inside a local inner bubblewrap sandbox. It does not delegate execution
 to a separate `basic/bwrap-runner` Ploinky agent. Chat-facing tasks reach it
-only through the Research Relay's `open-interpreter` backend id.
+only through the Copilot Provider Relay's `open-interpreter` backend id.
 
 ## Core Content
 
@@ -51,7 +51,7 @@ The agent must own:
   fail with a natural-language repair message instead of deleting or replacing
   the directory in place.
 - `openInterpreterAgent/tools/open-interpreter-run-task.mjs`: the provider
-  tool the Research Relay invokes for `open-interpreter` tasks. It must
+  tool the Copilot Provider Relay invokes for `open-interpreter` tasks. It must
   validate input, refuse to proceed without a router invocation token,
   ensure the runtime exists by reusing or preparing it when
   `OI_RUNTIME_AUTO_PREPARE` is enabled, resolve Open Interpreter LLM
@@ -236,7 +236,7 @@ than each agent owning hardcoded provider URLs and model aliases. Keeping the
 Open Interpreter mapping inside an agent-local adapter lets
 `openInterpreterAgent` follow that convention while preserving the framework
 boundary: Ploinky core still has no knowledge of Open Interpreter,
-researchRelay, or Soul Gateway-specific execution.
+copilotProviderRelay, or Soul Gateway-specific execution.
 
 ### Question #11: Why place a broker between Open Interpreter and Soul Gateway?
 

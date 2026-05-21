@@ -1,4 +1,4 @@
-// Catalog of research backends owned by copilot-agents.
+// Catalog of Copilot provider backends owned by copilot-agents.
 //
 // The relay does not own backend command strings, runtime ids, package
 // versions, shim paths, or backend-specific sandbox calls. Active backends
@@ -6,10 +6,9 @@
 // the router invocation token, and each provider executes its own local bwrap
 // sandbox inside its own container based on the shared bwrap-runner image.
 
-export const RESEARCH_BACKENDS = Object.freeze([
+export const COPILOT_PROVIDER_BACKENDS = Object.freeze([
     {
         id: 'open-interpreter',
-        tags: ['open-interpreter'],
         label: 'Open Interpreter',
         default_profile: 'default',
         provider: { agent: 'openInterpreterAgent', tool: 'open_interpreter_run_task' },
@@ -17,7 +16,6 @@ export const RESEARCH_BACKENDS = Object.freeze([
     },
     {
         id: 'web-search',
-        tags: ['web-search'],
         label: 'Web Search',
         default_profile: 'default',
         provider: { agent: 'webSearchAgent', tool: 'web_search_run_task' },
@@ -31,17 +29,13 @@ export function findBackend(id) {
     if (typeof id !== 'string' || !id.trim()) {
         return null;
     }
-    const normalized = id.trim().replace(/^@+/, '').toLowerCase();
-    return RESEARCH_BACKENDS.find((backend) => {
-        if (backend.id === normalized) return true;
-        return Array.isArray(backend.tags) && backend.tags.some((tag) => tag === normalized);
-    }) || null;
+    const normalized = id.trim().toLowerCase();
+    return COPILOT_PROVIDER_BACKENDS.find((backend) => backend.id === normalized) || null;
 }
 
 export function publicBackendView(backend, env = process.env) {
     return {
         id: backend.id,
-        tags: backend.tags,
         label: backend.label,
         default_profile: backend.default_profile,
         provider: backend.provider ? { agent: backend.provider.agent, tool: backend.provider.tool } : null,

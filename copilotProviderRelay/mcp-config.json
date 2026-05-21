@@ -1,9 +1,9 @@
 {
     "tools": [
         {
-            "name": "research_relay_status",
-            "title": "Research Relay Status",
-            "description": "Report the active research backend catalog and relay mode. Provider reachability checks belong to the provider agents themselves.",
+            "name": "copilot_provider_status",
+            "title": "Copilot Provider Relay Status",
+            "description": "Report the active provider backend catalog and relay mode. Provider reachability checks belong to the provider agents themselves.",
             "command": "/usr/local/bin/node",
             "args": [
                 "/code/tools/status.mjs"
@@ -12,9 +12,9 @@
             "inputSchema": {}
         },
         {
-            "name": "research_relay_list_backends",
-            "title": "List Research Backends",
-            "description": "Return the static catalog of research backends owned by this repository and their default Ploinky agent ids.",
+            "name": "copilot_provider_list_backends",
+            "title": "List Copilot Provider Backends",
+            "description": "Return the static catalog of provider backends owned by this repository and their default Ploinky agent ids.",
             "command": "/usr/local/bin/node",
             "args": [
                 "/code/tools/list-backends.mjs"
@@ -23,33 +23,9 @@
             "inputSchema": {}
         },
         {
-            "name": "research_relay_dispatch",
-            "title": "Plan Research Relay Dispatch",
-            "description": "Compatibility helper for older launch integrations. New callers should use research_task_submit.",
-            "command": "/usr/local/bin/node",
-            "args": [
-                "/code/tools/dispatch.mjs"
-            ],
-            "cwd": "/code",
-            "inputSchema": {
-                "backend": {
-                    "type": "string",
-                    "optional": false
-                },
-                "working_directory": {
-                    "type": "string",
-                    "optional": true
-                },
-                "skill_root": {
-                    "type": "string",
-                    "optional": true
-                }
-            }
-        },
-        {
-            "name": "research_task_submit",
-            "title": "Submit Research Task",
-            "description": "Forward a semantic Copilot research task to its provider agent and return the backend's natural-language result.",
+            "name": "copilot_provider_task_submit",
+            "title": "Submit Copilot Provider Task",
+            "description": "Forward a semantic Copilot provider task to its provider agent and return the backend's natural-language result.",
             "command": "/usr/local/bin/node",
             "args": [
                 "/code/tools/submit-task.mjs"
@@ -60,7 +36,7 @@
                 "backend": {
                     "type": "string",
                     "optional": false,
-                    "description": "Research backend id, such as open-interpreter."
+                    "description": "Provider backend id, such as open-interpreter."
                 },
                 "prompt": {
                     "type": "string",

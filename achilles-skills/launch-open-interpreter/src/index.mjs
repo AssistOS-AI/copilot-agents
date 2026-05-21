@@ -1,8 +1,8 @@
 export const BACKEND = 'open-interpreter';
-export const RELAY_AGENT = 'researchRelay';
+export const RELAY_AGENT = 'copilotProviderRelay';
 export const PROVIDER_AGENT = 'openInterpreterAgent';
-export const LIST_TOOL = 'research_relay_list_backends';
-export const SUBMIT_TOOL = 'research_task_submit';
+export const LIST_TOOL = 'copilot_provider_list_backends';
+export const SUBMIT_TOOL = 'copilot_provider_task_submit';
 export const PROVIDER_STATUS_TOOL = 'oi_status';
 
 const DEFAULT_TIMEOUT_MS = 110000;
@@ -145,8 +145,7 @@ function resultBase(overrides = {}) {
 
 function findCatalogBackend(payload) {
     return asArray(payload?.backends).find((backend) => {
-        if (String(backend?.id || '').trim().toLowerCase() === BACKEND) return true;
-        return asArray(backend?.tags).some((tag) => String(tag || '').trim().replace(/^@+/, '').toLowerCase() === BACKEND);
+        return String(backend?.id || '').trim().toLowerCase() === BACKEND;
     }) || null;
 }
 
@@ -195,7 +194,7 @@ async function checkProviderAvailability(input, backend) {
     if (!providerAgent) {
         return {
             ok: false,
-            result_text: 'Open Interpreter is unavailable because the Research Relay backend has no provider route.',
+            result_text: 'Open Interpreter is unavailable because the Copilot Provider Relay backend has no provider route.',
             diagnostics: { providerAvailability: 'not_deployed', missingProviderRoute: true },
         };
     }
@@ -268,14 +267,14 @@ export async function action(args = {}) {
         }));
     } catch (error) {
         return finish(input, resultBase({
-            result_text: `Open Interpreter is unavailable because the Research Relay is not reachable: ${error?.message || 'relay lookup failed'}`,
+            result_text: `Open Interpreter is unavailable because the Copilot Provider Relay is not reachable: ${error?.message || 'relay lookup failed'}`,
             diagnostics: { providerAvailability: 'not_deployed', relayLookupError: error?.message || String(error) },
         }));
     }
     const catalogBackend = findCatalogBackend(catalog);
     if (!catalogBackend) {
         return finish(input, resultBase({
-            result_text: 'Open Interpreter launcher is available, but the Research Relay catalog does not currently expose the open-interpreter backend.',
+            result_text: 'Open Interpreter launcher is available, but the Copilot Provider Relay catalog does not currently expose the open-interpreter backend.',
             diagnostics: { providerAvailability: 'not_deployed', missingBackend: BACKEND },
         }));
     }

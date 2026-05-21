@@ -1,7 +1,7 @@
 # Launch Web Search
 
 Dispatch a cacheable web-search task through
-`researchRelay.research_task_submit`.
+`copilotProviderRelay.copilot_provider_task_submit`.
 
 ## Backend
 web-search
@@ -28,5 +28,5 @@ Returns a structured launcher result with `ok`, `backend`, `cacheable`,
 
 ## Constraints
 - Never call `webSearchAgent` directly.
-- Always dispatch through `researchRelay.research_task_submit`.
+- Always dispatch through `copilotProviderRelay.copilot_provider_task_submit`.
 - `@web-search` or `@search` is ordinary chat text and must not trigger dispatch.

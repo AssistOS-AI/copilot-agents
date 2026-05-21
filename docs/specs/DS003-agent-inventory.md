@@ -3,7 +3,7 @@ id: DS003
 title: Agent Inventory
 status: planned
 owner: copilot-agents-team
-summary: Defines the research relay inventory, provider-backed backend ids, and default enablement posture.
+summary: Defines the copilot provider relay inventory, provider-backed backend ids, and default enablement posture.
 ---
 
 # DS003 - Agent Inventory
@@ -19,19 +19,19 @@ implementation ordering.
 The repository must contain these Ploinky agents:
 
 1. `research-agents`: the explicit deployment bundle.
-2. `researchRelay`: the Copilot launch-extension and research-task relay agent.
+2. `copilotProviderRelay`: the Copilot launch-extension and provider-task relay agent.
 3. `openInterpreterAgent`: the Open Interpreter provider agent that owns
    runtime preparation and runs research tasks in its own local bwrap sandbox.
 4. `webSearchAgent`: the Web Search provider agent that executes cacheable
    web searches through its own local headless browser runtime.
 
-The repository must expose these active backend ids through `researchRelay`:
+The repository must expose these active backend ids through `copilotProviderRelay`:
 
 - `open-interpreter`
 - `web-search` (cacheable, TTL 86400s)
 
 The provider backends are not public chat or slash-command targets. They are
-adapter records inside `researchRelay`. Each adapter receives a
+adapter records inside `copilotProviderRelay`. Each adapter receives a
 natural-language prompt and materialized input resources. Active backends must
 declare `provider: { agent, tool }`; the relay forwards the task to that MCP
 tool with the router invocation token, and the provider agent owns runtime
@@ -44,18 +44,18 @@ versions, shim paths, model/provider setup, or direct backend-specific calls
 to a sandbox runner.
 
 Only the `research-agents` bundle may auto-enable the relay. The default,
-`dev`, `qa`, and `prod` bundle profiles must enable `researchRelay`,
+`dev`, `qa`, and `prod` bundle profiles must enable `copilotProviderRelay`,
 `openInterpreterAgent`, and `webSearchAgent`; they must not enable
 `basic/bwrap-runner` or direct backend chat agents by default.
 
 ## Decisions & Questions
 
-### Question #1: Why keep `researchRelay` separate from `research-agents`?
+### Question #1: Why keep `copilotProviderRelay` separate from `research-agents`?
 
 Response:
-The bundle is a deployment construct, while `researchRelay` is a runtime UI
-and relay surface. Keeping them separate allows the bundle to stay lightweight
-and keeps UI and task-dispatch behavior out of deployment metadata.
+The bundle is a deployment construct, while `copilotProviderRelay` is the
+runtime provider-task relay. Keeping them separate allows the bundle to stay
+lightweight and keeps task-dispatch behavior out of deployment metadata.
 
 ### Question #2: Why are backend tasks routed through provider agents?
 
@@ -66,14 +66,12 @@ provider agent that owns that backend's runtime. This keeps the chat surface
 stable without making the relay responsible for backend runtimes or local
 sandbox execution.
 
-### Question #3: Why rename the relay to `researchRelay`?
+### Question #3: Why use the `copilotProviderRelay` name?
 
 Response:
-The previous name implied an assistant-like copilot. The agent's durable
-responsibility is relay behavior: detect supported backend ids, validate and
-materialize inputs, call provider agents, and return the provider result. The
-repository, bundle, Ploinky WebChat handler, MCP helper names, and Explorer
-plugins now use `researchRelay`.
+The name describes the stable role: provider-task relay behavior for Copilot
+launchers. The relay validates supported backend ids, materializes inputs, calls
+provider agents, and returns the provider result.
 
 ### Question #4: Why keep future backends out of the active catalog?
 
@@ -88,7 +86,7 @@ and sandbox execution.
 ## Conclusion
 
 The repository inventory consists of one deployment bundle, one semantic relay
-(the **Research Relay**, kept under the `researchRelay` agent id), the
+(the **Copilot Provider Relay**, under the `copilotProviderRelay` agent id), the
 Open Interpreter provider agent that owns its runtime and local sandbox
 execution, and the Web Search provider agent that owns local browser search
 execution. Additional backend ids require provider agents before they enter the

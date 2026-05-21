@@ -3,14 +3,15 @@ id: DS004
 title: Research Agents Bundle
 status: planned
 owner: copilot-agents-team
-summary: Defines the explicit deployment bundle that enables the research relay suite without making it an Explorer default.
+summary: Defines the explicit deployment bundle that enables the copilot provider relay suite without making it an Explorer default.
 ---
 
 # DS004 - Research Agents Bundle
 
 ## Introduction
 
-`research-agents` is the bundle agent used to deploy this repository's tagged research relay. It exists to keep deployment explicit and reversible.
+`research-agents` is the bundle agent used to deploy this repository's Copilot
+provider relay suite. It exists to keep deployment explicit and reversible.
 
 ## Core Content
 
@@ -26,13 +27,13 @@ The bundle manifest may expose lightweight MCP status tools, but it must not run
 
 The default bundle profile should enable:
 
-- `researchRelay global`
+- `copilotProviderRelay global`
 - `openInterpreterAgent global no-wait`
 - `webSearchAgent global no-wait`
 
 Current Ploinky only selects the global profile names `default`, `dev`, `qa`, and `prod`. The bundle must therefore use those names until Ploinky supports bundle-local profile selectors. The supported bundle profile mapping is:
 
-- `default`: `researchRelay global`, `openInterpreterAgent global no-wait`, and `webSearchAgent global no-wait`
+- `default`: `copilotProviderRelay global`, `openInterpreterAgent global no-wait`, and `webSearchAgent global no-wait`
 - `dev`: same as `default`
 - `qa`: same as `default`
 - `prod`: same as `default`
@@ -42,8 +43,8 @@ provider container image. Code-execution providers must use the shared
 bwrap-runner image as their sandbox base. Browser-search providers may use a
 browser-enabled container when they do not execute arbitrary code. Backend
 differences are not controlled by a separate `bwrap-runner` agent, direct
-backend chat agents, or relay-owned command configuration. Future research
-backends must add provider agents before the bundle enables their tags.
+backend chat agents, or relay-owned command configuration. Future provider
+backends must add provider agents before the bundle enables them.
 
 The bundle must not be listed in AssistOSExplorer's default dependency list. Restarting the Ploinky workspace after enabling the bundle is the safe documented activation path unless the current Ploinky branch later documents hot dependency refresh.
 
@@ -59,8 +60,8 @@ A bundle agent is visible to Ploinky's manifest and registry model. It can use t
 Response:
 The runtime model moves backend execution into provider agents that run their
 own local sandboxes from the shared bwrap-runner image. Keeping all current
-profiles identical avoids exposing half-implemented direct chat agents or tags
-without provider ownership.
+profiles identical avoids exposing half-implemented direct chat agents or
+backends without provider ownership.
 
 ### Question #3: Why use `qa` and `prod` instead of domain profile names?
 
@@ -78,4 +79,7 @@ use the shared sandbox image locally.
 
 ## Conclusion
 
-The `research-agents` bundle is the only deployment path for this repository's tagged relay and must enable `researchRelay` plus provider agents such as `openInterpreterAgent` and `webSearchAgent` without exposing direct backend chat agents or enabling a separate `basic/bwrap-runner` agent.
+The `research-agents` bundle is the only deployment path for this repository's
+provider relay suite and must enable `copilotProviderRelay` plus provider agents
+such as `openInterpreterAgent` and `webSearchAgent` without exposing direct
+backend chat agents or enabling a separate `basic/bwrap-runner` agent.

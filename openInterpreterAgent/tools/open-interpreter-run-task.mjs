@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Provider tool for the Open Interpreter research backend.
+// Provider tool for the Open Interpreter provider backend.
 //
-// The Research Relay (researchRelay.research_task_submit) forwards a
-// natural-language task here when the user tags @open-interpreter. This tool
+// The Copilot Provider Relay (copilotProviderRelay.copilot_provider_task_submit)
+// forwards a natural-language task here after AchillesCLI selects the
+// open-interpreter backend. This tool
 // owns Open Interpreter runtime preparation and inner bwrap execution:
 //   1. Ensure the provider-owned runtime exists under
 //      /data/research-runtimes/open-interpreter/<version>/.

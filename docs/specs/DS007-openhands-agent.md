@@ -10,12 +10,13 @@ summary: Reserves the future OpenHands provider backend contract.
 
 ## Introduction
 
-`@openhands` is a reserved future research tag. It is not currently exposed by
-`researchRelay` and is not a direct chat agent in the current architecture.
+`openhands` is a reserved future provider backend id. It is not currently
+exposed by `copilotProviderRelay` and is not a direct chat agent in the current
+architecture.
 
 ## Core Content
 
-Before `@openhands` becomes an active tag, the repository must add an
+Before `openhands` becomes an active backend, the repository must add an
 OpenHands provider agent. That provider must own OpenHands-specific runtime
 preparation, task staging, and local sandbox execution from a container based
 on the shared bwrap-runner image. The default bundle must not enable an
@@ -40,5 +41,5 @@ provider-owned runtime architecture. It needs a provider agent first.
 
 ## Conclusion
 
-`@openhands` remains reserved until an OpenHands provider agent owns runtime
+`openhands` remains reserved until an OpenHands provider agent owns runtime
 setup and local sandbox execution.

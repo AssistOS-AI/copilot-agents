@@ -10,7 +10,7 @@ summary: Defines the purpose, boundaries, and success criteria for the Ploinky r
 
 ## Introduction
 
-`copilot-agents` is a Ploinky agent repository for explicitly deployed research providers. It integrates provider-owned research backends that receive natural-language tasks through AchillesCLI Copilot launchers and execute inside each provider's own local bubblewrap sandbox while preserving AssistOSExplorer, WebMeet, AchillesCLI, and Ploinky boundaries. The active backend in this implementation is Open Interpreter through `openInterpreterAgent`; additional backends require provider agents before semantic launchers can use them.
+`copilot-agents` is a Ploinky agent repository for explicitly deployed research providers. It integrates provider-owned backends that receive natural-language tasks through AchillesCLI Copilot launchers and execute inside each provider's own local bubblewrap sandbox while preserving AssistOSExplorer, WebMeet, AchillesCLI, and Ploinky boundaries. The active backend in this implementation is Open Interpreter through `openInterpreterAgent`; additional backends require provider agents before semantic launchers can use them.
 
 ## Core Content
 
@@ -20,9 +20,9 @@ The repository must treat Ploinky as the runtime and trust broker. Browser launc
 
 The repository must treat AssistOSExplorer as the host shell. Explorer may discover and mount `IDE-plugins` after the research bundle is enabled, but Explorer must not absorb research-agent domain logic.
 
-The repository must treat AchillesCLI Copilot as the semantic routing owner, not as a user-visible tag dispatcher. Launcher skills submit routed provider tasks to `researchRelay`, which delegates to provider agents such as `openInterpreterAgent`, executes inside that provider's own local sandbox, and returns natural-language output. User text such as `@open-interpreter summarize these notes` is ordinary chat text unless the semantic router chooses a provider from the actual request.
+The repository must treat AchillesCLI Copilot as the semantic routing owner, not as a user-visible tag dispatcher. Launcher skills submit routed provider tasks to `copilotProviderRelay`, which delegates to provider agents such as `openInterpreterAgent`, executes inside that provider's own local sandbox, and returns natural-language output. User text such as `@open-interpreter summarize these notes` is ordinary chat text unless the semantic router chooses a provider from the actual request.
 
-The implementation is complete only when the bundle deploys `researchRelay` and provider agents such as `openInterpreterAgent` without enabling a separate `bwrap-runner` agent, AchillesCLI Copilot can route execution requests through deterministic provider launcher skills, WebMeet treats provider-looking `@word` text as ordinary chat, and the relay returns a natural-language result or a clear backend-configuration error without exposing direct backend chat endpoints. Ploinky WebChat remains a generic transport and must not know the research relay agent id.
+The implementation is complete only when the bundle deploys `copilotProviderRelay` and provider agents such as `openInterpreterAgent` without enabling a separate `bwrap-runner` agent, AchillesCLI Copilot can route execution requests through deterministic provider launcher skills, WebMeet treats provider-looking `@word` text as ordinary chat, and the relay returns a natural-language result or a clear backend-configuration error without exposing direct backend chat endpoints. Ploinky WebChat remains a generic transport and must not know the copilot provider relay agent id.
 
 ## Decisions & Questions
 

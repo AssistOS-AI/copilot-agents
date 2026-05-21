@@ -10,12 +10,12 @@ summary: Reserves the future Agentic Data Scientist provider backend contract.
 
 ## Introduction
 
-`@agentic-data-scientist` is a reserved future research tag. It is not
-currently exposed by `researchRelay`.
+`agentic-data-scientist` is a reserved future provider backend id. It is not
+currently exposed by `copilotProviderRelay`.
 
 ## Core Content
 
-Before the tag becomes active, the repository must add a provider agent that
+Before the backend becomes active, the repository must add a provider agent that
 owns Agentic Data Scientist runtime preparation, task staging, and local
 sandbox execution from a container based on the shared bwrap-runner image.
 Generated artifacts should be written under
@@ -32,10 +32,10 @@ runner image and specs.
 
 Response:
 Agentic data-science tools vary in dependencies and runtime assumptions.
-Activating the tag before a provider exists would push those assumptions into
-the relay. A provider agent keeps runtime ownership out of `researchRelay`.
+Activating the backend before a provider exists would push those assumptions into
+the relay. A provider agent keeps runtime ownership out of `copilotProviderRelay`.
 
 ## Conclusion
 
-`@agentic-data-scientist` remains reserved until a provider agent owns runtime
+`agentic-data-scientist` remains reserved until a provider agent owns runtime
 setup and local sandbox execution.

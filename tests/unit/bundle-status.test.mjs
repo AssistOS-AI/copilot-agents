@@ -23,7 +23,7 @@ test('research_agents_status returns the default profile by default', () => {
     assert.equal(payload.bundle, 'research-agents');
     assert.equal(payload.profile, 'default');
     const agents = payload.agents.map((a) => a.agent).sort();
-    assert.deepEqual(agents, ['openInterpreterAgent', 'researchRelay', 'webSearchAgent']);
+    assert.deepEqual(agents, ['copilotProviderRelay', 'openInterpreterAgent', 'webSearchAgent']);
     assert.ok(!agents.includes('bwrap-runner'), 'research-agents must not enable bwrap-runner');
     assert.ok(payload.availableProfiles.includes('qa'));
     assert.ok(payload.availableProfiles.includes('prod'));
@@ -34,7 +34,7 @@ test('research_agents_status surfaces a requested profile', () => {
     assert.equal(payload.ok, true);
     assert.equal(payload.profile, 'prod');
     const agents = payload.agents.map((a) => a.agent).sort();
-    assert.deepEqual(agents, ['openInterpreterAgent', 'researchRelay', 'webSearchAgent']);
+    assert.deepEqual(agents, ['copilotProviderRelay', 'openInterpreterAgent', 'webSearchAgent']);
     const noWait = payload.agents.filter((a) => a.noWait).map((a) => a.agent).sort();
     assert.deepEqual(noWait, ['openInterpreterAgent', 'webSearchAgent']);
 });

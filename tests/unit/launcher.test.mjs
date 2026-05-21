@@ -19,12 +19,12 @@ function jsonResponse(payload) {
     };
 }
 
-test('launcher metadata targets researchRelay and Open Interpreter backend', () => {
+test('launcher metadata targets copilotProviderRelay and Open Interpreter backend', () => {
     assert.equal(BACKEND, 'open-interpreter');
-    assert.equal(RELAY_AGENT, 'researchRelay');
+    assert.equal(RELAY_AGENT, 'copilotProviderRelay');
     assert.equal(PROVIDER_AGENT, 'openInterpreterAgent');
-    assert.equal(LIST_TOOL, 'research_relay_list_backends');
-    assert.equal(SUBMIT_TOOL, 'research_task_submit');
+    assert.equal(LIST_TOOL, 'copilot_provider_list_backends');
+    assert.equal(SUBMIT_TOOL, 'copilot_provider_task_submit');
     assert.equal(PROVIDER_STATUS_TOOL, 'oi_status');
 });
 
@@ -43,7 +43,7 @@ test('action refuses to dispatch without a router invocation token', async () =>
     assert.equal(calls.length, 0);
 });
 
-test('@open-interpreter is ordinary chat text and never calls research_task_submit', async () => {
+test('@open-interpreter is ordinary chat text and never calls copilot_provider_task_submit', async () => {
     const calls = [];
     const result = await action({
         prompt: '@open-interpreter list primes',
@@ -60,7 +60,7 @@ test('@open-interpreter is ordinary chat text and never calls research_task_subm
     assert.equal(calls.length, 0);
 });
 
-test('action dispatches through researchRelay with invocation token and resources', async () => {
+test('action dispatches through copilotProviderRelay with invocation token and resources', async () => {
     const calls = [];
     const result = await action({
         prompt: 'run a quick diagnostic',
@@ -79,7 +79,7 @@ test('action dispatches through researchRelay with invocation token and resource
             calls.push(args);
             const [, toolName] = args;
             if (toolName === LIST_TOOL) {
-                return jsonResponse({ backends: [{ id: BACKEND, tags: [BACKEND], provider: { agent: PROVIDER_AGENT } }] });
+                return jsonResponse({ backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }] });
             }
             if (toolName === PROVIDER_STATUS_TOOL) {
                 return jsonResponse({ agent: PROVIDER_AGENT, status: 'ok' });

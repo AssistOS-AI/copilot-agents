@@ -15,7 +15,7 @@ The durable flow is:
 ```text
 AchillesCLI copilot-router
   -> launch-web-search
-  -> researchRelay.research_task_submit
+  -> copilotProviderRelay.copilot_provider_task_submit
   -> webSearchAgent.web_search_run_task
   -> webSearchAgent local headless browser service
 ```
@@ -109,12 +109,11 @@ tracked source.
 
 ## Relay And Launcher
 
-`researchRelay` exposes `web-search` as a provider-backed backend:
+`copilotProviderRelay` exposes `web-search` as a provider-backed backend:
 
 ```js
 {
     id: 'web-search',
-    tags: ['web-search'],
     label: 'Web Search',
     default_profile: 'default',
     provider: { agent: 'webSearchAgent', tool: 'web_search_run_task' },
@@ -128,7 +127,7 @@ normalized provider result so the launcher can return AKU-ready metadata.
 
 `launch-web-search` remains the deterministic AchillesCLI launcher. It
 validates the relay catalog, probes provider status through router-mediated
-MCP, submits through `researchRelay.research_task_submit`, and returns:
+MCP, submits through `copilotProviderRelay.copilot_provider_task_submit`, and returns:
 
 ```json
 {

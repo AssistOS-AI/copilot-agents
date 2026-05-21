@@ -1,6 +1,6 @@
 # copilot-agents smoke path
 
-Manual end-to-end smoke check for the tagged research relay.
+Manual end-to-end smoke check for the Copilot provider relay.
 
 ## 1. Static validation
 
@@ -24,8 +24,8 @@ ploinky enable agent copilot-agents/research-agents global
 ploinky start explorer 8080
 ```
 
-The bundle enables `researchRelay`, `openInterpreterAgent`, and
-`webSearchAgent`. Active backend tags route through provider agents; the relay
+The bundle enables `copilotProviderRelay`, `openInterpreterAgent`, and
+`webSearchAgent`. Active backend ids route through provider agents; the relay
 does not own backend command environment variables and the bundle must not
 enable a separate `basic/bwrap-runner` Ploinky agent. Code-execution providers
 execute their inner bwrap job locally inside their own container based on the
@@ -37,7 +37,7 @@ gateway.
 
 ```bash
 ploinky client methods research-agents
-ploinky client methods researchRelay
+ploinky client methods copilotProviderRelay
 ploinky client methods openInterpreterAgent
 ploinky client methods webSearchAgent
 ```
@@ -45,8 +45,8 @@ ploinky client methods webSearchAgent
 Expected tools:
 
 - `research-agents`: `research_agents_status`
-- `researchRelay`: `research_relay_status`, `research_relay_list_backends`,
-  `research_relay_dispatch`, `research_task_submit`
+- `copilotProviderRelay`: `copilot_provider_status`,
+  `copilot_provider_list_backends`, `copilot_provider_task_submit`
 - `openInterpreterAgent`: `oi_status`, `prepare_runtime`,
   `open_interpreter_run_task`
 - `webSearchAgent`: `web_search_status`, `web_search_run_task`
@@ -93,7 +93,7 @@ Search online for the latest Node.js release date.
 ```
 
 AchillesCLI should route this to `launch-web-search`, which submits through
-`researchRelay` to `webSearchAgent`. The reply should include a markdown
+`copilotProviderRelay` to `webSearchAgent`. The reply should include a markdown
 answer with citations, or a clear unavailable/configuration message if
 the local browser runtime cannot start.
 
@@ -113,7 +113,7 @@ Open a WebMeet room through the WebMeet plugin and send:
 @open-interpreter summarize the current meeting goal
 ```
 
-The user message should remain in chat and no research relay call should be
+The user message should remain in chat and no copilot provider relay call should be
 made. WebMeet provider routing belongs to AchillesCLI Copilot, not the meeting
 chat surface.
 
@@ -137,5 +137,5 @@ chat prompt and final answer.
   runner timeout caps.
 - Large resources and long-running backend loops need a future async/artifact
   extension in the shared local sandbox runner.
-- Future backend tags require provider agents before they become active relay
-  tags.
+- Future backend ids require provider agents before they become active relay
+  backends.

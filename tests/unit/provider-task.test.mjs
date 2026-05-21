@@ -9,14 +9,14 @@ import { fileURLToPath } from 'node:url';
 import {
     buildProviderInput,
     normalizeProviderResult,
-    normalizeResearchTaskInput,
-} from '../../researchRelay/tools/lib/task.mjs';
+    normalizeProviderTaskInput,
+} from '../../copilotProviderRelay/tools/lib/task.mjs';
 
-const submitTaskScript = fileURLToPath(new URL('../../researchRelay/tools/submit-task.mjs', import.meta.url));
+const submitTaskScript = fileURLToPath(new URL('../../copilotProviderRelay/tools/submit-task.mjs', import.meta.url));
 
-test('normalizeResearchTaskInput accepts backend tags and inline resources', () => {
-    const task = normalizeResearchTaskInput({
-        backend: '@open-interpreter',
+test('normalizeProviderTaskInput accepts backend ids and inline resources', () => {
+    const task = normalizeProviderTaskInput({
+        backend: 'open-interpreter',
         prompt: 'summarize this',
         resources: [{ filename: 'notes.md', mime: 'text/markdown', content: '# Notes' }],
     }, { PLOINKY_WORKSPACE_ROOT: process.cwd() });
@@ -27,15 +27,15 @@ test('normalizeResearchTaskInput accepts backend tags and inline resources', () 
     assert.equal(task.resources[0].encoding, 'utf8');
 });
 
-test('normalizeResearchTaskInput rejects unknown backend tags', () => {
+test('normalizeProviderTaskInput rejects unknown backend ids', () => {
     assert.throws(
-        () => normalizeResearchTaskInput({ backend: '@unknown', prompt: 'run' }, { PLOINKY_WORKSPACE_ROOT: process.cwd() }),
-        /known research tag/,
+        () => normalizeProviderTaskInput({ backend: 'unknown', prompt: 'run' }, { PLOINKY_WORKSPACE_ROOT: process.cwd() }),
+        /known provider backend id/,
     );
 });
 
 test('provider input keeps the natural-language prompt and resources', () => {
-    const task = normalizeResearchTaskInput({
+    const task = normalizeProviderTaskInput({
         backend: 'open-interpreter',
         prompt: 'analyze the dataset',
         resources: [{ filename: 'data.csv', mime: 'text/csv', content: 'a,b\n1,2\n' }],
@@ -72,19 +72,19 @@ test('provider result preserves search cache and citation metadata', () => {
     assert.deepEqual(normalized.sources, [{ title: 'Example', url: 'https://example.com' }]);
 });
 
-test('non-provider research tags are not advertised until they have provider agents', () => {
+test('non-provider backends are not advertised until they have provider agents', () => {
     assert.throws(
-        () => normalizeResearchTaskInput({ backend: 'mljar', prompt: 'run' }, { PLOINKY_WORKSPACE_ROOT: process.cwd() }),
-        /known research tag/,
+        () => normalizeProviderTaskInput({ backend: 'mljar', prompt: 'run' }, { PLOINKY_WORKSPACE_ROOT: process.cwd() }),
+        /known provider backend id/,
     );
     assert.throws(
-        () => normalizeResearchTaskInput({ backend: 'deepanalyze', prompt: 'run' }, { PLOINKY_WORKSPACE_ROOT: process.cwd() }),
-        /known research tag/,
+        () => normalizeProviderTaskInput({ backend: 'deepanalyze', prompt: 'run' }, { PLOINKY_WORKSPACE_ROOT: process.cwd() }),
+        /known provider backend id/,
     );
 });
 
 test('Open Interpreter is routed to the openInterpreterAgent provider', () => {
-    const task = normalizeResearchTaskInput({
+    const task = normalizeProviderTaskInput({
         backend: 'open-interpreter',
         prompt: 'check runtime',
     }, {
@@ -98,7 +98,7 @@ test('Open Interpreter is routed to the openInterpreterAgent provider', () => {
     assert.equal(task.configured, true);
 });
 
-test('normalizeResearchTaskInput rejects symlink paths escaping the workspace', () => {
+test('normalizeProviderTaskInput rejects symlink paths escaping the workspace', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'research-task-'));
     const workspace = path.join(tmp, 'workspace');
     const outside = path.join(tmp, 'outside.txt');
@@ -107,7 +107,7 @@ test('normalizeResearchTaskInput rejects symlink paths escaping the workspace', 
     fs.symlinkSync(outside, path.join(workspace, 'leak.txt'));
     try {
         assert.throws(
-            () => normalizeResearchTaskInput({
+            () => normalizeProviderTaskInput({
                 backend: 'open-interpreter',
                 prompt: 'read leak',
                 paths: ['leak.txt'],
@@ -142,5 +142,5 @@ test('submit-task rejects non-provider backends instead of invoking bwrap-runner
     assert.equal(child.status, 0, `submit-task failed: stdout=${child.stdout} stderr=${child.stderr}`);
     const payload = JSON.parse(String(child.stdout || '').trim());
     assert.equal(payload.ok, false);
-    assert.match(payload.error, /known research tag/);
+    assert.match(payload.error, /known provider backend id/);
 });

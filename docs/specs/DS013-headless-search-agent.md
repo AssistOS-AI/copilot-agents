@@ -1,12 +1,12 @@
 ---
-id: DS014
+id: DS013
 title: Web Search Provider Agent
 status: implemented
 owner: copilot-agents-team
 summary: Defines the cacheable web-search provider agent backed by its own local headless browser runtime.
 ---
 
-# DS014 - Web Search Provider Agent
+# DS013 - Web Search Provider Agent
 
 ## Introduction
 
@@ -63,7 +63,7 @@ sensitive file contents. User-facing failure messages must be sanitized and
 must not include raw exception text unless a separate debug-only surface is
 explicitly added.
 
-The `web-search` backend entry in `researchRelay` declares:
+The `web-search` backend entry in `copilotProviderRelay` declares:
 
 - `cacheable: true`
 - `ttl_hint_seconds: 86400`
@@ -75,7 +75,7 @@ the launcher result.
 
 The `launch-web-search` cskill is the deterministic AchillesCLI launcher. It
 validates relay and provider availability, submits through
-`researchRelay.research_task_submit`, and returns structured output with:
+`copilotProviderRelay.copilot_provider_task_submit`, and returns structured output with:
 
 - `backend: 'web-search'`
 - `cacheable: true`
@@ -158,5 +158,5 @@ browser images in local arm64 deployments.
 
 The `webSearchAgent` provides cacheable web search through its own local
 headless browser runtime. It is enabled by the `research-agents` bundle,
-dispatched through `researchRelay`, and launched semantically by
+dispatched through `copilotProviderRelay`, and launched semantically by
 AchillesCLI's `launch-web-search` cskill.

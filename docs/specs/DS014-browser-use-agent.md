@@ -115,10 +115,18 @@ The viewer uses an HTTP-based SSE transport: `GET /browser-use/sessions/:id`
 returns the viewer HTML, `GET /browser-use/sessions/:id/events` streams state
 and screenshot updates, `POST /browser-use/sessions/:id/input` sends user
 input events, and `POST /browser-use/sessions/:id/user-ready` signals login
-completion. The user-ready signal starts the saved task prompt automatically in
-the same browser session; it must not only flip session state and wait for a
-separate manual MCP continuation call. The saved session must also preserve the
-task `timeoutMs` so continuation after login uses the original request timeout.
+completion. The screenshot viewer must forward mouse clicks, keyboard text,
+navigation keys, and paste events to the controlled browser after the user
+focuses the screenshot area, so login forms can be completed without a native
+VNC/WebSocket stream. Viewer input must be ordered per session, printable
+keystrokes may be batched briefly to reduce request fan-out, and successful
+input must request an immediate frame refresh so typing and deletion feedback
+does not wait only on the periodic screenshot loop. The user-ready signal
+starts the saved task prompt
+automatically in the same browser session; it must not only flip session state
+and wait for a separate manual MCP continuation call. The saved session must
+also preserve the task `timeoutMs` so continuation after login uses the
+original request timeout.
 
 The relay backend entry uses `id: "browser-use"` with
 `provider: { agent: "browserUseAgent", tool: "browser_use_run_task" }`,
@@ -142,6 +150,13 @@ provider marked `default` in the registry.
 The agent must not log credentials, cookies, localStorage, sessionStorage,
 OAuth callback URLs, authorization codes, screenshots, DOM dumps, raw auth
 headers, or invocation tokens by default.
+
+Some identity providers may still reject automated Chromium, especially
+headless sessions, with browser-security warnings before credentials are
+accepted. That rejection is provider-owned policy rather than a viewer
+authorization failure. The agent should preserve the user's profile state when
+login succeeds, but it cannot guarantee that every web identity provider will
+permit first-time sign-in through a Playwright-controlled browser.
 
 ## Decisions & Questions
 

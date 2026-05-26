@@ -130,6 +130,7 @@ export class BrowserSessionManager {
             diagnosticError: null,
             continuationPromise: null,
             resourceClosePromise: null,
+            inputPromise: null,
         };
         this._sessions.set(sessionId, session);
         return session;
@@ -348,6 +349,22 @@ export class BrowserSessionManager {
     }
 
     async sendInput(session, action) {
+        if (!session) return { ok: false, error: 'session not found' };
+        const previous = session.inputPromise || Promise.resolve();
+        const operation = previous
+            .catch(() => {})
+            .then(() => this._sendInputNow(session, action));
+        const stored = operation.catch(() => {});
+        session.inputPromise = stored;
+        stored.finally(() => {
+            if (session.inputPromise === stored) {
+                session.inputPromise = null;
+            }
+        });
+        return operation;
+    }
+
+    async _sendInputNow(session, action) {
         if (!session.page) return { ok: false, error: 'no active page' };
         try {
             switch (action.type) {
@@ -489,6 +506,7 @@ export class BrowserSessionManager {
         session.context = null;
         session.browser = null;
         session.page = null;
+        session.inputPromise = null;
 
         let closePromise;
         closePromise = Promise.resolve()

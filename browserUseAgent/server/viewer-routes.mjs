@@ -50,6 +50,8 @@ function readBody(req) {
     });
 }
 
+const VIEWER_REFRESH_INTERVAL_MS = 500;
+
 const VIEWER_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,7 +69,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .status.completed { background: #2ecc71; color: #1a1a2e; }
 .status.failed { background: #e74c3c; color: #fff; }
 .status.starting, .status.ready { background: #95a5a6; color: #1a1a2e; }
-.viewer-area { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.viewer-area { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; outline: none; }
+.viewer-area.keyboard-active { box-shadow: inset 0 0 0 2px #2ecc71; }
 .viewer-area img { max-width: 100%; max-height: 100%; cursor: crosshair; }
 .controls { padding: 12px 20px; background: #16213e; display: flex; gap: 12px; align-items: center; border-top: 1px solid #0f3460; }
 .controls button { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
@@ -84,7 +87,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
     <h1>Browser Use Viewer</h1>
     <span class="status starting" id="status">starting</span>
 </div>
-<div class="viewer-area" id="viewer">
+<div class="viewer-area" id="viewer" tabindex="0" aria-label="Remote browser viewport">
     <p class="info" id="placeholder">Waiting for browser session...</p>
     <img id="screenshot" style="display:none" alt="Browser screenshot">
 </div>
@@ -104,6 +107,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
     const textInput = document.getElementById('textInput');
     const closeBtn = document.getElementById('closeBtn');
     const viewer = document.getElementById('viewer');
+    let inputChain = Promise.resolve();
+    let pendingText = '';
+    let pendingTextTimer = null;
 
     function updateStatus(state) {
         statusEl.textContent = state;
@@ -134,28 +140,110 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
     };
     evtSource.onerror = function() { statusEl.textContent = 'disconnected'; };
 
+    function sendBrowserInput(action) {
+        inputChain = inputChain.catch(function() {}).then(function() {
+            return fetch(basePath + '/input', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(action),
+            }).catch(function() {});
+        });
+        return inputChain;
+    }
+
+    function flushPendingTextInput() {
+        if (pendingTextTimer) {
+            clearTimeout(pendingTextTimer);
+            pendingTextTimer = null;
+        }
+        if (!pendingText) return;
+        const text = pendingText;
+        pendingText = '';
+        sendBrowserInput({ type: 'type', text: text });
+    }
+
+    function queueTextInput(text) {
+        pendingText += text;
+        if (pendingTextTimer) clearTimeout(pendingTextTimer);
+        pendingTextTimer = setTimeout(flushPendingTextInput, 35);
+    }
+
+    function localControlFocused() {
+        const active = document.activeElement;
+        if (!active || active === document.body || active === viewer || active === screenshot) {
+            return false;
+        }
+        return ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(active.tagName)
+            || active.isContentEditable;
+    }
+
+    function focusKeyboardCapture() {
+        viewer.focus({ preventScroll: true });
+        viewer.classList.add('keyboard-active');
+    }
+
     screenshot.addEventListener('click', function(e) {
         const rect = screenshot.getBoundingClientRect();
         const scaleX = screenshot.naturalWidth / rect.width;
         const scaleY = screenshot.naturalHeight / rect.height;
         const x = Math.round((e.clientX - rect.left) * scaleX);
         const y = Math.round((e.clientY - rect.top) * scaleY);
-        fetch(basePath + '/input', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ type: 'click', x: x, y: y }),
-        });
+        focusKeyboardCapture();
+        sendBrowserInput({ type: 'click', x: x, y: y });
     });
 
     textInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter' && textInput.value) {
-            fetch(basePath + '/input', {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ type: 'type', text: textInput.value }),
-            });
+            sendBrowserInput({ type: 'type', text: textInput.value });
             textInput.value = '';
         }
+    });
+    textInput.addEventListener('focus', function() {
+        viewer.classList.remove('keyboard-active');
+    });
+
+    const forwardedKeys = new Set([
+        'Enter',
+        'Backspace',
+        'Delete',
+        'Tab',
+        'Escape',
+        'ArrowLeft',
+        'ArrowRight',
+        'ArrowUp',
+        'ArrowDown',
+        'Home',
+        'End',
+        'PageUp',
+        'PageDown',
+    ]);
+
+    document.addEventListener('keydown', function(e) {
+        if (localControlFocused()) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (e.isComposing) return;
+        if (e.key && e.key.length === 1) {
+            e.preventDefault();
+            focusKeyboardCapture();
+            queueTextInput(e.key);
+            return;
+        }
+        if (forwardedKeys.has(e.key)) {
+            e.preventDefault();
+            focusKeyboardCapture();
+            flushPendingTextInput();
+            sendBrowserInput({ type: 'key', key: e.key });
+        }
+    });
+
+    document.addEventListener('paste', function(e) {
+        if (localControlFocused()) return;
+        const text = e.clipboardData ? e.clipboardData.getData('text') : '';
+        if (!text) return;
+        e.preventDefault();
+        focusKeyboardCapture();
+        flushPendingTextInput();
+        sendBrowserInput({ type: 'type', text: text });
     });
 
     readyBtn.addEventListener('click', function() {
@@ -175,6 +263,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 
 export function mountViewerRoutes(sessionManager, getRegistry) {
     const sseClients = new Map();
+    const frameRefreshes = new Map();
 
     function broadcastToSession(sessionId, data) {
         const clients = sseClients.get(sessionId);
@@ -186,25 +275,51 @@ export function mountViewerRoutes(sessionManager, getRegistry) {
     }
 
     function startScreenshotLoop(sessionId) {
-        const interval = setInterval(async () => {
+        const tick = async () => {
             const session = sessionManager.getSession(sessionId);
             if (!session || !sseClients.has(sessionId) || sseClients.get(sessionId).size === 0) {
-                clearInterval(interval);
                 return;
             }
             if (['completed', 'failed', 'closed'].includes(session.state)) {
                 broadcastToSession(sessionId, sessionManager.publicSessionView(session));
-                clearInterval(interval);
                 return;
             }
-            const screenshot = await sessionManager.takeScreenshot(session);
+            try {
+                await refreshSessionFrame(sessionId);
+            } catch {}
+            const clients = sseClients.get(sessionId);
+            if (clients && clients.size > 0) {
+                const timer = setTimeout(tick, VIEWER_REFRESH_INTERVAL_MS);
+                timer.unref();
+            }
+        };
+        const timer = setTimeout(tick, 0);
+        timer.unref();
+    }
+
+    function refreshSessionFrame(sessionId) {
+        const previous = frameRefreshes.get(sessionId) || Promise.resolve();
+        const next = previous.catch(() => {}).then(async () => {
+            const session = sessionManager.getSession(sessionId);
+            const clients = sseClients.get(sessionId);
+            if (!session || !clients || clients.size === 0) return;
             const data = { ...sessionManager.publicSessionView(session) };
-            if (screenshot) {
-                data.screenshot = screenshot.toString('base64');
+            if (!['completed', 'failed', 'closed'].includes(session.state)) {
+                const screenshot = await sessionManager.takeScreenshot(session);
+                if (screenshot) {
+                    data.screenshot = screenshot.toString('base64');
+                }
             }
             broadcastToSession(sessionId, data);
-        }, 1500);
-        interval.unref();
+        });
+        let stored;
+        stored = next.finally(() => {
+            if (frameRefreshes.get(sessionId) === stored) {
+                frameRefreshes.delete(sessionId);
+            }
+        });
+        frameRefreshes.set(sessionId, stored);
+        return stored;
     }
 
     return async function handleViewerRequest(req, res) {
@@ -255,6 +370,7 @@ export function mountViewerRoutes(sessionManager, getRegistry) {
                 startScreenshotLoop(sessionId);
             }
             sseClients.get(sessionId).add(res);
+            refreshSessionFrame(sessionId).catch(() => {});
             req.on('close', () => {
                 const clients = sseClients.get(sessionId);
                 if (clients) {
@@ -269,6 +385,9 @@ export function mountViewerRoutes(sessionManager, getRegistry) {
             try {
                 const body = JSON.parse((await readBody(req)).toString('utf8'));
                 const result = await sessionManager.sendInput(session, body);
+                if (result.ok) {
+                    refreshSessionFrame(sessionId).catch(() => {});
+                }
                 jsonResponse(res, result.ok ? 200 : 400, result);
             } catch (err) {
                 jsonResponse(res, 400, { ok: false, error: err.message });

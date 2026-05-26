@@ -198,6 +198,28 @@ test('browserUseAgent front server proxies MCP on the public agent port', () => 
     assert.match(startScript, /PORT="\$BROWSER_USE_MCP_PORT" sh \/Agent\/server\/AgentServer\.sh/);
 });
 
+test('browser-use viewer captures keyboard input after clicking the screenshot', () => {
+    const viewerPath = path.resolve(__dirname, '..', '..', 'browserUseAgent', 'server', 'viewer-routes.mjs');
+    const source = fs.readFileSync(viewerPath, 'utf8');
+
+    assert.match(source, /id="viewer" tabindex="0"/);
+    assert.match(source, /function sendBrowserInput\(action\)/);
+    assert.match(source, /let inputChain = Promise\.resolve\(\)/);
+    assert.match(source, /function flushPendingTextInput\(\)/);
+    assert.match(source, /setTimeout\(flushPendingTextInput, 35\)/);
+    assert.match(source, /function focusKeyboardCapture\(\)/);
+    assert.match(source, /screenshot\.addEventListener\('click'/);
+    assert.match(source, /sendBrowserInput\(\{ type: 'click', x: x, y: y \}\)/);
+    assert.match(source, /document\.addEventListener\('keydown'/);
+    assert.match(source, /queueTextInput\(e\.key\)/);
+    assert.match(source, /sendBrowserInput\(\{ type: 'key', key: e\.key \}\)/);
+    assert.match(source, /document\.addEventListener\('paste'/);
+    assert.match(source, /sendBrowserInput\(\{ type: 'type', text: text \}\)/);
+    assert.match(source, /localControlFocused\(\)/);
+    assert.match(source, /const VIEWER_REFRESH_INTERVAL_MS = 500/);
+    assert.match(source, /refreshSessionFrame\(sessionId\)/);
+});
+
 test('BrowserSessionManager reuses only active sessions for same owner and provider', async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-use-provider-'));
     const manager = new BrowserSessionManager({ dataDir: tmp });
@@ -214,6 +236,84 @@ test('BrowserSessionManager reuses only active sessions for same owner and provi
 
         manager._updateState(session, 'closed');
         assert.equal(manager.getReusableSession('local:admin', 'gemini'), null);
+    } finally {
+        manager.stop();
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
+});
+
+test('BrowserSessionManager forwards viewer text and key actions to the page', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-use-provider-'));
+    const manager = new BrowserSessionManager({ dataDir: tmp });
+    try {
+        const session = await manager.createSession('local:admin', 'gemini');
+        const actions = [];
+        session.page = {
+            keyboard: {
+                type: async (text) => actions.push(['type', text]),
+                press: async (key) => actions.push(['key', key]),
+            },
+            mouse: {
+                click: async (x, y) => actions.push(['click', x, y]),
+                wheel: async (x, y) => actions.push(['scroll', x, y]),
+            },
+        };
+
+        assert.deepEqual(await manager.sendInput(session, { type: 'click', x: 12, y: 34 }), { ok: true });
+        assert.deepEqual(await manager.sendInput(session, { type: 'type', text: 'name@example.test' }), { ok: true });
+        assert.deepEqual(await manager.sendInput(session, { type: 'key', key: 'Enter' }), { ok: true });
+
+        assert.deepEqual(actions, [
+            ['click', 12, 34],
+            ['type', 'name@example.test'],
+            ['key', 'Enter'],
+        ]);
+    } finally {
+        manager.stop();
+        fs.rmSync(tmp, { recursive: true, force: true });
+    }
+});
+
+test('BrowserSessionManager serializes viewer input actions per session', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'browser-use-provider-'));
+    const manager = new BrowserSessionManager({ dataDir: tmp });
+    try {
+        const session = await manager.createSession('local:admin', 'gemini');
+        const actions = [];
+        let releaseFirst;
+        session.page = {
+            keyboard: {
+                type: async (text) => {
+                    actions.push(['type:start', text]);
+                    if (text === 'first') {
+                        await new Promise((resolve) => {
+                            releaseFirst = resolve;
+                        });
+                    }
+                    actions.push(['type:end', text]);
+                },
+                press: async (key) => actions.push(['key', key]),
+            },
+            mouse: {
+                click: async (x, y) => actions.push(['click', x, y]),
+                wheel: async (x, y) => actions.push(['scroll', x, y]),
+            },
+        };
+
+        const first = manager.sendInput(session, { type: 'type', text: 'first' });
+        await Promise.resolve();
+        const second = manager.sendInput(session, { type: 'type', text: 'second' });
+        await Promise.resolve();
+
+        assert.deepEqual(actions, [['type:start', 'first']]);
+        releaseFirst();
+        assert.deepEqual(await Promise.all([first, second]), [{ ok: true }, { ok: true }]);
+        assert.deepEqual(actions, [
+            ['type:start', 'first'],
+            ['type:end', 'first'],
+            ['type:start', 'second'],
+            ['type:end', 'second'],
+        ]);
     } finally {
         manager.stop();
         fs.rmSync(tmp, { recursive: true, force: true });

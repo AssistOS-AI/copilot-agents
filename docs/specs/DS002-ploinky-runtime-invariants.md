@@ -52,7 +52,7 @@ Durable data must live under `.ploinky/data/<agent>`. Generated runtime inputs m
 
 Bundle profile names must be selectable by the current Ploinky profile system. Until Ploinky supports bundle-local named profiles, this repository may use only `default`, `dev`, `qa`, and `prod` profile keys in manifests. Custom profile names such as `openhands` or `full-research` must remain documentation-only future work until Ploinky can select them.
 
-HTTP services must not be public by default. If a future agent exposes a service, the manifest must declare the service prefix, internal prefix, and auth mode. Public `auth: none` routes require a separate DS decision and must not be added casually.
+HTTP services must not be public by default. If a future agent exposes a service, the manifest must declare the service prefix, internal prefix, and `access`. Public `access: "public"` routes require a separate DS decision and must not be added casually.
 
 ## Decisions & Questions
 

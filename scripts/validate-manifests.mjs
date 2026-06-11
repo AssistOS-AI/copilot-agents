@@ -18,6 +18,8 @@ const AGENT_DIRS = [
 
 const PLUGIN_ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*$/;
 const PLOINKY_PROFILE_NAMES = new Set(['default', 'dev', 'qa', 'prod']);
+const HTTP_SERVICE_ACCESS = new Set(['public', 'guest', 'authenticated']);
+const REMOVED_HTTP_SERVICE_FIELDS = ['auth', 'mode', 'forceGuest'];
 
 let failures = 0;
 
@@ -85,6 +87,27 @@ function validateManifest(agentDir) {
                     fail(manifestPath, `host volume must start at .ploinky/: ${hostPart}`);
                 }
             }
+        }
+    }
+    if (manifest.httpServices !== undefined) {
+        if (!Array.isArray(manifest.httpServices)) {
+            fail(manifestPath, 'httpServices must be an array');
+        } else {
+            manifest.httpServices.forEach((service, index) => {
+                const label = `httpServices[${index}]`;
+                if (!service || typeof service !== 'object' || Array.isArray(service)) {
+                    fail(manifestPath, `${label} must be an object`);
+                    return;
+                }
+                for (const field of REMOVED_HTTP_SERVICE_FIELDS) {
+                    if (Object.hasOwn(service, field)) {
+                        fail(manifestPath, `${label}.${field} was removed; use access: public | guest | authenticated`);
+                    }
+                }
+                if (!HTTP_SERVICE_ACCESS.has(service.access)) {
+                    fail(manifestPath, `${label}.access must be public, guest, or authenticated`);
+                }
+            });
         }
     }
     ok(manifestPath, 'manifest.json valid');

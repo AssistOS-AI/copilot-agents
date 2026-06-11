@@ -130,7 +130,7 @@ test('browserUseAgent manifest is valid JSON with required fields', () => {
     assert.ok(Array.isArray(manifest.httpServices));
     assert.equal(manifest.httpServices.length, 1);
     assert.equal(manifest.httpServices[0].slug, 'browser-use');
-    assert.equal(manifest.httpServices[0].auth, 'protected');
+    assert.equal(manifest.httpServices[0].access, 'authenticated');
     assert.equal(manifest.httpServices[0].externalPrefix, '/services/browser-use/');
     assert.equal(manifest.httpServices[0].internalPrefix, '/browser-use/');
     assert.ok(manifest.volumes);

@@ -22,7 +22,7 @@
             "slug": "browser-use",
             "externalPrefix": "/services/browser-use/",
             "internalPrefix": "/browser-use/",
-            "auth": "protected",
+            "access": "authenticated",
             "notFoundMessage": "Browser-use route not found."
         }
     ],

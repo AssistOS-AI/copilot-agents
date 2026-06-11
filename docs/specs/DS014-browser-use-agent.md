@@ -45,7 +45,7 @@ The agent must declare a protected HTTP service in its manifest:
   "slug": "browser-use",
   "externalPrefix": "/services/browser-use/",
   "internalPrefix": "/browser-use/",
-  "auth": "protected"
+  "access": "authenticated"
 }
 ```
 
@@ -193,12 +193,12 @@ Browser automation interacts with live web applications whose state changes
 between requests. Caching a response from a logged-in ChatGPT session would
 return stale answers. Each task must execute fresh.
 
-### Question #5: Why require the protected auth mode?
+### Question #5: Why require authenticated access?
 
 Response:
 The viewer surface is a logged-in browser session. Exposing it without
 authentication would allow anyone with the URL to interact with the user's
-authenticated web application session. The protected auth mode ensures only
+authenticated web application session. Authenticated access ensures only
 the session owner can access the viewer.
 
 ### Question #6: Why are browser providers agent-local adapters instead of separate Ploinky agents or Explorer IDE-plugins?

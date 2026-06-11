@@ -51,7 +51,7 @@ documented derived image. Browser-search providers may use a browser-enabled
 container when their provider task is limited to browser navigation and result
 normalization. Interactive browser providers such as `browserUseAgent` use a
 browser-enabled container with persistent user profiles; their viewer surface
-must be `auth: "protected"` and browser profiles must be isolated per
+must use `access: "authenticated"` and browser profiles must be isolated per
 authenticated user and provider. Provider agents must not call a separate
 `basic/bwrap-runner` Ploinky agent for research execution. The Copilot
 Provider Relay must pass prompt and resource content through staged data and

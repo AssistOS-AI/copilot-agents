@@ -1,0 +1,25 @@
+{
+    "tools": [
+        {
+            "name": "execute-task",
+            "title": "Execute OpenCode Task",
+            "description": "Execute a one-shot opencode build task. Runs opencode CLI with the prompt provided by webAssist (which includes WAC.json data inline). Returns success or failure only — knowledge units are written to disk by opencode.",
+            "command": "/usr/local/bin/node",
+            "args": ["/code/scripts/execute-task.mjs"],
+            "cwd": "/code",
+            "timeoutMs": 300000,
+            "inputSchema": {
+                "prompt": {
+                    "type": "string",
+                    "description": "Full prompt from webAssist, including WAC.json data inline. Used as-is for opencode build.",
+                    "optional": false
+                },
+                "projectDir": {
+                    "type": "string",
+                    "description": "Directory where opencode will build the AKU. All knowledge units are stored under .aku/ within this directory.",
+                    "optional": false
+                }
+            }
+        }
+    ]
+}

@@ -1,0 +1,17 @@
+{
+    "container": "node:24-bookworm-slim",
+    "lite-sandbox": true,
+    "about": "OpenCode CLI agent. Executes one-shot build tasks via opencode CLI to construct AKU from WAC data.",
+    "profiles": {
+        "default": {
+            "install": "curl -fsSL https://raw.githubusercontent.com/opencode-ai/opencode/refs/heads/main/install | bash"
+        }
+    },
+    "env": [
+        "PLOINKY_WORKSPACE_ROOT",
+        "PLOINKY_ROUTER_URL",
+        "OPENCODE_API_KEY",
+        "SOUL_GATEWAY_API_KEY",
+        "SOUL_GATEWAY_BASE_URL"
+    ]
+}

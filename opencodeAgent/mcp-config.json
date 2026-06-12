@@ -3,20 +3,26 @@
         {
             "name": "execute-task",
             "title": "Execute OpenCode Task",
-            "description": "Execute a one-shot opencode build task. Runs opencode CLI with the prompt provided by webAssist (which includes WAC.json data inline). Returns success or failure only — knowledge units are written to disk by opencode.",
+            "description": "Execute a one-shot opencode build task from a caller-supplied prompt and model. Sets up the skills symlink and runs opencode in the supplied project directory. Returns success or failure only; artifacts are written to disk by opencode.",
             "command": "/usr/local/bin/node",
             "args": ["/code/scripts/execute-task.mjs"],
             "cwd": "/code",
             "timeoutMs": 300000,
+            "tags": ["internal"],
             "inputSchema": {
                 "prompt": {
                     "type": "string",
-                    "description": "Full prompt from webAssist, including WAC.json data inline. Used as-is for opencode build.",
+                    "description": "Prompt to execute with opencode. The caller owns prompt construction and inclusion of any task data.",
                     "optional": false
                 },
                 "projectDir": {
                     "type": "string",
-                    "description": "Directory where opencode will build the AKU. All knowledge units are stored under .aku/ within this directory.",
+                    "description": "Directory where opencode will run. A .opencode/skills symlink is created here pointing to /code/skills. Task-specific skills may create subdirectories such as .aku/ inside this directory.",
+                    "optional": false
+                },
+                "model": {
+                    "type": "string",
+                    "description": "OpenCode model identifier selected by the caller.",
                     "optional": false
                 }
             }

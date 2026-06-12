@@ -27,6 +27,19 @@ The repository must contain these Ploinky agents:
 5. `browserUseAgent`: the Browser Use provider agent that controls interactive
    Chromium sessions for logged-in web application tasks and exposes a
    protected viewer URL for login, OAuth, 2FA, and CAPTCHA flows.
+6. `opencodeAgent`: the internal OpenCode task runner agent. Its
+   `execute-task` MCP tool accepts `{ prompt, projectDir, model }`, creates the
+   `.opencode/skills` symlink in the effective project directory, and runs
+   OpenCode with explicit `--dir`, the caller-selected model, and permission
+   auto-approval because the tool is internal. The agent mounts
+   `.ploinky/agents/webAssist/data` at `/webAssist-data` and remaps caller
+   workspace paths under `$PLOINKY_WORKSPACE_ROOT/.ploinky/agents/webAssist/data`
+   into that mounted root. Callers own task-specific prompt construction and
+   artifact location instructions. The tool streams OpenCode stdout and stderr
+   to the `opencodeAgent` container logs with clear prefixes, treats known
+   OpenCode permission and missing-skill output as failure even when OpenCode
+   exits with code `0`, validates that `.aku/aku.json` exists in the effective
+   directory, and keeps MCP stdout reserved for the final JSON result.
 
 The repository must expose these active backend ids through `copilotProviderRelay`:
 

@@ -1,6 +1,6 @@
 ---
 name: create-akus
-description: Create an Agentic Knowledge Units (.aku) directory from WAC JSON embedded in the prompt, including fetched siteMap documents, KU folders, root aggregate indexes, and search stats compatible with Achilles AgenticKnowledgeUnits.
+description: Create a minimal Achilles-compatible Agentic Knowledge Units (.aku) directory from WAC JSON embedded in the prompt, including fetched siteMap documents and valid root indexes.
 ---
 
 # Create AKUs
@@ -17,16 +17,18 @@ The WAC JSON has:
 - `contactInfo`: contact or local interaction information.
 - `siteMap`: array of absolute URLs. Fetch every URL and use the fetched text as document source material.
 
-## Required Output Layout
+## Required Minimal Layout
 
-Treat the current working directory as the site project root and create:
+Treat the current working directory as the site project root. Create `.aku/` directly under it.
+
+Root files required by Achilles:
 
 ```text
 .aku/
   aku.json
+  index-meta.json
   search-index.jsonl
   search-stats.json
-  index-meta.json
   ku-index.jsonl
   documents-index.jsonl
   files-index.jsonl
@@ -34,32 +36,42 @@ Treat the current working directory as the site project root and create:
   results-index.jsonl
   events-index.jsonl
   kus/
-    <ku_id>/
-      manifest.json
-      state.md
-      history.md
-      events.jsonl
-      documents/
-        documents.jsonl
-      results/
-        results.jsonl
-      support/
-        files.jsonl
-      links/
-        links.jsonl
-      sessions/
-        sessions.jsonl
-      code/
-      data/
 ```
 
-Create all directories with recursive filesystem operations. Write JSON with 2-space indentation. Write JSONL files with one JSON object per line or as an empty file when there are no records.
+For each KU, create only the files and directories that are needed:
 
-## Compatibility Rules
+```text
+.aku/kus/<ku_id>/
+  manifest.json
+  state.md
+  history.md
+  events.jsonl
+```
 
-Use the current Achilles `AgenticKnowledgeUnits` file shapes:
+For a KU with stored source text, also create:
 
-`.aku/aku.json`:
+```text
+.aku/kus/<ku_id>/
+  documents/
+    source.md
+    documents.jsonl
+```
+
+Do not create empty `code/`, `data/`, `sessions/`, `results/`, `support/`, or `links/` directories unless you also create records that require them. If a root index has no records, write it as an empty file. Write JSON with 2-space indentation. Write JSONL with one JSON object per line.
+
+## Achilles Compatibility Rules
+
+Achilles `AgenticKnowledgeUnits` receives the site project root as `rootDir` and looks for `.aku` inside it. The generated `.aku` must pass `AKUDoctor` checks. In particular:
+
+- every root index file listed above must exist.
+- every JSONL file must be parseable.
+- `index-meta.json.files` must contain the real SHA256, byte length, and JSONL record count for every root index file.
+- `search-stats.json.record_count` must equal the number of records in `search-index.jsonl`.
+- `index-meta.json.record_counts.search` must equal the number of records in `search-index.jsonl`.
+- root indexes must be generated from the KU folders under `.aku/kus`.
+
+Use this `.aku/aku.json` shape:
+
 ```json
 {
   "schema": 1,
@@ -90,7 +102,7 @@ Each `manifest.json` must include:
 - `created_by`, `updated_by`, `actor`
 - `source_operation: "create-akus"`
 
-Supported statuses are `active`, `validated`, `accepted`, `provisional`, `archived`, `invalidated`, `obsolete`, `discarded`, and `failure_note`. Normal search excludes `discarded` and `obsolete`.
+Supported statuses are `active`, `validated`, `accepted`, `provisional`, `archived`, `invalidated`, `obsolete`, `discarded`, and `failure_note`.
 
 ## KU Creation Strategy
 
@@ -98,57 +110,56 @@ Create these KUs:
 
 1. `ku_site_overview`
    - `ku_type`: `internal_document`
-   - Combines `siteInfo` and `contactInfo`.
-   - Include `site`, `wac`, `assistos`, and `contact` keywords when relevant.
+   - Combine `siteInfo` and `contactInfo`.
+   - Include relevant keywords such as `site`, `wac`, `assistos`, and `contact`.
 
 2. One profile KU per `profilesInfo` entry
    - KU id: `ku_profile_<normalized_profile_id>`, lowercased, with non-alphanumeric characters converted to `_`.
    - `ku_type`: `business_analysis`
-   - Preserve the profile text exactly in `documents/profile.md`.
-   - Summarize the profile in `manifest.summary` and `state.md`; do not remove the original profile content from the document file.
+   - Preserve the profile text exactly in `documents/source.md`.
+   - Add one document record to `documents/documents.jsonl`.
+   - Summarize the profile in `manifest.summary` and `state.md`; do not remove the original profile content from the source document.
 
 3. One document KU per successfully fetched `siteMap` URL
    - KU id: `ku_doc_<slug>`, derived from the filename or URL path.
-   - `ku_type`: choose from the implemented free-form KU type field using the closest conceptual type, such as `specification`, `internal_document`, `architecture_decision`, or `research_note`.
-   - Store fetched markdown in `documents/source.md`.
+   - `ku_type`: choose the closest conceptual type, such as `specification`, `internal_document`, `architecture_decision`, or `research_note`.
+   - Store fetched markdown/text in `documents/source.md`.
    - Add one document record to `documents/documents.jsonl`.
-   - Add the source URL to record metadata.
+   - Add the source URL to `metadata.source_url`.
 
 4. Failed siteMap fetches
    - Do not invent missing content.
-   - Record an event in `ku_site_overview/events.jsonl` with `event_type: "fetch_failure"`, `status: "failure_note"`, and a summary containing the URL and error.
+   - Record a `fetch_failure` event in `ku_site_overview/events.jsonl` with `status: "failure_note"` and a summary containing the URL and error.
 
-## State And Records
+## KU Source Files
 
-For every KU:
-- `state.md` is a compact agent-readable current state with sections for identity, purpose, current findings, important files, reusable findings, and next actions.
-- `history.md` is a short history. Do not put long fetched documents in history.
-- `events.jsonl` contains at least one creation event.
-- `documents/documents.jsonl` lists document records when a KU has stored markdown documents.
-- `support/files.jsonl`, `links/links.jsonl`, `results/results.jsonl`, and `sessions/sessions.jsonl` must exist even when empty.
+`state.md` should be compact and agent-readable. Include only useful current state:
 
-Document records use:
-```json
-{
-  "document_id": "doc_<safe_id>",
-  "ku_id": "<ku_id>",
-  "record_type": "document",
-  "document_type": "markdown",
-  "status": "active",
-  "title": "<title>",
-  "summary": "<short summary>",
-  "tags": [],
-  "keywords": [],
-  "reusable_findings": [],
-  "path": "kus/<ku_id>/documents/<file>.md",
-  "created_at": "<ISO timestamp>",
-  "updated_at": "<ISO timestamp>",
-  "actor": "webassist",
-  "metadata": {}
-}
+```markdown
+# KU: <name>
+
+## Identity
+KU ID: `<ku_id>`
+Type: `<ku_type>`
+Status: `active`
+
+## Current Purpose
+<purpose>
+
+## Current Findings
+<short findings>
+
+## Important Files
+<paths, if any>
+
+## Reusable Findings
+<short reusable findings>
 ```
 
-Event records use:
+`history.md` can be short. Do not copy long fetched documents into history.
+
+Each KU must have at least one creation event in `events.jsonl`:
+
 ```json
 {
   "event_id": "evt_<safe_id>",
@@ -167,26 +178,48 @@ Event records use:
 }
 ```
 
+Document KUs and profile KUs must include a document record:
+
+```json
+{
+  "document_id": "doc_<safe_id>",
+  "ku_id": "<ku_id>",
+  "record_type": "document",
+  "document_type": "markdown",
+  "status": "active",
+  "title": "<title>",
+  "summary": "<short summary>",
+  "tags": [],
+  "keywords": [],
+  "reusable_findings": [],
+  "path": "kus/<ku_id>/documents/source.md",
+  "created_at": "<ISO timestamp>",
+  "updated_at": "<ISO timestamp>",
+  "actor": "webassist",
+  "metadata": {}
+}
+```
+
 ## Aggregate Indexes
 
 Build root indexes after creating all KU folders. Fast AKU search reads aggregate root files instead of opening each KU folder.
 
-Create:
-- `ku-index.jsonl`: one compact KU search record per KU.
-- `documents-index.jsonl`: one record per document record.
-- `files-index.jsonl`, `links-index.jsonl`, `results-index.jsonl`: empty unless you create those record types.
-- `events-index.jsonl`: one compact record per event.
-- `search-index.jsonl`: denormalized union of KU, document, file, link, result, and event records.
-- `search-stats.json`: BM25F stats for `search-index.jsonl`.
-- `index-meta.json`: record counts and file hashes for root index files.
+Create compact records equivalent to Achilles index builder output:
 
-Search records must use the implemented fields:
+- `ku-index.jsonl`: one KU search record per `manifest.json`.
+- `documents-index.jsonl`: one document search record per `documents/documents.jsonl` record.
+- `events-index.jsonl`: one event search record per `events.jsonl` record.
+- `files-index.jsonl`, `links-index.jsonl`, `results-index.jsonl`: empty unless you actually create those record types.
+- `search-index.jsonl`: denormalized union of KU, document, file, link, result, and event records.
+
+Search records must use these fields when applicable:
+
 - `search_id`
 - `record_type`
 - `ku_id`
 - `ku_type`
 - `ku_status`
-- type-specific id fields when applicable
+- type-specific id fields such as `document_id` or `event_id`
 - `status`
 - `title`
 - `summary`
@@ -198,9 +231,21 @@ Search records must use the implemented fields:
 - `created_at`
 - `updated_at`
 
-Use these search fields for stats: `keywords`, `tags`, `title`, `reusable_findings`, `summary`, `type`, `path`.
+Use these `search_id` formats:
+
+- KU: `ku:<ku_id>`
+- document: `document:<ku_id>:<document_id>`
+- event: `event:<ku_id>:<event_id>`
+
+Use these paths:
+
+- KU: `kus/<ku_id>`
+- document: `kus/<ku_id>/documents/source.md`
+
+Use these fields for search stats: `keywords`, `tags`, `title`, `reusable_findings`, `summary`, `type`, `path`.
 
 `search-stats.json` must use:
+
 ```json
 {
   "schema": 1,
@@ -240,7 +285,75 @@ Use these search fields for stats: `keywords`, `tags`, `title`, `reusable_findin
 }
 ```
 
-Tokenize conservatively for stats: lowercase words, preserve acronyms as searchable terms by lowercasing them, split punctuation and hyphenated terms, and skip common stopwords for document frequency.
+Tokenize conservatively for stats: lowercase words, preserve acronyms by lowercasing them, split punctuation and hyphenated terms, and skip common stopwords for document frequency.
+
+`index-meta.json` must use the Achilles shape:
+
+```json
+{
+  "schema": 1,
+  "generation_id": "idx_<timestamp>_<random>",
+  "aku_schema": 1,
+  "record_counts": {
+    "search": 0,
+    "ku": 0,
+    "document": 0,
+    "file": 0,
+    "link": 0,
+    "result": 0,
+    "event": 0
+  },
+  "files": {
+    "search-index.jsonl": {
+      "sha256": "<hex sha256 of exact file content>",
+      "bytes": 0,
+      "records": 0
+    },
+    "search-stats.json": {
+      "sha256": "<hex sha256 of exact file content>",
+      "bytes": 0
+    },
+    "ku-index.jsonl": {
+      "sha256": "<hex sha256 of exact file content>",
+      "bytes": 0,
+      "records": 0
+    },
+    "documents-index.jsonl": {
+      "sha256": "<hex sha256 of exact file content>",
+      "bytes": 0,
+      "records": 0
+    },
+    "files-index.jsonl": {
+      "sha256": "<hex sha256 of exact file content>",
+      "bytes": 0,
+      "records": 0
+    },
+    "links-index.jsonl": {
+      "sha256": "<hex sha256 of exact file content>",
+      "bytes": 0,
+      "records": 0
+    },
+    "results-index.jsonl": {
+      "sha256": "<hex sha256 of exact file content>",
+      "bytes": 0,
+      "records": 0
+    },
+    "events-index.jsonl": {
+      "sha256": "<hex sha256 of exact file content>",
+      "bytes": 0,
+      "records": 0
+    }
+  },
+  "source": {
+    "ku_root_version": 0,
+    "built_from": ".aku/kus",
+    "build_options_hash": "<hex sha256 of stable build options>"
+  },
+  "generated_at": "<ISO timestamp>"
+}
+```
+
+The `sha256`, `bytes`, and `records` values must be calculated after writing or finalizing the exact string content of each root index file. Do not use placeholder values.
 
 ## Fetching Rules
 
@@ -258,5 +371,3 @@ After writing files, print a plain English summary:
 - number of fetched documents
 - number of failed fetches
 - root index files created
-
-If `.aku/aku.json` cannot be created, stop and report the error. Do not clean up partial state unless the user explicitly asks.

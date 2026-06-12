@@ -12,7 +12,8 @@
         "PLOINKY_ROUTER_URL",
         "OPENCODE_API_KEY",
         "SOUL_GATEWAY_API_KEY",
-        "SOUL_GATEWAY_BASE_URL"
+        "SOUL_GATEWAY_BASE_URL",
+        "XAI_API_KEY"
     ],
     "volumes": {
         ".ploinky/agents/webAssist/data": "/webAssist-data"

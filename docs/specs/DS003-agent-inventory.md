@@ -39,7 +39,11 @@ The repository must contain these Ploinky agents:
    to the `opencodeAgent` container logs with clear prefixes, treats known
    OpenCode permission and missing-skill output as failure even when OpenCode
    exits with code `0`, validates that `.aku/aku.json` exists in the effective
-   directory, and keeps MCP stdout reserved for the final JSON result.
+   directory, and keeps MCP stdout reserved for the final JSON result. Its
+   `create-akus` skill transforms WAC JSON into an Achilles-compatible `.aku`
+   tree, fetches every `siteMap` URL for document KUs, preserves profile text
+   as document material, and writes root aggregate AKU indexes including
+   `search-index.jsonl`, `search-stats.json`, and `index-meta.json`.
 
 The repository must expose these active backend ids through `copilotProviderRelay`:
 

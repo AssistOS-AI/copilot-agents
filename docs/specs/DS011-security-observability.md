@@ -101,19 +101,22 @@ considered complete. Long tasks should be async MCP tasks with task IDs,
 status tools, artifact listing, and bounded log tails.
 
 `opencodeAgent.execute-task` is an operator-observability exception for
-workspace-local AKU construction: it may stream OpenCode stdout and stderr to
-the container logs because operators need live visibility into long OpenCode
-runs. The MCP tool response must remain structured JSON, and failure responses
-must include only bounded output tails. Operators should treat those container
-logs as potentially containing prompt or WAC-derived content. The tool is
-internal-only and runs OpenCode with permission auto-approval for the selected
-project directory; callers must continue to route access through MCP policy and
-must not expose this execution surface directly. A completed OpenCode process
-is not sufficient success for AKU construction; the wrapper must verify the
-expected AKU manifest under the selected project directory before returning
-`ok: true`. The only cross-agent filesystem mount for this workflow is the
-webAssist data root mounted read-write at `/webAssist-data` inside
-`opencodeAgent`; arbitrary workspace paths must not be mounted for this task.
+workspace-local OpenCode delegation: it may stream OpenCode stdout and stderr
+to the container logs because operators need live visibility into long OpenCode
+runs. The tool is registered as an async MCP task so callers can poll
+AgentServer task status for bounded `logTail` progress and the final structured
+result. The MCP tool response must remain structured JSON, and failure
+responses must include only bounded output tails. Successful responses may also
+include a bounded final output tail for the calling launcher to show as plain
+text. Operators should treat those container logs as potentially containing
+prompt or task-derived content. The tool is internal-only and runs OpenCode
+with permission auto-approval for the selected project directory; callers must
+continue to route access through MCP policy and must not expose this execution
+surface directly. The wrapper does not validate task-specific output artifacts;
+callers own any success criteria beyond the OpenCode process result. The only
+cross-agent filesystem mount for this workflow is the webAssist data root
+mounted read-write at `/webAssist-data` inside `opencodeAgent`; arbitrary
+workspace paths must not be mounted for this task.
 
 ## Decisions & Questions
 

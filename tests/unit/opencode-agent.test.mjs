@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const TESTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(TESTS_DIR, '..', '..');
 const EXECUTE_TASK_ENTRY = path.join(REPO_ROOT, 'opencodeAgent', 'scripts', 'execute-task.mjs');
+const MCP_CONFIG = path.join(REPO_ROOT, 'opencodeAgent', 'mcp-config.json');
 
 function runExecuteTask(input, env = {}) {
     return new Promise((resolve) => {
@@ -45,19 +46,21 @@ async function writeFakeOpenCode(tempDir, source) {
     return scriptPath;
 }
 
-test('execute-task streams opencode output to log sink and keeps MCP stdout as JSON', async () => {
+test('opencode execute-task is registered as an async MCP tool', async () => {
+    const config = JSON.parse(await fs.readFile(MCP_CONFIG, 'utf8'));
+    const tool = config.tools.find((entry) => entry.name === 'execute-task');
+
+    assert.equal(tool?.async, true);
+});
+
+test('execute-task streams opencode output to stderr and keeps MCP stdout as JSON', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'opencode-agent-test-'));
     try {
         const projectDir = path.join(tempDir, 'site');
         const argsFile = path.join(tempDir, 'args.json');
-        const logFile = path.join(tempDir, 'opencode.log');
         const fakeOpenCode = await writeFakeOpenCode(tempDir, `#!/usr/bin/env node
 import fs from 'node:fs';
-import path from 'node:path';
 fs.writeFileSync(process.env.FAKE_OPENCODE_ARGS_FILE, JSON.stringify(process.argv.slice(2)));
-const projectDir = process.argv[process.argv.indexOf('--dir') + 1];
-fs.mkdirSync(path.join(projectDir, '.aku'), { recursive: true });
-fs.writeFileSync(path.join(projectDir, '.aku', 'aku.json'), JSON.stringify({ schemaVersion: 1 }));
 process.stdout.write('stdout line 1\\n');
 process.stderr.write('stderr line 1\\n');
 setTimeout(() => {
@@ -68,12 +71,11 @@ setTimeout(() => {
 `);
 
         const result = await runExecuteTask({
-            prompt: 'Build .aku from WAC.json',
+            prompt: 'Create a JavaScript file with an efficient sorting algorithm',
             projectDir,
             model: 'opencode/test-model',
         }, {
             OPENCODE_BIN: fakeOpenCode,
-            OPENCODE_LOG_PATH: logFile,
             FAKE_OPENCODE_ARGS_FILE: argsFile,
         });
 
@@ -82,7 +84,10 @@ setTimeout(() => {
         assert.equal(payload.ok, true);
         assert.equal(payload.projectDir, projectDir);
         assert.equal(payload.model, 'opencode/test-model');
-        assert.equal(result.stdout.includes('stdout line'), false, 'MCP stdout must contain only final JSON');
+        assert.match(payload.outputText, /stdout line 1/);
+        assert.match(payload.outputText, /stdout line 2/);
+        assert.doesNotMatch(payload.outputText, /stderr line 1/);
+        assert.doesNotThrow(() => JSON.parse(result.stdout), 'MCP stdout must contain final JSON');
 
         const args = JSON.parse(await fs.readFile(argsFile, 'utf8'));
         assert.deepEqual(args, [
@@ -92,10 +97,10 @@ setTimeout(() => {
             projectDir,
             '--model',
             'opencode/test-model',
-            'Build .aku from WAC.json',
+            'Create a JavaScript file with an efficient sorting algorithm',
         ]);
 
-        const logs = await fs.readFile(logFile, 'utf8');
+        const logs = result.stderr;
         assert.match(logs, /start projectDir=/);
         assert.match(logs, /\[opencode stdout\] stdout line 1/);
         assert.match(logs, /\[opencode stderr\] stderr line 1/);
@@ -118,24 +123,18 @@ test('execute-task remaps webAssist workspace projectDir to mounted data root', 
         const hostProjectDir = path.join(workspaceRoot, '.ploinky', 'agents', 'webAssist', 'data', 'sites', 'localhost');
         const effectiveProjectDir = path.join(mountedDataRoot, 'sites', 'localhost');
         const argsFile = path.join(tempDir, 'args.json');
-        const logFile = path.join(tempDir, 'opencode.log');
         const fakeOpenCode = await writeFakeOpenCode(tempDir, `#!/usr/bin/env node
 import fs from 'node:fs';
-import path from 'node:path';
 fs.writeFileSync(process.env.FAKE_OPENCODE_ARGS_FILE, JSON.stringify(process.argv.slice(2)));
-const projectDir = process.argv[process.argv.indexOf('--dir') + 1];
-fs.mkdirSync(path.join(projectDir, '.aku'), { recursive: true });
-fs.writeFileSync(path.join(projectDir, '.aku', 'aku.json'), JSON.stringify({ schemaVersion: 1 }));
 process.exit(0);
 `);
 
         const result = await runExecuteTask({
-            prompt: 'Build .aku from WAC.json',
+            prompt: 'Create a JavaScript file with an efficient sorting algorithm',
             projectDir: hostProjectDir,
             model: 'opencode/test-model',
         }, {
             OPENCODE_BIN: fakeOpenCode,
-            OPENCODE_LOG_PATH: logFile,
             OPENCODE_WEBASSIST_DATA_ROOT: mountedDataRoot,
             PLOINKY_WORKSPACE_ROOT: workspaceRoot,
             FAKE_OPENCODE_ARGS_FILE: argsFile,
@@ -155,12 +154,9 @@ process.exit(0);
             effectiveProjectDir,
             '--model',
             'opencode/test-model',
-            'Build .aku from WAC.json',
+            'Create a JavaScript file with an efficient sorting algorithm',
         ]);
-
-        const logs = await fs.readFile(logFile, 'utf8');
-        assert.match(logs, /effectiveProjectDir=/);
-        await fs.access(path.join(effectiveProjectDir, '.aku', 'aku.json'));
+        assert.match(result.stderr, /effectiveProjectDir=/);
     } finally {
         await fs.rm(tempDir, { recursive: true, force: true });
     }
@@ -169,7 +165,6 @@ process.exit(0);
 test('execute-task returns bounded output tail on opencode failure', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'opencode-agent-test-'));
     try {
-        const logFile = path.join(tempDir, 'opencode.log');
         const fakeOpenCode = await writeFakeOpenCode(tempDir, `#!/usr/bin/env node
 process.stdout.write('before failure\\n');
 process.stderr.write('failure details\\n');
@@ -177,12 +172,11 @@ process.exit(7);
 `);
 
         const result = await runExecuteTask({
-            prompt: 'Build .aku from WAC.json',
+            prompt: 'Create a JavaScript file with an efficient sorting algorithm',
             projectDir: path.join(tempDir, 'site'),
             model: 'opencode/test-model',
         }, {
             OPENCODE_BIN: fakeOpenCode,
-            OPENCODE_LOG_PATH: logFile,
         });
 
         assert.notEqual(result.code, 0);
@@ -190,9 +184,10 @@ process.exit(7);
         assert.equal(payload.ok, false);
         assert.match(payload.error, /exit code 7/);
         assert.match(payload.error, /failure details/);
+        assert.match(payload.outputText, /failure details/);
         assert.equal(payload.model, 'opencode/test-model');
 
-        const logs = await fs.readFile(logFile, 'utf8');
+        const logs = result.stderr;
         assert.match(logs, /\[opencode stdout\] before failure/);
         assert.match(logs, /\[opencode stderr\] failure details/);
         assert.match(logs, /exit code=7/);
@@ -204,7 +199,6 @@ process.exit(7);
 test('execute-task treats opencode permission auto-reject output as failure even with exit code 0', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'opencode-agent-test-'));
     try {
-        const logFile = path.join(tempDir, 'opencode.log');
         const fakeOpenCode = await writeFakeOpenCode(tempDir, `#!/usr/bin/env node
 process.stderr.write('! permission requested: external_directory (/tmp/site/*); auto-rejecting\\n');
 process.stderr.write('✗ Read . failed\\n');
@@ -213,12 +207,11 @@ process.exit(0);
 `);
 
         const result = await runExecuteTask({
-            prompt: 'Build .aku from WAC.json',
+            prompt: 'Create a JavaScript file with an efficient sorting algorithm',
             projectDir: path.join(tempDir, 'site'),
             model: 'opencode/test-model',
         }, {
             OPENCODE_BIN: fakeOpenCode,
-            OPENCODE_LOG_PATH: logFile,
         });
 
         assert.notEqual(result.code, 0);
@@ -228,9 +221,8 @@ process.exit(0);
         assert.match(payload.error, /external_directory/);
         assert.equal(payload.model, 'opencode/test-model');
 
-        const logs = await fs.readFile(logFile, 'utf8');
-        assert.match(logs, /permission requested: external_directory/);
-        assert.match(logs, /exit code=0/);
+        assert.match(result.stderr, /permission requested: external_directory/);
+        assert.match(result.stderr, /exit code=0/);
     } finally {
         await fs.rm(tempDir, { recursive: true, force: true });
     }
@@ -239,7 +231,6 @@ process.exit(0);
 test('execute-task treats missing create-akus skill output as failure even with exit code 0', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'opencode-agent-test-'));
     try {
-        const logFile = path.join(tempDir, 'opencode.log');
         const fakeOpenCode = await writeFakeOpenCode(tempDir, `#!/usr/bin/env node
 process.stderr.write('✗ Skill "create-akus" failed\\n');
 process.stderr.write('Error: Skill "create-akus" not found. Available skills: customize-opencode\\n');
@@ -247,12 +238,11 @@ process.exit(0);
 `);
 
         const result = await runExecuteTask({
-            prompt: 'Build .aku from WAC.json',
+            prompt: 'Create a JavaScript file with an efficient sorting algorithm',
             projectDir: path.join(tempDir, 'site'),
             model: 'opencode/test-model',
         }, {
             OPENCODE_BIN: fakeOpenCode,
-            OPENCODE_LOG_PATH: logFile,
         });
 
         assert.notEqual(result.code, 0);
@@ -261,35 +251,33 @@ process.exit(0);
         assert.match(payload.error, /failed despite exit code 0/);
         assert.match(payload.error, /create-akus/);
 
-        const logs = await fs.readFile(logFile, 'utf8');
-        assert.match(logs, /Skill "create-akus" not found/);
+        assert.match(result.stderr, /Skill "create-akus" not found/);
     } finally {
         await fs.rm(tempDir, { recursive: true, force: true });
     }
 });
 
-test('execute-task rejects successful opencode exit without project AKU manifest', async () => {
+test('execute-task allows successful opencode exit without an AKU manifest', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'opencode-agent-test-'));
     try {
         const projectDir = path.join(tempDir, 'site');
         const fakeOpenCode = await writeFakeOpenCode(tempDir, `#!/usr/bin/env node
-process.stdout.write('Created .aku somewhere else\\n');
+process.stdout.write('Created a file somewhere else\\n');
 process.exit(0);
 `);
 
         const result = await runExecuteTask({
-            prompt: 'Build .aku from WAC.json',
+            prompt: 'Create a JavaScript file with an efficient sorting algorithm',
             projectDir,
             model: 'opencode/test-model',
         }, {
             OPENCODE_BIN: fakeOpenCode,
-            OPENCODE_LOG_PATH: path.join(tempDir, 'opencode.log'),
         });
 
-        assert.notEqual(result.code, 0);
+        assert.equal(result.code, 0, result.stderr || result.stdout);
         const payload = JSON.parse(result.stdout);
-        assert.equal(payload.ok, false);
-        assert.equal(payload.error.includes('.aku/aku.json was not created'), true);
+        assert.equal(payload.ok, true);
+        assert.match(payload.outputText, /Created a file somewhere else/);
         assert.equal(payload.projectDir, projectDir);
     } finally {
         await fs.rm(tempDir, { recursive: true, force: true });

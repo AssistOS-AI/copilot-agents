@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -22,17 +21,14 @@ const SEMANTIC_FAILURE_PATTERNS = [
 ];
 
 function createContainerLogStream() {
-    if (process.env.OPENCODE_LOG_PATH) {
-        return fsSync.createWriteStream(process.env.OPENCODE_LOG_PATH, { flags: 'a' });
-    }
-    const candidates = ['/proc/1/fd/2', '/dev/stderr'];
-    for (const candidate of candidates) {
-        try {
-            return fsSync.createWriteStream(candidate, { flags: 'a' });
-        } catch {
-        }
-    }
-    return process.stderr;
+    return {
+        write(message) {
+            try {
+                process.stderr.write(message);
+            } catch {
+            }
+        },
+    };
 }
 
 function logLine(logStream, message) {
@@ -145,6 +141,13 @@ function summarizeFailure(result) {
     return tail ? `${base}. Output tail:\n${tail}` : base;
 }
 
+function summarizeOutput(result, { preferStderr = false } = {}) {
+    return (preferStderr
+        ? (result.stderrTail || result.stdoutTail || '')
+        : (result.stdoutTail || result.stderrTail || '')
+    ).trim();
+}
+
 function resolveEffectiveProjectDir(projectDir, env = process.env) {
     const resolvedProjectDir = path.resolve(projectDir);
     const workspaceRoot = typeof env.PLOINKY_WORKSPACE_ROOT === 'string' && env.PLOINKY_WORKSPACE_ROOT.trim()
@@ -213,19 +216,6 @@ async function setupSkillsSymlink(projectDir) {
         if (error.code !== 'EEXIST') {
             throw error;
         }
-    }
-}
-
-async function validateAkuOutput(projectDir) {
-    const akuManifestPath = path.join(projectDir, '.aku', 'aku.json');
-    try {
-        const stats = await fs.stat(akuManifestPath);
-        if (!stats.isFile()) {
-            return `OpenCode completed, but ${akuManifestPath} is not a file.`;
-        }
-        return null;
-    } catch {
-        return `OpenCode completed, but ${akuManifestPath} was not created.`;
     }
 }
 
@@ -310,25 +300,14 @@ async function main() {
         );
 
         const semanticFailure = detectSemanticFailure(result);
+        const outputText = summarizeOutput(result, { preferStderr: result.code !== 0 || semanticFailure });
         if (result.code !== 0 || semanticFailure) {
             process.stdout.write(JSON.stringify({
                 ok: false,
                 error: semanticFailure
                     ? `OpenCode task failed despite exit code ${result.code ?? 'unknown'}. Output tail:\n${(result.stderrTail || result.stdoutTail || '').trim()}`
                     : summarizeFailure(result),
-                projectDir: resolvedProjectDir,
-                effectiveProjectDir,
-                model: resolvedModel,
-            }));
-            process.exitCode = 1;
-            return;
-        }
-
-        const outputError = await validateAkuOutput(effectiveProjectDir);
-        if (outputError) {
-            process.stdout.write(JSON.stringify({
-                ok: false,
-                error: outputError,
+                outputText,
                 projectDir: resolvedProjectDir,
                 effectiveProjectDir,
                 model: resolvedModel,
@@ -339,6 +318,7 @@ async function main() {
 
         process.stdout.write(JSON.stringify({
             ok: true,
+            outputText,
             projectDir: resolvedProjectDir,
             effectiveProjectDir,
             model: resolvedModel,

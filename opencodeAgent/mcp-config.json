@@ -7,6 +7,7 @@
             "command": "/usr/local/bin/node",
             "args": ["/code/scripts/execute-task.mjs"],
             "cwd": "/code",
+            "async": true,
             "timeoutMs": 300000,
             "tags": ["internal"],
             "inputSchema": {
@@ -17,7 +18,7 @@
                 },
                 "projectDir": {
                     "type": "string",
-                    "description": "Directory where opencode will run. A .opencode/skills symlink is created here pointing to /code/skills. Task-specific skills may create subdirectories such as .aku/ inside this directory.",
+                    "description": "Directory where opencode will run. A .opencode/skills symlink is created here pointing to /code/skills. Task-specific skills may create subdirectories as needed inside this directory.",
                     "optional": false
                 },
                 "model": {

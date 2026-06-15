@@ -36,10 +36,15 @@ The repository must contain these Ploinky agents:
    workspace paths under `$PLOINKY_WORKSPACE_ROOT/.ploinky/agents/webAssist/data`
    into that mounted root. Callers own task-specific prompt construction and
    artifact location instructions. The tool streams OpenCode stdout and stderr
-   to the `opencodeAgent` container logs with clear prefixes, treats known
-   OpenCode permission and missing-skill output as failure even when OpenCode
-   exits with code `0`, validates that `.aku/aku.json` exists in the effective
-   directory, and keeps MCP stdout reserved for the final JSON result. Its
+   to the `opencodeAgent` container logs with clear prefixes and is registered
+   as an async MCP tool so AgentServer task status exposes bounded log-tail
+   updates while it runs. It treats known OpenCode permission and missing-skill
+   output as failure even when OpenCode exits with code `0`, keeps MCP stdout
+   reserved for the final JSON result, and includes only a bounded final
+   OpenCode output tail in that JSON for caller visibility. It does not impose
+   a task-specific artifact validation contract; callers decide which files or
+   directories constitute success for their prompt.
+   Its
    `create-akus` skill transforms WAC JSON into an Achilles-compatible `.aku`
    tree, fetches every `siteMap` URL for document KUs, preserves profile text
    as document material, and writes root aggregate AKU indexes including

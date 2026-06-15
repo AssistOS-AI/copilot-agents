@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs/promises';
+import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -21,10 +22,17 @@ const SEMANTIC_FAILURE_PATTERNS = [
 ];
 
 function createContainerLogStream() {
+    const containerStderr = '/proc/1/fd/2';
+
     return {
         write(message) {
             try {
                 process.stderr.write(message);
+            } catch {
+            }
+
+            try {
+                writeFileSync(containerStderr, message);
             } catch {
             }
         },

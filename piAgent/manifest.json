@@ -7,6 +7,7 @@
             "install": "sh /code/scripts/install-pi.sh"
         }
     },
+    "cli": "/usr/local/bin/pi",
     "env": [
         "PLOINKY_WORKSPACE_ROOT",
         "PLOINKY_ROUTER_URL",

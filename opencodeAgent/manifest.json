@@ -7,6 +7,7 @@
             "install": "curl -fsSL https://opencode.ai/install | bash"
         }
     },
+    "cli": "/root/.opencode/bin/opencode",
     "env": [
         "PLOINKY_WORKSPACE_ROOT",
         "PLOINKY_ROUTER_URL",

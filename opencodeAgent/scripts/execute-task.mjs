@@ -72,15 +72,18 @@ function flushPrefixedBuffer(logStream, prefix, state) {
 function runOpenCode({ projectDir, model, prompt, logStream }) {
     return new Promise((resolve, reject) => {
         const startedAt = Date.now();
-        const child = spawn(OPENCODE_BIN, [
+        const args = [
             'run',
             '--dangerously-skip-permissions',
             '--dir',
             projectDir,
-            '--model',
-            model,
-            prompt,
-        ], {
+        ];
+        if (model) {
+            args.push('--model', model);
+        }
+        args.push(prompt);
+
+        const child = spawn(OPENCODE_BIN, args, {
             cwd: projectDir,
             env: {
                 ...process.env,
@@ -234,7 +237,7 @@ async function main() {
     if (!input) {
         process.stdout.write(JSON.stringify({
             ok: false,
-            error: 'Invalid or missing input. Expected JSON with prompt, projectDir, and model.',
+            error: 'Invalid or missing input. Expected JSON with prompt and projectDir.',
         }));
         process.exitCode = 1;
         return;
@@ -254,15 +257,9 @@ async function main() {
         return;
     }
 
-    if (typeof model !== 'string' || !model.trim()) {
-        process.stdout.write(JSON.stringify({ ok: false, error: 'model is required and must be a non-empty string.' }));
-        process.exitCode = 1;
-        return;
-    }
-
     const resolvedProjectDir = path.resolve(projectDir.trim());
     const effectiveProjectDir = resolveEffectiveProjectDir(resolvedProjectDir);
-    const resolvedModel = model.trim();
+    const resolvedModel = typeof model === 'string' ? model.trim() : '';
     const taskPrompt = prompt.trim();
 
     try {
@@ -291,7 +288,7 @@ async function main() {
     const startedAt = Date.now();
     logLine(
         logStream,
-        `[opencodeAgent/execute-task] start projectDir=${JSON.stringify(resolvedProjectDir)} effectiveProjectDir=${JSON.stringify(effectiveProjectDir)} model=${JSON.stringify(resolvedModel)} promptChars=${taskPrompt.length}`
+        `[opencodeAgent/execute-task] start projectDir=${JSON.stringify(resolvedProjectDir)} effectiveProjectDir=${JSON.stringify(effectiveProjectDir)} model=${JSON.stringify(resolvedModel || '(default)')} promptChars=${taskPrompt.length}`
     );
 
     try {
@@ -338,11 +335,11 @@ async function main() {
         );
         process.stdout.write(JSON.stringify({
             ok: false,
-            error: `OpenCode task failed: ${error.message}`,
-            projectDir: resolvedProjectDir,
-            effectiveProjectDir,
-            model: resolvedModel,
-        }));
+                error: `OpenCode task failed: ${error.message}`,
+                projectDir: resolvedProjectDir,
+                effectiveProjectDir,
+                model: resolvedModel,
+            }));
         process.exitCode = 1;
     }
 }

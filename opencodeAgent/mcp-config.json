@@ -24,7 +24,7 @@
                 "model": {
                     "type": "string",
                     "description": "OpenCode model identifier selected by the caller.",
-                    "optional": false
+                    "optional": true
                 }
             }
         }

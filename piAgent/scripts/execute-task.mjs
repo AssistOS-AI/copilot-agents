@@ -94,13 +94,14 @@ function flushPrefixedBuffer(logStream, prefix, state) {
 function runPi({ projectDir, model, prompt, logStream }) {
     return new Promise((resolve, reject) => {
         const startedAt = Date.now();
-        const child = spawn(PI_BIN, [
+        const args = [
             '-p',
             '--no-session',
-            '--model',
-            model,
+            ...(model ? ['--model', model] : []),
             prompt,
-        ], {
+        ];
+
+        const child = spawn(PI_BIN, args, {
             cwd: projectDir,
             env: {
                 ...process.env,
@@ -201,7 +202,6 @@ async function readStdin() {
 
 export async function executeTask({ prompt, projectDir, model } = {}) {
     const logStream = createContainerLogStream();
-    logLine(logStream, `[piAgent/execute-task] start projectDir=${projectDir}`);
 
     if (typeof prompt !== 'string' || !prompt.trim()) {
         process.stdout.write(JSON.stringify({ ok: false, error: 'prompt is required and must be a non-empty string.' }));
@@ -215,15 +215,21 @@ export async function executeTask({ prompt, projectDir, model } = {}) {
         return;
     }
 
-    if (typeof model !== 'string' || !model.trim()) {
-        process.stdout.write(JSON.stringify({ ok: false, error: 'model is required and must be a non-empty string.' }));
-        process.exitCode = 1;
-        return;
-    }
-
+    const resolvedModel = typeof model === 'string' ? model.trim() : '';
     const startedAt = Date.now();
+
+    logLine(
+        logStream,
+        `[piAgent/execute-task] start projectDir=${projectDir} model=${JSON.stringify(resolvedModel || '(default)')}`
+    );
+
     try {
-        const result = await runPi({ projectDir, model, prompt, logStream });
+        const result = await runPi({
+            projectDir,
+            model: resolvedModel,
+            prompt,
+            logStream,
+        });
         if (result.timedOut || result.code !== 0) {
             const errorText = summarizeFailure(result);
             logLine(logStream, `[piAgent/execute-task] exit code=${result.code}${result.signal ? ` signal=${result.signal}` : ''}`);
@@ -232,7 +238,7 @@ export async function executeTask({ prompt, projectDir, model } = {}) {
                 error: errorText,
                 outputText: summarizeOutput(result, { preferStderr: result.code !== 0 || result.timedOut }),
                 projectDir,
-                model,
+                model: resolvedModel,
                 durationMs: Date.now() - startedAt,
             }));
             process.exitCode = 1;
@@ -243,7 +249,7 @@ export async function executeTask({ prompt, projectDir, model } = {}) {
             ok: true,
             outputText: summarizeOutput(result),
             projectDir,
-            model,
+            model: resolvedModel,
             durationMs: Date.now() - startedAt,
         }));
     } catch (error) {
@@ -253,7 +259,7 @@ export async function executeTask({ prompt, projectDir, model } = {}) {
             error: error?.message || 'pi execution crashed.',
             outputText: '',
             projectDir,
-            model,
+            model: resolvedModel,
         }));
         process.exitCode = 1;
     }

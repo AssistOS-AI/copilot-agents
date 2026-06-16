@@ -12,6 +12,7 @@ const AGENT_DIRS = [
     'research-agents',
     'copilotProviderRelay',
     'openInterpreterAgent',
+    'piAgent',
     'webSearchAgent',
     'browserUseAgent',
     'opencodeAgent',

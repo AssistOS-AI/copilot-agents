@@ -49,6 +49,14 @@ The repository must contain these Ploinky agents:
    tree, fetches every `siteMap` URL for document KUs, preserves profile text
    as document material, and writes root aggregate AKU indexes including
    `search-index.jsonl`, `search-stats.json`, and `index-meta.json`.
+7. `piAgent`: the internal Pi task runner agent. Its `execute-task` MCP tool
+   accepts `{ prompt, projectDir, model }`, runs the `pi` CLI in the supplied
+   project directory, streams prefixed stdout and stderr to container logs, and
+   returns a bounded JSON result. The agent installs Pi non-interactively by
+   bypassing the official interactive installer and installing the
+   `@earendil-works/pi-coding-agent` npm package under `/root/.local`, using a
+   standalone Node.js/npm fallback when the container's bundled npm is not
+   usable.
 
 The repository must expose these active backend ids through `copilotProviderRelay`:
 

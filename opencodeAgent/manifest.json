@@ -7,6 +7,22 @@
             "install": "curl -fsSL https://opencode.ai/install | bash"
         }
     },
+    "health": {
+        "readiness": {
+            "script": "readiness.sh",
+            "interval": 1,
+            "timeout": 5,
+            "failureThreshold": 60,
+            "successThreshold": 1
+        },
+        "liveness": {
+            "script": "liveness.sh",
+            "interval": 30,
+            "timeout": 5,
+            "failureThreshold": 3,
+            "successThreshold": 1
+        }
+    },
     "cli": "/root/.opencode/bin/opencode",
     "env": [
         "PLOINKY_WORKSPACE_ROOT",

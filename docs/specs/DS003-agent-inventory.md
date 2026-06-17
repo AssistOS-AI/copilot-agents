@@ -43,7 +43,10 @@ The repository must contain these Ploinky agents:
    reserved for the final JSON result, and includes only a bounded final
    OpenCode output tail in that JSON for caller visibility. It does not impose
    a task-specific artifact validation contract; callers decide which files or
-   directories constitute success for their prompt.
+   directories constitute success for their prompt. Its manifest readiness and
+   liveness probes must verify that `/root/.opencode/bin/opencode` is
+   executable, so Ploinky startup and CLI attachment wait for the OpenCode
+   installer to finish before invoking the declared `cli` command.
    Its
    `create-akus` skill transforms WAC JSON into an Achilles-compatible `.aku`
    tree, fetches every `siteMap` URL for document KUs, preserves profile text

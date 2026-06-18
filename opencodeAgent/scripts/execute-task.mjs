@@ -6,9 +6,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const OPENCODE_BIN = process.env.OPENCODE_BIN || '/root/.opencode/bin/opencode';
+const OPENCODE_BIN = '/root/.opencode/bin/opencode';
 const OPENCODE_TIMEOUT_MS = 300000;
-const SKILLS_DIR = '/code/skills';
 const LOG_TAIL_LIMIT = 16 * 1024;
 const WEB_ASSIST_HOST_DATA_SUFFIX = path.join('.ploinky', 'agents', 'webAssist', 'data');
 const WEB_ASSIST_CONTAINER_DATA_ROOT = process.env.OPENCODE_WEBASSIST_DATA_ROOT || '/webAssist-data';
@@ -17,8 +16,6 @@ const SEMANTIC_FAILURE_PATTERNS = [
     /auto-rejecting/i,
     /the user rejected permission/i,
     /read \. failed/i,
-    /skill "create-akus" not found/i,
-    /available skills:\s*customize-opencode/i,
 ];
 
 function createContainerLogStream() {
@@ -212,24 +209,6 @@ function parseInput(raw) {
     }
 }
 
-async function setupSkillsSymlink(projectDir) {
-    const opencodeDir = path.join(projectDir, '.opencode');
-    const skillsLink = path.join(opencodeDir, 'skills');
-
-    try {
-        await fs.mkdir(opencodeDir, { recursive: true });
-    } catch {
-    }
-
-    try {
-        await fs.symlink(SKILLS_DIR, skillsLink, 'junction');
-    } catch (error) {
-        if (error.code !== 'EEXIST') {
-            throw error;
-        }
-    }
-}
-
 async function main() {
     const stdinData = await readStdin();
     const input = parseInput(stdinData);
@@ -268,17 +247,6 @@ async function main() {
         process.stdout.write(JSON.stringify({
             ok: false,
             error: `Failed to create project directory: ${error.message}`,
-        }));
-        process.exitCode = 1;
-        return;
-    }
-
-    try {
-        await setupSkillsSymlink(effectiveProjectDir);
-    } catch (error) {
-        process.stdout.write(JSON.stringify({
-            ok: false,
-            error: `Failed to set up skills symlink: ${error.message}`,
         }));
         process.exitCode = 1;
         return;

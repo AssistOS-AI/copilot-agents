@@ -4,14 +4,7 @@ import fs from 'node:fs';
 import { execSync, spawn } from 'node:child_process';
 
 const PI_BIN_CANDIDATES = [
-    process.env.PI_BIN,
     '/usr/local/bin/pi',
-    '/usr/bin/pi',
-    '/root/.local/bin/pi',
-    '/root/.npm-global/bin/pi',
-    '/code/.local/bin/pi',
-    '/code/node_modules/.bin/pi',
-    'pi',
 ];
 
 function resolvePiBinary() {

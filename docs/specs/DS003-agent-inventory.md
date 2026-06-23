@@ -60,6 +60,13 @@ The repository must contain these Ploinky agents:
    `@earendil-works/pi-coding-agent` npm package under `/root/.local`, using a
    standalone Node.js/npm fallback when the container's bundled npm is not
    usable.
+8. `codexAgent`: the direct Codex CLI wrapper agent. Its manifest installs the
+   official `@openai/codex` npm package through a non-interactive installer
+   script that invokes npm through `/usr/local/lib/node_modules/npm/bin/npm-cli.js`
+   and declares `/usr/local/bin/codex` as the Ploinky `cli` command. The agent
+   has no `mcp-config.json`, MCP tools, HTTP services, or router route access
+   entries; it exists only so Ploinky can open Codex in the current workspace
+   directory through the CLI attachment flow.
 
 The repository must expose these active backend ids through `copilotProviderRelay`:
 

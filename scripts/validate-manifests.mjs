@@ -16,6 +16,7 @@ const AGENT_DIRS = [
     'webSearchAgent',
     'browserUseAgent',
     'opencodeAgent',
+    'codexAgent',
 ];
 
 const PLUGIN_ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*$/;

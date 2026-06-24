@@ -75,7 +75,7 @@ missing or does not match the session owner, and must not use a shared
 `anonymous` profile for browser tasks that can hold cookies.
 
 Provider credentials must stay outside inner sandbox payloads by default.
-For Open Interpreter's normal hosted path, `SOUL_GATEWAY_API_KEY` is exposed
+For Open Interpreter's normal hosted path, `PLOINKY_AGENT_API_KEY` is exposed
 to `openInterpreterAgent` only. The provider starts a short-lived
 OpenAI-compatible loopback broker outside the inner bwrap sandbox, stages only
 the broker `/v1` URL and a dummy broker token into
@@ -168,8 +168,16 @@ Open Interpreter is configured through a staged runtime file inside the inner
 sandbox, while Soul Gateway authentication must stay in the outer provider
 process. A broker separates those concerns: the sandbox can call a narrow
 OpenAI-compatible loopback endpoint with a dummy token, and the provider-owned
-broker can inject `SOUL_GATEWAY_API_KEY` without placing it in sandbox env,
+broker can inject `PLOINKY_AGENT_API_KEY` without placing it in sandbox env,
 argv, staged files, stdout, or stderr.
+
+### Question #7: Why is `PLOINKY_AGENT_API_KEY` the provider credential boundary?
+
+Response:
+On 2026-06-24, provider credentials for router-issued subject identity moved
+to `PLOINKY_AGENT_API_KEY`. The env name describes the Ploinky identity source,
+so redaction, broker injection, and sandbox exclusion rules no longer depend
+on a specific downstream provider name.
 
 ## Conclusion
 

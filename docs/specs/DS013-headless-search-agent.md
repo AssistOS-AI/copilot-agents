@@ -25,7 +25,7 @@ service so browser state, browser slots, and cleanup are owned by the
 long-lived `webSearchAgent` process rather than by one-shot tool commands.
 
 The agent must not know about, configure, or call external LLM/search gateways.
-It must not use `SOUL_GATEWAY_URL`, `SOUL_GATEWAY_API_KEY`,
+It must not use `SOUL_GATEWAY_URL`, `PLOINKY_AGENT_API_KEY`,
 `achillesAgentLib.callSearch()`, or an OpenAI-compatible
 `/v1/chat/completions` endpoint for web search. The only outbound search
 traffic is the browser navigation performed by the local headless browser
@@ -153,6 +153,14 @@ dependency staging. The agent uses a Debian Node image plus a manifest install
 hook for Chromium, mirroring the Soul Gateway headless-browser deployment
 shape and avoiding reliance on image-user-local Node modules or amd64-only
 browser images in local arm64 deployments.
+
+### Question #6: Why name `PLOINKY_AGENT_API_KEY` in the negative search contract?
+
+Response:
+On 2026-06-24, hosted provider credentials were standardized on
+`PLOINKY_AGENT_API_KEY`. `webSearchAgent` remains a browser-search provider,
+so it must not depend on the router-issued provider credential or the Soul
+Gateway URL path.
 
 ## Conclusion
 

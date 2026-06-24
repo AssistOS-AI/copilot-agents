@@ -152,7 +152,7 @@ function missingModelConfigurationMessage(resolution = {}) {
     return [
         `Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION} is prepared,`,
         `but no Soul Gateway, model, or local endpoint is configured for this workspace.${reason}`,
-        'Set SOUL_GATEWAY_API_KEY on the openInterpreterAgent, or set OPEN_INTERPRETER_MODEL',
+        'Set PLOINKY_AGENT_API_KEY on the openInterpreterAgent, or set OPEN_INTERPRETER_MODEL',
         '(and OPEN_INTERPRETER_API_BASE for a local credentialless endpoint) before re-running the task.',
         'Provider API keys are intentionally not forwarded into the sandbox.',
     ].join(' ');

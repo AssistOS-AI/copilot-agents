@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 export const OPEN_INTERPRETER_CONFIG_SCHEMA = 'ploinky.open-interpreter.config.v1';
 export const SOUL_GATEWAY_PROVIDER = 'soul_gateway';
-export const SOUL_GATEWAY_API_KEY_ENV = 'SOUL_GATEWAY_API_KEY';
+export const PLOINKY_AGENT_API_KEY_ENV = 'PLOINKY_AGENT_API_KEY';
 export const ACHILLES_RESEARCH_DEFAULT = 'research';
 export const DEFAULT_SOUL_GATEWAY_CONTEXT_WINDOW = 8000;
 export const DEFAULT_SOUL_GATEWAY_MAX_TOKENS = 2000;
@@ -242,8 +242,8 @@ export async function resolveAchillesSoulGatewayConfig({ env = process.env } = {
         throw new Error(`Achilles provider ${SOUL_GATEWAY_PROVIDER} is not configured`);
     }
 
-    const apiKeyEnv = stringValue(provider.apiKeyEnv) || SOUL_GATEWAY_API_KEY_ENV;
-    if (apiKeyEnv !== SOUL_GATEWAY_API_KEY_ENV) {
+    const apiKeyEnv = stringValue(provider.apiKeyEnv) || PLOINKY_AGENT_API_KEY_ENV;
+    if (apiKeyEnv !== PLOINKY_AGENT_API_KEY_ENV) {
         throw new Error(`Achilles provider ${SOUL_GATEWAY_PROVIDER} uses unsupported apiKeyEnv ${apiKeyEnv}`);
     }
 
@@ -272,7 +272,7 @@ export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } 
     const explicit = explicitOpenInterpreterConfig(env);
     if (explicit) return explicit;
 
-    if (hasOwnEnvValue(env, SOUL_GATEWAY_API_KEY_ENV) && stringValue(env[SOUL_GATEWAY_API_KEY_ENV]) === '') {
+    if (hasOwnEnvValue(env, PLOINKY_AGENT_API_KEY_ENV) && stringValue(env[PLOINKY_AGENT_API_KEY_ENV]) === '') {
         return {
             source: 'missing',
             config: createBaseRuntimeConfig({
@@ -280,7 +280,7 @@ export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } 
             }),
             broker: null,
             sandbox: { allowNetwork: false },
-            reason: `${SOUL_GATEWAY_API_KEY_ENV} is not set`,
+            reason: `${PLOINKY_AGENT_API_KEY_ENV} is not set`,
         };
     }
 
@@ -299,7 +299,7 @@ export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } 
         };
     }
 
-    const soulGatewayApiKey = stringValue(env[SOUL_GATEWAY_API_KEY_ENV]);
+    const soulGatewayApiKey = stringValue(env[PLOINKY_AGENT_API_KEY_ENV]);
     if (!soulGatewayApiKey) {
         return {
             source: 'missing',
@@ -308,7 +308,7 @@ export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } 
             }),
             broker: null,
             sandbox: { allowNetwork: false },
-            reason: `${SOUL_GATEWAY_API_KEY_ENV} is not set`,
+            reason: `${PLOINKY_AGENT_API_KEY_ENV} is not set`,
         };
     }
 

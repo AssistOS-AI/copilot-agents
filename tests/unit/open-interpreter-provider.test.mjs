@@ -22,6 +22,7 @@ import { startOpenAICompatibleBroker } from '../../openInterpreterAgent/tools/li
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATUS_TOOL = path.resolve(__dirname, '../../openInterpreterAgent/tools/status.mjs');
 const TASK_TOOL = path.resolve(__dirname, '../../openInterpreterAgent/tools/open-interpreter-run-task.mjs');
+const REMOVED_AGENT_KEY_ALIAS = ['SOUL_GATEWAY', 'API_KEY'].join('_');
 
 function mkroot() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'oi-provider-test-'));
@@ -42,7 +43,7 @@ function writeAchillesConfig(dir, overrides = {}) {
         providers: {
             soul_gateway: {
                 baseURL: 'https://soul.axiologic.dev/v1/chat/completions',
-                apiKeyEnv: 'SOUL_GATEWAY_API_KEY',
+                apiKeyEnv: 'PLOINKY_AGENT_API_KEY',
                 module: './utils/LLMProviders/providers/openai.mjs',
                 ...(overrides.provider || {}),
             },
@@ -220,7 +221,7 @@ test('open_interpreter_run_task refuses without an invocation token', () => {
     const child = spawnSync(process.execPath, [TASK_TOOL], {
         input: JSON.stringify({ tool: 'open_interpreter_run_task', input: { prompt: 'hello' } }),
         encoding: 'utf8',
-        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp', SOUL_GATEWAY_API_KEY: '' },
+        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp', PLOINKY_AGENT_API_KEY: '' },
         timeout: 10000,
     });
     const payload = JSON.parse(child.stdout || '{}');
@@ -238,7 +239,7 @@ test('open_interpreter_run_task returns a natural-language message when the bund
                 metadata: { invocationToken: 'test-token' },
             }),
             encoding: 'utf8',
-            env: { ...process.env, OI_RUNTIME_ROOT: root, OI_RUNTIME_AUTO_PREPARE: 'false', SOUL_GATEWAY_API_KEY: '' },
+            env: { ...process.env, OI_RUNTIME_ROOT: root, OI_RUNTIME_AUTO_PREPARE: 'false', PLOINKY_AGENT_API_KEY: '' },
             timeout: 10000,
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
@@ -271,7 +272,7 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
             OPEN_INTERPRETER_MODEL: '',
             OPEN_INTERPRETER_API_BASE: '',
             OPEN_INTERPRETER_LOCAL: '',
-            SOUL_GATEWAY_API_KEY: '',
+            PLOINKY_AGENT_API_KEY: '',
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
         const payload = JSON.parse(child.stdout || '{}');
@@ -280,7 +281,7 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
         assert.equal(payload.sandbox_ok, false);
         assert.match(payload.final_answer, /runtime bundle open-interpreter@0\.4\.3 is prepared/);
         assert.match(payload.final_answer, /no Soul Gateway, model, or local endpoint is configured/);
-        assert.match(payload.final_answer, /SOUL_GATEWAY_API_KEY/);
+        assert.match(payload.final_answer, /PLOINKY_AGENT_API_KEY/);
         assert.doesNotMatch(payload.final_answer, /sandbox runner|local bwrap|not installed/);
         assert.deepEqual(payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
     } finally {
@@ -296,7 +297,7 @@ test('open_interpreter_run_task validates prompt presence and resource size', ()
             metadata: { invocationToken: 'test-token' },
         }),
         encoding: 'utf8',
-        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp', SOUL_GATEWAY_API_KEY: '' },
+        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp', PLOINKY_AGENT_API_KEY: '' },
         timeout: 10000,
     });
     const payload = JSON.parse(child.stdout || '{}');
@@ -325,7 +326,7 @@ process.stdin.on('end', () => {
         env: {
             BWRAP_RUNNER_RUNTIME_ROOT: process.env.BWRAP_RUNNER_RUNTIME_ROOT || null,
             BWRAP_RUNNER_ALLOW_NETWORK: process.env.BWRAP_RUNNER_ALLOW_NETWORK || null,
-            SOUL_GATEWAY_API_KEY: process.env.SOUL_GATEWAY_API_KEY || null,
+            PLOINKY_AGENT_API_KEY: process.env.PLOINKY_AGENT_API_KEY || null,
         },
         payload: JSON.parse(text || '{}'),
     }));
@@ -366,7 +367,7 @@ process.stdin.on('end', () => {
             OPEN_INTERPRETER_API_BASE: 'http://127.0.0.1:11434/v1',
             OPEN_INTERPRETER_CONTEXT_WINDOW: '12345',
             OPEN_INTERPRETER_MAX_TOKENS: '1234',
-            SOUL_GATEWAY_API_KEY: 'soul-secret-should-not-win',
+            PLOINKY_AGENT_API_KEY: 'soul-secret-should-not-win',
             // No PLOINKY_ROUTER_URL: the provider must not call the router.
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
@@ -380,8 +381,8 @@ process.stdin.on('end', () => {
             'local runner must receive BWRAP_RUNNER_RUNTIME_ROOT pointing at the provider-owned runtime root');
         assert.equal(received.env.BWRAP_RUNNER_ALLOW_NETWORK, null,
             'explicit Open Interpreter overrides must not force broker network mode');
-        assert.equal(received.env.SOUL_GATEWAY_API_KEY, null,
-            'child runner env must not receive SOUL_GATEWAY_API_KEY');
+        assert.equal(received.env.PLOINKY_AGENT_API_KEY, null,
+            'child runner env must not receive PLOINKY_AGENT_API_KEY');
         assert.deepEqual(received.payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
         assert.match(received.payload.command, /\/work\/config\/open-interpreter\.json/);
         const configFile = received.payload.files.find((file) => file.path === 'config/open-interpreter.json');
@@ -394,7 +395,7 @@ process.stdin.on('end', () => {
         assert.equal(config.api_key, null);
         const serialized = JSON.stringify(received);
         assert.ok(!serialized.includes('OPENAI_API_KEY'), 'credentials must not be staged');
-        assert.ok(!serialized.includes('soul-secret-should-not-win'), 'SOUL_GATEWAY_API_KEY must not be staged');
+        assert.ok(!serialized.includes('soul-secret-should-not-win'), 'PLOINKY_AGENT_API_KEY must not be staged');
         assert.ok(!serialized.includes('test-token'), 'invocation token must not be passed to the inner sandbox');
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
@@ -420,7 +421,7 @@ process.stdin.on('end', () => {
         env: {
             BWRAP_RUNNER_RUNTIME_ROOT: process.env.BWRAP_RUNNER_RUNTIME_ROOT || null,
             BWRAP_RUNNER_ALLOW_NETWORK: process.env.BWRAP_RUNNER_ALLOW_NETWORK || null,
-            SOUL_GATEWAY_API_KEY: process.env.SOUL_GATEWAY_API_KEY || null,
+            PLOINKY_AGENT_API_KEY: process.env.PLOINKY_AGENT_API_KEY || null,
         },
         payload: JSON.parse(text || '{}'),
     }));
@@ -452,7 +453,7 @@ process.stdin.on('end', () => {
             OI_RUNTIME_AUTO_PREPARE: 'false',
             OI_LOCAL_RUNNER_BIN: wrapper,
             LLM_MODELS_CONFIG_PATH: achillesConfigPath,
-            SOUL_GATEWAY_API_KEY: 'soul-secret-for-test',
+            PLOINKY_AGENT_API_KEY: 'soul-secret-for-test',
             OPEN_INTERPRETER_MODEL: '',
             OPEN_INTERPRETER_API_BASE: '',
             OPEN_INTERPRETER_LOCAL: '',
@@ -467,8 +468,8 @@ process.stdin.on('end', () => {
         assert.equal(received.env.BWRAP_RUNNER_RUNTIME_ROOT, root);
         assert.equal(received.env.BWRAP_RUNNER_ALLOW_NETWORK, 'true',
             'broker-backed Open Interpreter jobs must allow inherited network to reach the local broker');
-        assert.equal(received.env.SOUL_GATEWAY_API_KEY, null,
-            'child runner env must not receive SOUL_GATEWAY_API_KEY');
+        assert.equal(received.env.PLOINKY_AGENT_API_KEY, null,
+            'child runner env must not receive PLOINKY_AGENT_API_KEY');
 
         const configFile = received.payload.files.find((file) => file.path === 'config/open-interpreter.json');
         assert.ok(configFile, 'expected staged Open Interpreter config');
@@ -482,7 +483,7 @@ process.stdin.on('end', () => {
         assert.equal(config.local, null);
 
         const serialized = JSON.stringify(received);
-        assert.ok(!serialized.includes('soul-secret-for-test'), 'SOUL_GATEWAY_API_KEY must not be staged');
+        assert.ok(!serialized.includes('soul-secret-for-test'), 'PLOINKY_AGENT_API_KEY must not be staged');
         assert.ok(!serialized.includes('test-token'), 'invocation token must not be passed to the inner sandbox');
         await assert.rejects(
             fetch(`${config.api_base}/chat/completions`, {
@@ -526,7 +527,7 @@ test('open_interpreter_run_task does not call the router for sandbox execution',
             OI_RUNTIME_AUTO_PREPARE: 'false',
             OI_LOCAL_RUNNER_BIN: '/nonexistent/path/to/bwrap-sandbox-exec',
             PLOINKY_ROUTER_URL: `http://127.0.0.1:${port}`,
-            SOUL_GATEWAY_API_KEY: '',
+            PLOINKY_AGENT_API_KEY: '',
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
         const payload = JSON.parse(child.stdout || '{}');
@@ -651,14 +652,18 @@ test('openInterpreterAgent manifest requests privileged container security and u
     assert.deepEqual(manifest.readiness, { protocol: 'mcp' });
     assert.equal(manifest.health.readiness.script, 'healthcheck.sh');
     assert.equal(manifest.profiles.default.env.OI_RUNTIME_ROOT, '/data/research-runtimes');
-    assert.ok(manifest.env.includes('SOUL_GATEWAY_API_KEY'),
-        'manifest env must expose SOUL_GATEWAY_API_KEY for Achilles Soul Gateway autoconfig');
+    assert.ok(!manifest.env.includes(REMOVED_AGENT_KEY_ALIAS),
+        'manifest env must not declare the removed Soul Gateway API-key alias');
+    assert.ok(!manifest.env.includes('PLOINKY_AGENT_API_KEY'),
+        'manifest env must not declare the reserved injected PLOINKY_AGENT_API_KEY');
     assert.ok(manifest.env.includes('OPEN_INTERPRETER_CONTEXT_WINDOW'),
         'manifest env should allow optional local Open Interpreter context window overrides');
     assert.ok(manifest.env.includes('OPEN_INTERPRETER_MAX_TOKENS'),
         'manifest env should allow optional local Open Interpreter max token overrides');
-    assert.deepEqual(manifest.profiles.default.env.SOUL_GATEWAY_API_KEY, { name: 'SOUL_GATEWAY_API_KEY' },
-        'default profile env must forward SOUL_GATEWAY_API_KEY when Ploinky resolves it from host env, .secrets, or .env');
+    assert.equal(Object.hasOwn(manifest.profiles.default.env, REMOVED_AGENT_KEY_ALIAS), false,
+        'default profile env must not forward the removed Soul Gateway API-key alias');
+    assert.equal(Object.hasOwn(manifest.profiles.default.env, 'PLOINKY_AGENT_API_KEY'), false,
+        'default profile env must not forward the reserved injected PLOINKY_AGENT_API_KEY');
     assert.ok(!manifest.env.includes('SOUL_GATEWAY_BASE_URL'),
         'manifest env must not require SOUL_GATEWAY_BASE_URL for the normal path');
     assert.ok(!manifest.env.includes('RESEARCH_BWRAP_AGENT'),

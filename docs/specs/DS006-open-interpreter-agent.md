@@ -63,7 +63,7 @@ The agent must own:
   explicit `OPEN_INTERPRETER_MODEL`, `OPEN_INTERPRETER_API_BASE`, and
   `OPEN_INTERPRETER_LOCAL` overrides for local development; otherwise it must
   autoconfigure from AchillesAgentLib's `research` model default and
-  `soul_gateway` provider when `SOUL_GATEWAY_API_KEY` is present. If neither
+  `soul_gateway` provider when `PLOINKY_AGENT_API_KEY` is present. If neither
   path is available, it must return immediate natural-language configuration
   guidance before invoking the sandbox runner. The staged Open Interpreter
   config must include explicit `context_window` and `max_tokens` values when
@@ -81,7 +81,7 @@ remain generic. The inner sandbox should see Open Interpreter through the
 provider-selected `/runtime` bind or through the provider image's documented
 runtime layer, never through a central runner agent.
 
-The normal hosted-provider path must require only `SOUL_GATEWAY_API_KEY`.
+The normal hosted-provider path must require only `PLOINKY_AGENT_API_KEY`.
 Soul Gateway's URL and the research model alias must come from
 AchillesAgentLib configuration; the current Achilles default maps
 `research` to `soul_gateway/deep`. `SOUL_GATEWAY_BASE_URL` is not part of the
@@ -105,7 +105,7 @@ Gateway autoconfiguration, the provider must start a short-lived
 OpenAI-compatible local broker outside the inner bwrap sandbox. The staged
 Open Interpreter config may contain the broker's loopback `/v1` API base,
 the Open Interpreter-compatible model name, and a dummy broker token, but it
-must not contain `SOUL_GATEWAY_API_KEY` or the upstream provider bearer token.
+must not contain `PLOINKY_AGENT_API_KEY` or the upstream provider bearer token.
 The broker must inject the raw Soul Gateway key only in the outer provider
 process, support only the minimum chat-completions route needed by Open
 Interpreter, enforce size and timeout limits, avoid logging prompt bodies or
@@ -243,10 +243,18 @@ copilotProviderRelay, or Soul Gateway-specific execution.
 Response:
 Open Interpreter speaks to an OpenAI-compatible `/v1` API base and may require
 an API key value in its runtime configuration. Passing the raw
-`SOUL_GATEWAY_API_KEY` into the inner bwrap sandbox would violate the provider
+`PLOINKY_AGENT_API_KEY` into the inner bwrap sandbox would violate the provider
 credential boundary. A short-lived broker lets the sandbox hold only a dummy
 token and a loopback URL while the outer provider process injects the real
 Soul Gateway bearer token when forwarding the chat-completions request.
+
+### Question #12: Why use `PLOINKY_AGENT_API_KEY` for hosted provider credentials?
+
+Response:
+On 2026-06-24, router-issued signed-subject credentials were standardized on
+the agent-owned `PLOINKY_AGENT_API_KEY` name. The `soul_gateway` provider
+identifier and Soul Gateway URL configuration remain provider topology, while
+the credential name is owned by the Ploinky agent identity contract.
 
 ## Conclusion
 

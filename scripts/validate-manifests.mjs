@@ -15,6 +15,7 @@ const AGENT_DIRS = [
     'piAgent',
     'webSearchAgent',
     'browserUseAgent',
+    'GPTResearcher',
     'opencodeAgent',
     'codexAgent',
 ];

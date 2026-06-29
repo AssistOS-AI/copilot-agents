@@ -1,0 +1,46 @@
+<div class="gpt-researcher-modal">
+    <div class="modal-header">
+        <div class="modal-title">GPT Researcher Settings</div>
+        <div class="close" data-local-action="closeModal" aria-label="Close">
+            <img class="close-icon" src="./assets/icons/x-mark.svg" alt="close">
+        </div>
+    </div>
+
+    <div class="modal-body gpt-researcher-body">
+        <div class="gpt-researcher-grid">
+            <label class="form-item">
+                <span class="form-label">Search provider</span>
+                <select id="gptResearcherProvider" class="form-input">
+                    <option value="duckduckgo">DuckDuckGo</option>
+                    <option value="tavily">Tavily</option>
+                    <option value="serper">Serper</option>
+                    <option value="google">Google API</option>
+                    <option value="bing">Bing API</option>
+                    <option value="searxng">SearXNG</option>
+                </select>
+            </label>
+
+            <label class="form-item">
+                <span class="form-label">Max results</span>
+                <input id="gptResearcherMaxResults" class="form-input" type="number" min="1" max="20" step="1">
+            </label>
+
+            <label class="form-item" id="gptResearcherSearxngWrap">
+                <span class="form-label">SearXNG URL</span>
+                <input id="gptResearcherSearxngUrl" class="form-input" type="url" placeholder="https://searx.example.com" spellcheck="false">
+            </label>
+        </div>
+
+        <div id="gptResearcherProviderHint" class="gpt-researcher-hint"></div>
+        <div class="gpt-researcher-hint">
+            Settings are written through the agent MCP settings tool to <code>gpt-researcher-settings.json</code>.
+            OpenAI requests read that workspace file automatically.
+        </div>
+
+        <div class="gpt-researcher-actions">
+            <button type="button" class="general-button" data-local-action="saveSettings">Save</button>
+        </div>
+
+        <div id="gptResearcherStatus" class="gpt-researcher-status" role="status" aria-live="polite"></div>
+    </div>
+</div>

@@ -9,7 +9,8 @@
         "copilotProviderRelay global",
         "openInterpreterAgent global no-wait",
         "webSearchAgent global no-wait",
-        "browserUseAgent global no-wait"
+        "browserUseAgent global no-wait",
+        "GPTResearcher global no-wait"
     ],
     "profiles": {
         "default": {
@@ -17,7 +18,8 @@
                 "copilotProviderRelay global",
                 "openInterpreterAgent global no-wait",
                 "webSearchAgent global no-wait",
-                "browserUseAgent global no-wait"
+                "browserUseAgent global no-wait",
+                "GPTResearcher global no-wait"
             ]
         },
         "dev": {
@@ -25,7 +27,8 @@
                 "copilotProviderRelay global",
                 "openInterpreterAgent global no-wait",
                 "webSearchAgent global no-wait",
-                "browserUseAgent global no-wait"
+                "browserUseAgent global no-wait",
+                "GPTResearcher global no-wait"
             ]
         },
         "qa": {
@@ -33,7 +36,8 @@
                 "copilotProviderRelay global",
                 "openInterpreterAgent global no-wait",
                 "webSearchAgent global no-wait",
-                "browserUseAgent global no-wait"
+                "browserUseAgent global no-wait",
+                "GPTResearcher global no-wait"
             ]
         },
         "prod": {
@@ -41,7 +45,8 @@
                 "copilotProviderRelay global",
                 "openInterpreterAgent global no-wait",
                 "webSearchAgent global no-wait",
-                "browserUseAgent global no-wait"
+                "browserUseAgent global no-wait",
+                "GPTResearcher global no-wait"
             ]
         }
     }

@@ -1,0 +1,32 @@
+{
+  "tools": [
+    {
+      "name": "gpt_researcher_update_settings",
+      "title": "Update GPTResearcher Settings",
+      "description": "Write GPTResearcher non-secret search settings into the current workspace.",
+      "command": "node",
+      "args": ["scripts/update-settings.mjs"],
+      "cwd": "/code",
+      "timeoutMs": 30000,
+      "inputSchema": {
+        "provider": {
+          "type": "string",
+          "optional": true,
+          "enum": ["duckduckgo", "tavily", "serper", "google", "bing", "searxng"]
+        },
+        "maxResults": {
+          "type": "number",
+          "optional": true,
+          "min": 1,
+          "max": 20
+        },
+        "searxngUrl": {
+          "type": "string",
+          "optional": true,
+          "maxLength": 2000
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

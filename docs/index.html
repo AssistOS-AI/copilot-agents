@@ -47,8 +47,9 @@ ploinky enable repo copilot-agents
 ploinky enable agent copilot-agents/research-agents global
 ploinky start explorer 8080</pre>
     <p>
-        The bundle enables <code>copilotProviderRelay</code>, <code>openInterpreterAgent</code>, and
-        <code>webSearchAgent</code>. Backend availability is controlled by provider agents, not by
+        The bundle enables <code>copilotProviderRelay</code>, <code>openInterpreterAgent</code>,
+        <code>webSearchAgent</code>, <code>browserUseAgent</code>, and <code>GPTResearcher</code>.
+        Backend availability is controlled by provider agents, not by
         direct backend chat agents, a separate bwrap-runner agent, or relay-owned command strings.
         <code>webSearchAgent</code> owns its local headless browser runtime and does not depend on
         an external search gateway.
@@ -61,6 +62,7 @@ ploinky start explorer 8080</pre>
         <li><code>openInterpreterAgent</code> - Open Interpreter provider agent</li>
         <li><code>webSearchAgent</code> - cacheable web-search provider with a local headless browser runtime</li>
         <li><code>browserUseAgent</code> - interactive browser provider with protected viewer for ChatGPT/Gemini login and OAuth flows</li>
+        <li><code>GPTResearcher</code> - OpenAI-compatible research document agent using the bundled AgentServer chat-completions hook</li>
         <li><code>codexAgent</code> - direct Codex CLI wrapper without MCP tools or HTTP routes</li>
         <li><code>launch-open-interpreter</code> - deterministic AchillesCLI launcher for execution tasks</li>
         <li><code>launch-web-search</code> - deterministic AchillesCLI launcher for cacheable web search</li>
@@ -99,6 +101,7 @@ ploinky start explorer 8080</pre>
         <li><a href="specsLoader.html?spec=DS012-semantic-copilot-routing.md">DS012 - Semantic Copilot Routing and Launcher Skills</a></li>
         <li><a href="specsLoader.html?spec=DS013-headless-search-agent.md">DS013 - Web Search Provider Agent</a></li>
         <li><a href="specsLoader.html?spec=DS014-browser-use-agent.md">DS014 - Browser Use Provider Agent</a></li>
+        <li><a href="specsLoader.html?spec=DS015-gpt-researcher-agent.md">DS015 - GPTResearcher Agent</a></li>
     </ul>
 
 </body>

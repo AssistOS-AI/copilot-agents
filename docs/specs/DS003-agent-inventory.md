@@ -27,7 +27,14 @@ The repository must contain these Ploinky agents:
 5. `browserUseAgent`: the Browser Use provider agent that controls interactive
    Chromium sessions for logged-in web application tasks and exposes a
    protected viewer URL for login, OAuth, 2FA, and CAPTCHA flows.
-6. `opencodeAgent`: the internal OpenCode task runner agent. Its
+6. `GPTResearcher`: the OpenAI-compatible research document agent. It declares
+   `endpoints.chatCompletions` for the bundled Ploinky AgentServer, reads
+   useful workspace context, uses a configurable web-search provider, writes
+   generated documents into the mounted project folder, and exposes an IDE
+   settings plugin for provider selection. Its only MCP tool writes
+   `.gpt-researcher/settings.json`; it does not expose research execution as
+   MCP and does not run a custom HTTP server.
+7. `opencodeAgent`: the internal OpenCode task runner agent. Its
    `execute-task` MCP tool accepts `{ prompt, projectDir, model }`, creates the
    `.opencode/skills` symlink in the effective project directory, and runs
    OpenCode with explicit `--dir`, the caller-selected model, and permission
@@ -52,7 +59,7 @@ The repository must contain these Ploinky agents:
    tree, fetches every `siteMap` URL for document KUs, preserves profile text
    as document material, and writes root aggregate AKU indexes including
    `search-index.jsonl`, `search-stats.json`, and `index-meta.json`.
-7. `piAgent`: the internal Pi task runner agent. Its `execute-task` MCP tool
+8. `piAgent`: the internal Pi task runner agent. Its `execute-task` MCP tool
    accepts `{ prompt, projectDir, model }`, runs the `pi` CLI in the supplied
    project directory, streams prefixed stdout and stderr to container logs, and
    returns a bounded JSON result. The agent installs Pi non-interactively by
@@ -60,7 +67,7 @@ The repository must contain these Ploinky agents:
    `@earendil-works/pi-coding-agent` npm package under `/root/.local`, using a
    standalone Node.js/npm fallback when the container's bundled npm is not
    usable.
-8. `codexAgent`: the direct Codex CLI wrapper agent. Its manifest installs the
+9. `codexAgent`: the direct Codex CLI wrapper agent. Its manifest installs the
    official `@openai/codex` npm package through a non-interactive installer
    script that invokes npm through `/usr/local/lib/node_modules/npm/bin/npm-cli.js`
    and declares `/usr/local/bin/codex` as the Ploinky `cli` command. The agent
@@ -89,8 +96,9 @@ to a sandbox runner.
 
 Only the `research-agents` bundle may auto-enable the relay. The default,
 `dev`, `qa`, and `prod` bundle profiles must enable `copilotProviderRelay`,
-`openInterpreterAgent`, `webSearchAgent`, and `browserUseAgent`; they must not
-enable `basic/bwrap-runner` or direct backend chat agents by default.
+`openInterpreterAgent`, `webSearchAgent`, `browserUseAgent`, and
+`GPTResearcher`; they must not enable `basic/bwrap-runner` or direct backend
+chat agents by default.
 
 ## Decisions & Questions
 
@@ -130,8 +138,7 @@ and sandbox execution.
 ## Conclusion
 
 The repository inventory consists of one deployment bundle, one semantic relay
-(the **Copilot Provider Relay**, under the `copilotProviderRelay` agent id), the
-Open Interpreter provider agent that owns its runtime and local sandbox
-execution, and the Web Search provider agent that owns local browser search
-execution. Additional backend ids require provider agents before they enter the
-active catalog.
+(the **Copilot Provider Relay**, under the `copilotProviderRelay` agent id),
+provider agents for Open Interpreter, Web Search, and Browser Use, and the
+direct OpenAI-compatible `GPTResearcher` document agent. Additional backend ids
+require provider agents before they enter the active catalog.

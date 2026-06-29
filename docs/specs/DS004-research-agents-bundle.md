@@ -31,10 +31,11 @@ The default bundle profile should enable:
 - `openInterpreterAgent global no-wait`
 - `webSearchAgent global no-wait`
 - `browserUseAgent global no-wait`
+- `GPTResearcher global no-wait`
 
 Current Ploinky only selects the global profile names `default`, `dev`, `qa`, and `prod`. The bundle must therefore use those names until Ploinky supports bundle-local profile selectors. The supported bundle profile mapping is:
 
-- `default`: `copilotProviderRelay global`, `openInterpreterAgent global no-wait`, `webSearchAgent global no-wait`, and `browserUseAgent global no-wait`
+- `default`: `copilotProviderRelay global`, `openInterpreterAgent global no-wait`, `webSearchAgent global no-wait`, `browserUseAgent global no-wait`, and `GPTResearcher global no-wait`
 - `dev`: same as `default`
 - `qa`: same as `default`
 - `prod`: same as `default`
@@ -82,5 +83,7 @@ use the shared sandbox image locally.
 
 The `research-agents` bundle is the only deployment path for this repository's
 provider relay suite and must enable `copilotProviderRelay` plus provider agents
-such as `openInterpreterAgent` and `webSearchAgent` without exposing direct
-backend chat agents or enabling a separate `basic/bwrap-runner` agent.
+such as `openInterpreterAgent`, `webSearchAgent`, and `browserUseAgent`, plus
+the direct OpenAI-compatible `GPTResearcher` document agent, without exposing
+unsupported direct backend chat agents or enabling a separate `basic/bwrap-runner`
+agent.

@@ -180,8 +180,9 @@ function validatePluginConfigs(agentDir) {
         if (typeof config.id !== 'string' || !PLUGIN_ID_PATTERN.test(config.id)) {
             fail(configPath, `plugin id must match ${PLUGIN_ID_PATTERN}; got "${config.id}"`);
         }
-        if (!Array.isArray(config.location) || config.location.length === 0) {
-            fail(configPath, 'location must be a non-empty array');
+        const hasSettingsComponent = typeof config.settings === 'string' && config.settings.trim();
+        if (!Array.isArray(config.location) || (config.location.length === 0 && !hasSettingsComponent)) {
+            fail(configPath, 'location must be a non-empty array unless the plugin declares settings');
         } else {
             for (const slot of config.location) {
                 if (typeof slot !== 'string' || !slot.startsWith('file-exp:')) {

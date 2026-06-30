@@ -94,9 +94,10 @@ test('GPTResearcher start_research is registered as an async MCP tool', async ()
     const tool = config.tools.find((entry) => entry.name === 'start_research');
 
     assert.equal(tool?.async, true);
-    assert.equal(tool?.command, '/usr/bin/python3');
+    assert.equal(tool?.command, '/opt/gpt-researcher-venv/bin/python');
     assert.deepEqual(tool?.args, ['/code/scripts/start-research.py']);
     assert.equal(tool?.timeoutMs, 600000);
+    assert.deepEqual(tool?.tags, ['internal']);
     assert.equal(tool?.inputSchema?.query?.optional, false);
     assert.equal(tool?.inputSchema?.reportType?.optional, true);
 });
@@ -104,7 +105,8 @@ test('GPTResearcher start_research is registered as an async MCP tool', async ()
 test('install script uses pip for the Python package', async () => {
     const source = await fs.readFile(path.join(AGENT_ROOT, 'scripts', 'install-gpt-researcher.sh'), 'utf8');
 
-    assert.match(source, /python3 -m pip install --no-cache-dir gpt-researcher/);
+    assert.match(source, /python3 -m venv "\$VENV_DIR"/);
+    assert.match(source, /"\$VENV_DIR\/bin\/python" -m pip install --no-cache-dir gpt-researcher/);
     assert.match(source, /gpt-researcher/);
     assert.doesNotMatch(source, /npm/);
 });

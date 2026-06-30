@@ -4,11 +4,12 @@
             "name": "start_research",
             "title": "Start GPTResearcher Research",
             "description": "Runs a GPT Researcher Python research task and returns the report, sources, costs, and collected context.",
-            "command": "/usr/bin/python3",
+            "command": "/opt/gpt-researcher-venv/bin/python",
             "args": ["/code/scripts/start-research.py"],
             "cwd": "/code",
             "async": true,
             "timeoutMs": 600000,
+            "tags": ["internal"],
             "inputSchema": {
                 "query": {
                     "type": "string",

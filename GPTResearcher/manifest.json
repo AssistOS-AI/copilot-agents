@@ -1,58 +1,17 @@
 {
-  "container": "node:24.15.0-bookworm-slim",
-  "lite-sandbox": true,
-  "about": "GPTResearcher provider agent. Accepts OpenAI-compatible chat completion requests through the bundled Ploinky AgentServer, reads the mounted project folder, optionally searches the web through a configurable provider, and writes requested research documents back into the same folder.",
-  "readiness": {
-    "protocol": "mcp"
-  },
-  "env": [
-    "PLOINKY_WORKSPACE_ROOT",
-    "PLOINKY_PROJECT_DIR",
-    "PLOINKY_ROUTER_URL",
-    "TAVILY_API_KEY",
-    "SERPER_API_KEY",
-    "GOOGLE_API_KEY",
-    "GOOGLE_CSE_ID",
-    "BING_API_KEY"
-  ],
-  "profiles": {
-    "default": {
-      "env": {}
-    }
-  },
-  "routerAccess": {
-    "httpRoutes": [
-      {
-        "path": "/IDE-plugins/gpt-researcher-settings/*",
-        "access": "guest"
-      },
-      {
-        "path": "/v1/chat/completions",
-        "access": "authenticated"
-      }
-    ]
-  },
-  "ideSettings": [
-    {
-      "key": "gpt-researcher",
-      "label": "GPT Researcher",
-      "scope": "workspace",
-      "pluginKey": "GPTResearcher/gpt-researcher-settings",
-      "settingsComponent": "gpt-researcher-settings-modal",
-      "adminOnly": false
-    }
-  ],
-  "endpoints": {
-    "agent-card": {
-      "name": "GPTResearcher",
-      "description": "Creates research documents from local workspace context and configurable web search.",
-      "tags": ["research", "documents", "web-search"]
+    "container": "docker.io/assistos/bwrap-runner:node24-python-bookworm",
+    "lite-sandbox": true,
+    "about": "GPTResearcher agent. Runs GPT Researcher through the Python package and exposes research through a Ploinky MCP tool.",
+    "readiness": {
+        "protocol": "mcp"
     },
-    "chatCompletions": {
-      "command": "node",
-      "args": ["scripts/chat-completions.mjs"],
-      "supportsStream": false,
-      "model": "gpt-researcher"
-    }
-  }
+    "profiles": {
+        "default": {
+            "install": "sh /code/scripts/install-gpt-researcher.sh"
+        }
+    },
+    "env": [
+        "OPENAI_API_KEY",
+        "TAVILY_API_KEY"
+    ]
 }

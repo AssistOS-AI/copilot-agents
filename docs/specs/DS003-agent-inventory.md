@@ -39,8 +39,8 @@ The repository must contain these Ploinky agents:
    `.opencode/skills` symlink in the effective project directory, and runs
    OpenCode with explicit `--dir`, the caller-selected model, and permission
    auto-approval because the tool is internal. The agent mounts
-   `.ploinky/agents/webAssist/data` at `/webAssist-data` and remaps caller
-   workspace paths under `$PLOINKY_WORKSPACE_ROOT/.ploinky/agents/webAssist/data`
+   `.data/webAssist/data` at `/webAssist-data` and remaps caller
+   workspace paths under `$PLOINKY_WORKSPACE_ROOT/.data/webAssist/data`
    into that mounted root. Callers own task-specific prompt construction and
    artifact location instructions. The tool streams OpenCode stdout and stderr
    to the `opencodeAgent` container logs with clear prefixes and is registered

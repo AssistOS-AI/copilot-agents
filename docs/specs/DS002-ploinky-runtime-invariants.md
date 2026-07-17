@@ -48,7 +48,7 @@ agent. Server-side relay calls must use router-mediated MCP with invocation
 tokens; they must not derive MCP targets from public client `Host` headers or
 forward browser `Authorization` headers.
 
-Durable data must live under `.ploinky/data/<agent>`. Generated runtime inputs must live under `.ploinky/agents/<agent>`. Manifest volumes must use Ploinky's object-map shape, where each key is a host path under `.ploinky/` and each value is an absolute container path. Agent code must not persist secrets, prompts, manuscripts with hidden metadata, or raw tool payloads into plugin assets, static documentation, screenshots, logs, or transcripts.
+Durable data must live under `.ploinky/data/<agent>`. Generated runtime inputs must live under `.data/<agent>`. Manifest volumes must use Ploinky's object-map shape, where each key is a host path under `.ploinky/` and each value is an absolute container path. Agent code must not persist secrets, prompts, manuscripts with hidden metadata, or raw tool payloads into plugin assets, static documentation, screenshots, logs, or transcripts.
 
 Bundle profile names must be selectable by the current Ploinky profile system. Until Ploinky supports bundle-local named profiles, this repository may use only `default`, `dev`, `qa`, and `prod` profile keys in manifests. Custom profile names such as `openhands` or `full-research` must remain documentation-only future work until Ploinky can select them.
 

@@ -163,7 +163,7 @@ test('normalizeProviderResult preserves waiting_for_user state from browser-use'
         session_reused: true,
         jobId: 'job_abc123',
         sessionId: 'sess_def456',
-        viewerUrl: '/services/browser-use/sessions/sess_def456',
+        viewerUrl: '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_def456',
         final_answer: '',
     };
     const task = {
@@ -177,7 +177,7 @@ test('normalizeProviderResult preserves waiting_for_user state from browser-use'
     assert.equal(normalized.session_reused, true);
     assert.equal(normalized.interactive, true);
     assert.equal(normalized.sessionId, 'sess_def456');
-    assert.equal(normalized.viewerUrl, '/services/browser-use/sessions/sess_def456');
+    assert.equal(normalized.viewerUrl, '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_def456');
     assert.equal(normalized.jobId, 'job_abc123');
     assert.equal(normalized.ok, true);
     assert.match(normalized.final_answer, /did not return a natural-language response/);

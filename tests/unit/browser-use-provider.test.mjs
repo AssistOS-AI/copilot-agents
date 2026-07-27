@@ -73,14 +73,14 @@ test('normalizeProviderResult preserves interactive metadata from provider', () 
         session_reused: true,
         jobId: 'job_test123',
         sessionId: 'sess_test456',
-        viewerUrl: '/services/browser-use/sessions/sess_test456',
+        viewerUrl: '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_test456',
         final_answer: '',
     };
     const result = normalizeProviderResult(providerPayload, task);
     assert.equal(result.state, 'waiting_for_user');
     assert.equal(result.requires_user_action, true);
     assert.equal(result.sessionId, 'sess_test456');
-    assert.equal(result.viewerUrl, '/services/browser-use/sessions/sess_test456');
+    assert.equal(result.viewerUrl, '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_test456');
     assert.equal(result.jobId, 'job_test123');
     assert.equal(result.interactive, true);
     assert.equal(result.session_reused, true);
@@ -127,12 +127,11 @@ test('browserUseAgent manifest is valid JSON with required fields', () => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     assert.equal(manifest.container, 'node:24.15.0-bookworm');
     assert.equal(manifest['lite-sandbox'], true);
-    assert.ok(Array.isArray(manifest.httpServices));
-    assert.equal(manifest.httpServices.length, 1);
-    assert.equal(manifest.httpServices[0].slug, 'browser-use');
-    assert.equal(manifest.httpServices[0].access, 'authenticated');
-    assert.equal(manifest.httpServices[0].externalPrefix, '/services/browser-use/');
-    assert.equal(manifest.httpServices[0].internalPrefix, '/browser-use/');
+    assert.equal(Object.prototype.hasOwnProperty.call(manifest, 'httpServices'), false);
+    assert.deepEqual(manifest.routerAccess.httpRoutes, [{
+        path: '/base-agent-additional-server/browserUseAgent/7000/browser-use/*',
+        access: 'authenticated',
+    }]);
     assert.ok(manifest.volumes);
     assert.equal(manifest.volumes['.ploinky/data/browserUseAgent'], '/data');
     assert.equal(manifest.profiles.default.env.BROWSER_USE_SERVICE_PORT, '7000');
@@ -176,7 +175,7 @@ test('browserUseAgent resolves user identity from secure-wire invocation metadat
     }), 'local:alice');
 });
 
-test('browserUseAgent resolves user identity from protected HTTP service auth info', () => {
+test('browserUseAgent resolves user identity from protected HTTP route auth info', () => {
     assert.equal(getUserId({
         metadata: {
             authInfo: {

@@ -71,7 +71,7 @@ The repository must contain these Ploinky agents:
    official `@openai/codex` npm package through a non-interactive installer
    script that invokes npm through `/usr/local/lib/node_modules/npm/bin/npm-cli.js`
    and declares `/usr/local/bin/codex` as the Ploinky `cli` command. The agent
-   has no `mcp-config.json`, MCP tools, HTTP services, or router route access
+   has no `mcp-config.json`, MCP tools, additional HTTP server, or Router access
    entries; it exists only so Ploinky can open Codex in the current workspace
    directory through the CLI attachment flow.
 

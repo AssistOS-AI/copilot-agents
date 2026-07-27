@@ -140,7 +140,7 @@ test('successful submit with waiting_for_user returns viewer URL', async () => {
                 requires_user_action: true,
                 jobId: 'job_abc123',
                 sessionId: 'sess_def456',
-                viewerUrl: '/services/browser-use/sessions/sess_def456',
+                viewerUrl: '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_def456',
                 final_answer: '',
             });
         },
@@ -150,11 +150,11 @@ test('successful submit with waiting_for_user returns viewer URL', async () => {
     assert.equal(result.cacheable, false);
     assert.equal(result.backend, 'browser-use');
     assert.match(result.result_text, /log in first/);
-    assert.match(result.result_text, /http:\/\/localhost:8080\/services\/browser-use\/sessions\/sess_def456/);
+    assert.match(result.result_text, /http:\/\/localhost:8080\/base-agent-additional-server\/browserUseAgent\/7000\/browser-use\/sessions\/sess_def456/);
     assert.equal(result.diagnostics.requires_user_action, true);
     assert.equal(result.diagnostics.interactive, true);
-    assert.equal(result.diagnostics.viewerUrl, '/services/browser-use/sessions/sess_def456');
-    assert.equal(result.diagnostics.viewerFullUrl, 'http://localhost:8080/services/browser-use/sessions/sess_def456');
+    assert.equal(result.diagnostics.viewerUrl, '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_def456');
+    assert.equal(result.diagnostics.viewerFullUrl, 'http://localhost:8080/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_def456');
     assert.equal(result.diagnostics.jobId, 'job_abc123');
     assert.equal(result.persistence_hint.ku_type, 'agent.result.browser-use');
     assert.equal(result.persistence_hint.record_result, false);
@@ -196,14 +196,14 @@ test('waiting_for_user viewer URL uses public webchat origin when supplied', asy
                 state: 'waiting_for_user',
                 requires_user_action: true,
                 sessionId: 'sess_public',
-                viewerUrl: '/services/browser-use/sessions/sess_public',
+                viewerUrl: '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_public',
             });
         },
     });
 
     assert.equal(result.ok, true);
-    assert.match(result.result_text, /https:\/\/workspace\.example\.test\/services\/browser-use\/sessions\/sess_public/);
-    assert.equal(result.diagnostics.viewerFullUrl, 'https://workspace.example.test/services/browser-use/sessions/sess_public');
+    assert.match(result.result_text, /https:\/\/workspace\.example\.test\/base-agent-additional-server\/browserUseAgent\/7000\/browser-use\/sessions\/sess_public/);
+    assert.equal(result.diagnostics.viewerFullUrl, 'https://workspace.example.test/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_public');
 });
 
 test('reused browser-use sessions return the existing viewer URL without generic backend fallback', async () => {
@@ -227,7 +227,7 @@ test('reused browser-use sessions return the existing viewer URL without generic
                 requires_user_action: true,
                 session_reused: true,
                 sessionId: 'sess_reused',
-                viewerUrl: '/services/browser-use/sessions/sess_reused',
+                viewerUrl: '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_reused',
                 final_answer: '',
             });
         },
@@ -236,7 +236,7 @@ test('reused browser-use sessions return the existing viewer URL without generic
     assert.equal(result.ok, true);
     assert.match(result.result_text, /already open/);
     assert.doesNotMatch(result.result_text, /did not return a natural-language response/);
-    assert.match(result.result_text, /http:\/\/localhost:8080\/services\/browser-use\/sessions\/sess_reused/);
+    assert.match(result.result_text, /http:\/\/localhost:8080\/base-agent-additional-server\/browserUseAgent\/7000\/browser-use\/sessions\/sess_reused/);
     assert.equal(result.diagnostics.session_reused, true);
 });
 
@@ -420,7 +420,7 @@ test('launcher preserves origin.publicBaseUrl precedence from webchat', async ()
                 state: 'waiting_for_user',
                 requires_user_action: true,
                 sessionId: 'sess_origin',
-                viewerUrl: '/services/browser-use/sessions/sess_origin',
+                viewerUrl: '/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/sess_origin',
             });
         },
     });

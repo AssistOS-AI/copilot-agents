@@ -17,15 +17,14 @@
         "BROWSER_EXECUTABLE_PATH",
         "BROWSER_HEADLESS_MODE"
     ],
-    "httpServices": [
-        {
-            "slug": "browser-use",
-            "externalPrefix": "/services/browser-use/",
-            "internalPrefix": "/browser-use/",
-            "access": "authenticated",
-            "notFoundMessage": "Browser-use route not found."
-        }
-    ],
+    "routerAccess": {
+        "httpRoutes": [
+            {
+                "path": "/base-agent-additional-server/browserUseAgent/7000/browser-use/*",
+                "access": "authenticated"
+            }
+        ]
+    },
     "profiles": {
         "default": {
             "install": "sh /code/scripts/install.sh",

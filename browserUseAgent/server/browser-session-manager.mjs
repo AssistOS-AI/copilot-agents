@@ -116,7 +116,7 @@ export class BrowserSessionManager {
             ownerUserId: safeUserId(userId),
             provider: safeProvider(provider),
             state: 'starting',
-            viewerUrl: `/services/browser-use/sessions/${sessionId}`,
+            viewerUrl: `/base-agent-additional-server/browserUseAgent/7000/browser-use/sessions/${sessionId}`,
             pageUrl: '',
             prompt: options.prompt || '',
             timeoutMs: normalizeTaskTimeout(options.timeoutMs),

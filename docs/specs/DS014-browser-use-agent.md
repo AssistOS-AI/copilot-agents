@@ -38,18 +38,22 @@ The agent exposes these MCP tools:
 - `browser_use_continue_task`: resumes a task after user login.
 - `browser_use_close_session`: closes one session or clears a provider profile.
 
-The agent must declare a protected HTTP service in its manifest:
+The agent must declare a protected convention path in its manifest:
 
 ```json
 {
-  "slug": "browser-use",
-  "externalPrefix": "/services/browser-use/",
-  "internalPrefix": "/browser-use/",
-  "access": "authenticated"
+  "routerAccess": {
+    "httpRoutes": [
+      {
+        "path": "/base-agent-additional-server/browserUseAgent/7000/browser-use/*",
+        "access": "authenticated"
+      }
+    ]
+  }
 }
 ```
 
-The viewer is served behind this protected service path. Users access the
+The viewer is served behind this protected route. Users access the
 viewer through the Ploinky router, which enforces authentication before
 proxying to the agent.
 
@@ -57,7 +61,7 @@ The agent process must expose both MCP and browser viewer routes on the
 registered Ploinky agent port. The implementation runs a small front server on
 the public agent port, serves `/browser-use/*` directly, and proxies `/mcp`,
 `/health`, and `/getTaskStatus` to an internal AgentServer port. This keeps the
-manifest-declared HTTP service reachable without adding browser-use-specific
+manifest-declared policy path reachable without adding browser-use-specific
 paths to Ploinky core.
 
 The agent owns an agent-local provider adapter registry. Provider-specific
@@ -163,20 +167,17 @@ permit first-time sign-in through a Playwright-controlled browser.
 ### Question #1: Why does the agent front MCP and browser routes on one port?
 
 Response:
-Ploinky `httpServices` forward to the enabled agent's registered host port. If
-the viewer listens only on a second unregistered local port, protected viewer
-URLs reach AgentServer instead of the viewer. Fronting `/mcp` and
-`/browser-use/*` on the same registered port preserves the current Ploinky
-service contract without router changes.
+The convention selects the enabled agent and port `7000`. Fronting `/mcp` and
+`/browser-use/*` on that port preserves one process boundary while the Router
+relays the protected viewer path to loopback inside the agent container.
 
 ### Question #2: Why use HTTP SSE instead of noVNC for the viewer?
 
 Response:
-The current Ploinky HTTP service proxy does not support generic WebSocket
-upgrades for manifest-declared services. The HTTP-based viewer (SSE for
-screenshots, POST for input) works within the existing proxy model. A noVNC
-viewer can be added when Ploinky gains generic WebSocket proxying for HTTP
-services.
+The HTTP-based viewer keeps its current SSE-for-screenshots and POST-for-input
+contract. The recovered convention relay supports HTTP, SSE, and WebSocket
+transport, so a future noVNC design would be an agent-level product decision
+rather than a Router transport limitation.
 
 ### Question #3: Why persist browser profiles per user and provider?
 
@@ -211,7 +212,7 @@ that infrastructure and force the relay to maintain per-provider backend ids.
 Explorer IDE-plugins are UI and host-slot oriented; browser automation logic
 belongs where the browser session is owned. Agent-local provider adapters keep
 the extension point inside `browserUseAgent` while preserving one relay
-backend (`browser-use`), one protected HTTP service, and one profile isolation
+backend (`browser-use`), one protected HTTP route, and one profile isolation
 model.
 
 ## Conclusion

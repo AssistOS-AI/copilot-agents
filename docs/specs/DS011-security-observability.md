@@ -69,7 +69,7 @@ Debug screenshots, if ever added, must be opt-in and written under the
 agent data volume, not tracked source.
 
 Interactive browser providers must bind sessions to the verified authenticated
-user from secure-wire invocation metadata or protected HTTP service auth
+user from secure-wire invocation metadata or protected HTTP route auth
 headers. They must reject viewer access when the authenticated user id is
 missing or does not match the session owner, and must not use a shared
 `anonymous` profile for browser tasks that can hold cookies.

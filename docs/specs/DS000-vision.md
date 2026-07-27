@@ -16,7 +16,7 @@ summary: Defines the purpose, boundaries, and success criteria for the Ploinky r
 
 The repository must provide research-task infrastructure that is usable inside a Ploinky workspace without becoming a default AssistOSExplorer dependency. Runtime relay and provider containers are deployed explicitly through the `research-agents` bundle, while Copilot availability is determined by launcher skills discovered by the selected chat agent.
 
-The repository must treat Ploinky as the runtime and trust broker. Browser launches, MCP calls, delegated calls, status checks, and any HTTP services must flow through Ploinky routing and authentication. Direct agent ports must not become public or documented integration surfaces.
+The repository must treat Ploinky as the runtime and trust broker. Browser launches, MCP calls, delegated calls, status checks, and any convention-routed agent HTTP traffic must flow through Ploinky routing and authentication. Direct agent ports must not become public or documented integration surfaces.
 
 The repository must treat AssistOSExplorer as the host shell. Explorer may discover and mount `IDE-plugins` after the research bundle is enabled, but Explorer must not absorb research-agent domain logic.
 

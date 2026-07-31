@@ -138,7 +138,8 @@ The relay backend entry uses `id: "browser-use"` with
 include a `tags` field.
 
 The `launch-browser-use` deterministic cskill validates relay availability,
-probes the provider status, and dispatches through
+probes the provider status, and dispatches through Ploinky's verified
+`AgentMcpClient` to
 `copilotProviderRelay.copilot_provider_task_submit`. It returns the viewer URL
 and waiting instructions when login is required. Browser sessions may report a
 router-relative `viewerUrl`; user-facing launcher text must render it as a full
@@ -214,6 +215,14 @@ belongs where the browser session is owned. Agent-local provider adapters keep
 the extension point inside `browserUseAgent` while preserving one relay
 backend (`browser-use`), one protected HTTP route, and one profile isolation
 model.
+
+### Question #7: How are browser launcher Router calls separated from viewer URLs?
+
+Response:
+Status and relay tool calls use `AgentMcpClient`, which verifies the signed
+descriptor and presents its request authority before any credential reaches a
+socket. Public WebChat origin data is used only to render the user-facing
+viewer URL; it is never used as the credentialed MCP transport destination.
 
 ## Conclusion
 

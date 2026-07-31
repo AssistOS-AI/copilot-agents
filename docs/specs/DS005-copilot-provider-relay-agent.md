@@ -79,9 +79,15 @@ equivalent MCP session-aware helper. The plugin must not post raw JSON-RPC
 `tools/call` requests to `/mcps/<agent>/mcp`, because those calls bypass MCP
 initialization and fail Ploinky's session contract.
 
-Server-side execution must use delegated secure-wire calls. Relay tools must
-read the router-provided invocation token from tool metadata and forward it as
-`x-ploinky-caller-jwt` when calling provider agents.
+Server-side execution must use Ploinky's certified `AgentMcpClient`. The client
+must verify the runtime-owned signed Router descriptor before reading an agent
+secret, reading the delegated invocation token, or creating a socket. It
+connects to the descriptor's physical origin, presents its signed request
+authority, signs the agent assertion, and carries the router-provided
+invocation token from tool metadata as `x-ploinky-user-delegation`. Relay code
+must not construct `/mcps/<agent>/mcp` requests, read an ambient
+`PLOINKY_INVOCATION_JWT`, use native `fetch`, or synthesize a Router URL from
+unverified environment mirrors.
 
 The relay must materialize resources as staged content, not as host bind
 mounts. It may accept small inline text/base64 resources from WebChat, and may
@@ -135,6 +141,14 @@ Response:
 Backends need backend-specific runtime setup, package pins, shims, browser
 state, model configuration, and result normalization. Provider agents own those
 details. The relay owns only the generic task envelope and secure forwarding.
+
+### Question #5: Why use `AgentMcpClient` for relay-to-provider calls?
+
+Response:
+The platform client owns signed-descriptor verification, physical-origin and
+request-authority separation, agent assertions, and delegation-token framing.
+Keeping those responsibilities out of the relay prevents an unsigned Router
+mirror or native HTTP client from recreating the HTTP 421 authority defect.
 
 ## Conclusion
 

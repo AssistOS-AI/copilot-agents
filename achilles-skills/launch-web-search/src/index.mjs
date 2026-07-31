@@ -9,6 +9,7 @@ const DEFAULT_TIMEOUT_MS = 60000;
 const MAX_TASK_TIMEOUT_MS = 90000;
 const DEFAULT_TTL_SECONDS = 86400;
 const PROVIDER_TOKEN_RE = /(^|\s)@(?:web-search|search)(?=\s|$|[.,:;!?])/i;
+const AGENT_MCP_CLIENT_MODULE = '/Agent/client/AgentMcpClient.mjs';
 
 function trim(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -42,47 +43,32 @@ function normalizeTimeout(value) {
     return Math.max(1000, Math.min(MAX_TASK_TIMEOUT_MS, Math.floor(numeric)));
 }
 
-function resolveRouterUrl(env = process.env) {
-    const explicit = String(env.PLOINKY_ROUTER_URL || '').trim();
-    if (explicit) return explicit.replace(/\/+$/, '');
-    const host = String(env.PLOINKY_ROUTER_HOST || '127.0.0.1').trim() || '127.0.0.1';
-    const port = String(env.PLOINKY_ROUTER_PORT || '8080').trim() || '8080';
-    return `http://${host}:${port}`;
+async function loadAgentClientFactory() {
+    const module = await import(AGENT_MCP_CLIENT_MODULE);
+    if (typeof module.createAgentClient !== 'function') {
+        throw new Error('Ploinky AgentMcpClient does not export createAgentClient');
+    }
+    return module.createAgentClient;
 }
 
 export async function callAgentTool(agent, toolName, input = {}, options = {}) {
-    const base = resolveRouterUrl(options.env || process.env);
-    const url = new URL(`/mcps/${encodeURIComponent(agent)}/mcp`, base);
-    const headers = {
-        'content-type': 'application/json',
-        accept: 'application/json',
-    };
-    if (options.invocationToken) {
-        headers['x-ploinky-caller-jwt'] = options.invocationToken;
-    }
-    const controller = new AbortController();
-    const timeoutMs = Math.max(1000, Number(options.timeoutMs) || DEFAULT_TIMEOUT_MS);
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const createAgentClient = typeof options.createAgentClient === 'function'
+        ? options.createAgentClient
+        : await loadAgentClientFactory();
+    const client = await createAgentClient(agent);
+    const callOptions = {};
+    Object.defineProperty(callOptions, 'userDelegationToken', {
+        enumerable: true,
+        get: () => options.invocationToken || '',
+    });
+    Object.defineProperty(callOptions, 'timeoutMs', {
+        enumerable: true,
+        get: () => options.timeoutMs,
+    });
     try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: 'tools/call',
-                params: { name: toolName, arguments: input || {} },
-            }),
-            signal: controller.signal,
-        });
-        const text = await response.text();
-        const parsed = text ? JSON.parse(text) : {};
-        if (!response.ok || parsed?.error) {
-            throw new Error(parsed?.error?.message || `router responded ${response.status}`);
-        }
-        return parsed;
+        return { result: await client.callTool(toolName, input || {}, callOptions) };
     } finally {
-        clearTimeout(timer);
+        await client.close?.();
     }
 }
 
@@ -100,6 +86,11 @@ export function extractToolText(response) {
 }
 
 export function extractToolJson(response) {
+    const result = response && response.result ? response.result : response;
+    if (result && typeof result === 'object' && !Array.isArray(result)
+        && !Array.isArray(result.content) && typeof result.text !== 'string') {
+        return result;
+    }
     const text = extractToolText(response).trim();
     if (!text) return {};
     return JSON.parse(text);

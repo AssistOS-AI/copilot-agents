@@ -46,8 +46,10 @@ AchillesCLI must route non-slash Copilot WebChat turns through its
 `copilot-router` oskill. The router may call deterministic provider launcher
 cskills, such as `launch-open-interpreter`, when the prompt and context require
 execution. Launchers call `copilotProviderRelay.copilot_provider_task_submit` through
-router-mediated MCP with the current invocation token and return
-natural-language result text. Deprecated text such as `@open-interpreter list
+Ploinky's certified `AgentMcpClient`, after it verifies the runtime-owned signed
+Router descriptor. The current invocation token is carried as user delegation
+metadata; launcher code must not build direct `/mcps/` requests or use native
+`fetch`. Launchers return natural-language result text. Deprecated text such as `@open-interpreter list
 primes` is ordinary chat text and must not trigger provider dispatch.
 
 Provider availability for semantic Copilot routing is defined by launcher skill
@@ -70,7 +72,7 @@ than container-internal router hosts.
 The `launch-open-interpreter` cskill is the deterministic launcher for Open
 Interpreter execution. It is discoverable from AchillesCLI's built-in skill
 root, validates relay availability, performs a bounded provider status probe
-through router-mediated MCP, forwards only file path strings to the relay,
+through the same verified `AgentMcpClient`, forwards only file path strings to the relay,
 submits execution through `copilotProviderRelay.copilot_provider_task_submit`,
 and declares `cacheable: false`.
 
@@ -97,6 +99,14 @@ Response:
 Envelope forwarding is useful for attachment-aware chat surfaces. AchillesCLI
 must tolerate it for ordinary prompts, otherwise Copilot prompts would receive
 raw `__webchatMessage` JSON.
+
+### Question #3: Why must launchers reuse `AgentMcpClient`?
+
+Response:
+Launcher calls carry both an agent assertion and the current user's delegation
+grant. The platform client verifies the signed Router descriptor before either
+credential can reach a socket and presents the descriptor's request authority
+without retrying a different Host after HTTP 421.
 
 ## Conclusion
 

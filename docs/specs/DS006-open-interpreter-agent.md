@@ -51,9 +51,15 @@ The agent must own:
   fail with a natural-language repair message instead of deleting or replacing
   the directory in place.
 - `openInterpreterAgent/tools/open-interpreter-run-task.mjs`: the provider
-  tool the Copilot Provider Relay invokes for `open-interpreter` tasks. It must
-  validate input, refuse to proceed without a router invocation token,
-  ensure the runtime exists by reusing or preparing it when
+  tool the Copilot Provider Relay invokes for `open-interpreter` tasks. Before
+  reading the invocation envelope, resolving the runtime root, inspecting a
+  manifest, preparing or installing the runtime, resolving a provider key,
+  opening a broker or network socket, or starting the sandbox runner, it must
+  detect generated-local Ploinky descriptor signals. Generated-local Open
+  Interpreter is safety-disabled in this release and must return
+  `PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED` with no such side effect.
+  After that preflight passes, the tool must validate input, refuse to proceed
+  without a router invocation token, ensure the runtime exists by reusing or preparing it when
   `OI_RUNTIME_AUTO_PREPARE` is enabled, resolve Open Interpreter LLM
   configuration, stage `prompt.md`, `config/open-interpreter.json`, and
   `input/*` files for configured local sandbox jobs, invoke the shared local
@@ -61,10 +67,10 @@ The agent must own:
   bound read-only at `/runtime`, and normalize stdout/stderr into a
   natural-language final answer. Configuration resolution must prefer
   explicit `OPEN_INTERPRETER_MODEL`, `OPEN_INTERPRETER_API_BASE`, and
-  `OPEN_INTERPRETER_LOCAL` overrides for local development; otherwise it must
-  autoconfigure from AchillesAgentLib's `research` model default and
-  `soul_gateway` provider when `PLOINKY_AGENT_API_KEY` is present. If neither
-  path is available, it must return immediate natural-language configuration
+  `OPEN_INTERPRETER_LOCAL` overrides for local development. It must not
+  autoconfigure from `PLOINKY_AGENT_API_KEY` in this release, because that
+  credential is part of generated-local selection. If no explicit path is
+  available, it must return immediate natural-language configuration
   guidance before invoking the sandbox runner. The staged Open Interpreter
   config must include explicit `context_window` and `max_tokens` values when
   they are known or defaulted, because the Soul Gateway aliases are not
@@ -81,17 +87,13 @@ remain generic. The inner sandbox should see Open Interpreter through the
 provider-selected `/runtime` bind or through the provider image's documented
 runtime layer, never through a central runner agent.
 
-The normal hosted-provider path must require only `PLOINKY_AGENT_API_KEY`.
-Soul Gateway's URL and the research model alias must come from
-AchillesAgentLib configuration; the current Achilles default maps
-`research` to `soul_gateway/deep`. `SOUL_GATEWAY_BASE_URL` is not part of the
-required Open Interpreter provider contract. Explicit `OPEN_INTERPRETER_*`
-overrides remain allowed for local or development endpoints, but they must not
-be required for the normal Ploinky path. `OPEN_INTERPRETER_CONTEXT_WINDOW` and
-`OPEN_INTERPRETER_MAX_TOKENS` are optional tuning overrides; if they are absent
-on the Soul Gateway path, the provider supplies conservative defaults so Open
-Interpreter does not emit its unknown-context-window warning for the synthetic
-OpenAI-compatible model alias.
+The hosted-provider path based on `PLOINKY_AGENT_API_KEY` is safety-disabled in
+this release. The key must not be read and AchillesAgentLib model topology must
+not be loaded after generated-local detection. Explicit `OPEN_INTERPRETER_*`
+overrides remain allowed for separately configured local or development
+endpoints. `OPEN_INTERPRETER_CONTEXT_WINDOW` and
+`OPEN_INTERPRETER_MAX_TOKENS` remain optional tuning overrides for those
+explicit endpoints.
 
 The agent must not pass caller-provided mounts, bind paths, raw bubblewrap
 flags, network selectors, capabilities, provider credentials, or invocation
@@ -100,9 +102,10 @@ staged files, validated `timeoutMs`, and the prompt command line are
 forwarded. Non-secret model topology such as explicit
 `OPEN_INTERPRETER_MODEL`, `OPEN_INTERPRETER_API_BASE`,
 `OPEN_INTERPRETER_OFFLINE`, and `OPEN_INTERPRETER_LOCAL` values may be copied
-into the staged `/work/config/open-interpreter.json` file. For Achilles Soul
-Gateway autoconfiguration, the provider must start a short-lived
-OpenAI-compatible local broker outside the inner bwrap sandbox. The staged
+into the staged `/work/config/open-interpreter.json` file. The dormant Achilles
+Soul Gateway adapter and short-lived OpenAI-compatible local broker remain
+future certification work and must not be entered from generated-local
+selection in this release. If restored after certification, the staged
 Open Interpreter config may contain the broker's loopback `/v1` API base,
 the Open Interpreter-compatible model name, and a dummy broker token, but it
 must not contain `PLOINKY_AGENT_API_KEY` or the upstream provider bearer token.
@@ -117,7 +120,7 @@ The broker must also forward the provider container's `AGENT_NAME` or
 `PLOINKY_AGENT_NAME` as `X-Soul-Agent` so Soul Gateway observability records
 the provider agent instead of `unknown`.
 
-Broker-backed jobs require the inner bwrap runner to inherit the provider
+Any future broker-backed jobs require the inner bwrap runner to inherit the provider
 container network so the sandbox can reach the loopback broker. This network
 change must be scoped to `openInterpreterAgent` broker-backed jobs. It
 protects the raw provider key from the sandbox, but it does not claim to block
@@ -196,18 +199,18 @@ Response:
 The chat invariant requires a natural-language answer in the originating
 chat. A Python traceback from an unconfigured model is not actionable for the
 user and pollutes the chat with implementation details. The provider tool
-therefore returns operator guidance immediately after confirming the runtime
+returns generated-local operator guidance before runtime preparation. For
+other missing-model cases it returns guidance after confirming the runtime
 bundle is prepared. The shim keeps the same check before importing Open
 Interpreter as defense in depth for direct invocations.
 
 ### Question #7: Why does task execution prepare the runtime on demand?
 
 Response:
-The chat path must work in a fresh workspace after the `research-agents`
-bundle is enabled. Requiring a manual `prepare_runtime` call before the first
-semantic Open Interpreter task would make the advertised flow incomplete. The
-explicit `prepare_runtime` tool remains useful for operators who want to warm
-the runtime before chat use or diagnose preparation failures.
+After the generated-local preflight passes, the chat path may prepare its
+runtime on demand. The explicit `prepare_runtime` tool remains useful for
+operators who want to warm a separately configured runtime before chat use or
+diagnose preparation failures.
 
 ### Question #8: Why stage model topology instead of passing environment variables?
 
@@ -231,6 +234,7 @@ and keeps execution machine independent through the shared Linux image.
 ### Question #10: Why use Achilles Soul Gateway autoconfiguration?
 
 Response:
+The adapter is dormant for generated-local execution in this release.
 Other Ploinky agents resolve hosted LLM topology from AchillesAgentLib rather
 than each agent owning hardcoded provider URLs and model aliases. Keeping the
 Open Interpreter mapping inside an agent-local adapter lets
@@ -241,6 +245,7 @@ copilotProviderRelay, or Soul Gateway-specific execution.
 ### Question #11: Why place a broker between Open Interpreter and Soul Gateway?
 
 Response:
+The broker is retained only as a future certification target.
 Open Interpreter speaks to an OpenAI-compatible `/v1` API base and may require
 an API key value in its runtime configuration. Passing the raw
 `PLOINKY_AGENT_API_KEY` into the inner bwrap sandbox would violate the provider
@@ -254,7 +259,19 @@ Response:
 On 2026-06-24, router-issued signed-subject credentials were standardized on
 the agent-owned `PLOINKY_AGENT_API_KEY` name. The `soul_gateway` provider
 identifier and Soul Gateway URL configuration remain provider topology, while
-the credential name is owned by the Ploinky agent identity contract.
+the credential name is owned by the Ploinky agent identity contract. Open
+Interpreter detects that generated-local credential surface and fails before
+reading the value in this release.
+
+### Decision #13: Why is generated-local Open Interpreter disabled before preparation?
+
+Response:
+On 2026-07-31, generated-local Open Interpreter was classified as an
+uncertified direct generated-key consumer. Its local broker does not yet use
+the signed descriptor's authority transport or have the required flow-control
+proof. The preflight therefore runs before every filesystem, installer,
+credential, broker, network, and runner operation. Explicit
+`OPEN_INTERPRETER_*` endpoints remain a separate operator-selected path.
 
 ## Conclusion
 

@@ -1,56 +1,82 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import http from 'node:http';
 
-import { callAgentTool } from '../../copilotProviderRelay/tools/lib/mcp.mjs';
+import {
+    callAgentTool,
+    extractToolJson,
+} from '../../copilotProviderRelay/tools/lib/mcp.mjs';
 
-async function withServer(handler, fn) {
-    const server = http.createServer(handler);
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const address = server.address();
-    const original = process.env.PLOINKY_ROUTER_URL;
-    process.env.PLOINKY_ROUTER_URL = `http://127.0.0.1:${address.port}`;
-    try {
-        await fn();
-    } finally {
-        if (original === undefined) {
-            delete process.env.PLOINKY_ROUTER_URL;
-        } else {
-            process.env.PLOINKY_ROUTER_URL = original;
-        }
-        await new Promise((resolve) => server.close(resolve));
-    }
-}
-
-test('callAgentTool forwards delegated invocation JWT through Ploinky caller header', async () => {
-    await withServer((req, res) => {
-        assert.equal(req.headers['x-ploinky-caller-jwt'], 'caller-token');
-        assert.equal(req.url, '/mcps/openInterpreterAgent/mcp');
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { ok: true } }));
-    }, async () => {
-        const response = await callAgentTool(
-            'openInterpreterAgent',
-            'oi_status',
-            {},
-            { invocationToken: 'caller-token' }
-        );
-        assert.deepEqual(response.result, { ok: true });
+test('callAgentTool delegates through AgentMcpClient after descriptor verification', async () => {
+    const events = [];
+    const options = {
+        createAgentClient: async (agent) => {
+            events.push(`descriptor:${agent}`);
+            return {
+                async callTool(toolName, input, callOptions) {
+                    events.push(`agent-secret:${toolName}`);
+                    const delegation = callOptions.userDelegationToken;
+                    events.push(`delegation:${delegation}`);
+                    events.push('socket');
+                    assert.deepEqual(input, { probe: true });
+                    return { ok: true };
+                },
+                async close() {
+                    events.push('close');
+                },
+            };
+        },
+    };
+    Object.defineProperty(options, 'invocationToken', {
+        enumerable: true,
+        get() {
+            events.push('invocation-token-read');
+            return 'caller-token';
+        },
     });
+
+    const response = await callAgentTool(
+        'openInterpreterAgent',
+        'oi_status',
+        { probe: true },
+        options,
+    );
+
+    assert.deepEqual(response.result, { ok: true });
+    assert.deepEqual(events, [
+        'descriptor:openInterpreterAgent',
+        'agent-secret:oi_status',
+        'invocation-token-read',
+        'delegation:caller-token',
+        'socket',
+        'close',
+    ]);
 });
 
-test('callAgentTool rejects JSON-RPC error responses', async () => {
-    await withServer((_req, res) => {
-        res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            error: { code: -32000, message: 'Missing or invalid MCP session' }
-        }));
-    }, async () => {
-        await assert.rejects(
-            () => callAgentTool('openInterpreterAgent', 'oi_status', {}, { invocationToken: 'caller-token' }),
-            /Missing or invalid MCP session/
-        );
+test('descriptor rejection prevents invocation-token access and tool calls', async () => {
+    const events = [];
+    const options = {
+        async createAgentClient() {
+            events.push('descriptor');
+            throw new Error('PLOINKY_ROUTER_DESCRIPTOR_SIGNATURE');
+        },
+    };
+    Object.defineProperty(options, 'invocationToken', {
+        get() {
+            events.push('invocation-token-read');
+            return 'must-not-be-read';
+        },
     });
+
+    await assert.rejects(
+        () => callAgentTool('openInterpreterAgent', 'oi_status', {}, options),
+        /PLOINKY_ROUTER_DESCRIPTOR_SIGNATURE/,
+    );
+    assert.deepEqual(events, ['descriptor']);
+});
+
+test('extractToolJson accepts AgentMcpClient object results', () => {
+    assert.deepEqual(
+        extractToolJson({ result: { ok: true, status: 'ready' } }),
+        { ok: true, status: 'ready' },
+    );
 });

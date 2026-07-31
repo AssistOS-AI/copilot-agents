@@ -32,8 +32,9 @@ reference syntax.
 Each provider launcher is a deterministic cskill. A launcher validates that
 the provider path is available, materializes only safe context supplied by
 AchillesCLI, calls `copilotProviderRelay.copilot_provider_task_submit` through
-router-mediated MCP with the current invocation token, and returns structured
-output:
+Ploinky's certified `AgentMcpClient` after signed Router descriptor
+verification. The current invocation token is carried as user delegation
+metadata, and the launcher returns structured output:
 
 ```json
 {
@@ -53,7 +54,7 @@ output:
 `copilotProviderRelay` remains the secure dispatcher to provider agents. AchillesCLI
 launchers must not bypass it by directly calling provider agents such as
 `openInterpreterAgent` for task execution. A provider-specific launcher may call
-that provider's status tool through router-mediated MCP with the current
+that provider's status tool with the same verified `AgentMcpClient` and current
 invocation token before submitting to the relay; this is an availability probe,
 not execution dispatch, and must remain out of Ploinky framework code.
 
@@ -127,8 +128,18 @@ Response:
 Static relay catalogs can show a backend contract while the provider route is
 not actually reachable. A bounded provider status probe lets the launcher return
 an explicit unavailable-provider result before task submission. The probe uses
-router-mediated MCP and the current invocation token, and execution still flows
+the verified `AgentMcpClient` and the current invocation token as user
+delegation metadata, and execution still flows
 through `copilotProviderRelay.copilot_provider_task_submit`.
+
+### Question #5: Why are direct native Router clients prohibited in launchers and the relay?
+
+Response:
+Generated-local routing separates the physical connection origin from the
+signed request authority. Native `fetch` and hand-built `/mcps/` calls used the
+physical Host and could receive HTTP 421. `AgentMcpClient` owns descriptor
+verification, authority presentation, agent assertions, and user delegation
+without redirects or alternate-Host retries.
 
 ## Conclusion
 

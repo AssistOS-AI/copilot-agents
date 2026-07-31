@@ -23,6 +23,7 @@ import path from 'node:path';
 import { readEnvelope, writeOk, writeError } from './lib/envelope.mjs';
 import {
     buildBrokeredRuntimeConfig,
+    resolveOpenInterpreterGeneratedLocalPreflight,
     resolveOpenInterpreterRuntimeConfig,
 } from './lib/achilles-llm-config.mjs';
 import { startOpenAICompatibleBroker } from './lib/openai-compatible-broker.mjs';
@@ -152,14 +153,39 @@ function missingModelConfigurationMessage(resolution = {}) {
     return [
         `Open Interpreter runtime bundle ${BUNDLE_ID}@${BUNDLE_VERSION} is prepared,`,
         `but no Soul Gateway, model, or local endpoint is configured for this workspace.${reason}`,
-        'Set PLOINKY_AGENT_API_KEY on the openInterpreterAgent, or set OPEN_INTERPRETER_MODEL',
-        '(and OPEN_INTERPRETER_API_BASE for a local credentialless endpoint) before re-running the task.',
+        'Generated-local Ploinky credentials are safety-disabled for this consumer.',
+        'Set OPEN_INTERPRETER_MODEL and OPEN_INTERPRETER_API_BASE for an explicit external or local endpoint before re-running the task.',
         'Provider API keys are intentionally not forwarded into the sandbox.',
     ].join(' ');
 }
 
 function missingModelConfigurationResult(task, resolution) {
     const finalAnswer = missingModelConfigurationMessage(resolution);
+    return {
+        ok: true,
+        backend_ok: true,
+        sandbox_ok: false,
+        jobId: null,
+        final_answer: finalAnswer,
+        natural_language_output: finalAnswer,
+        exitCode: null,
+        stderr_preview: '',
+        resources: task.resources.map((resource) => ({ name: resource.name, mime: resource.mime, size: resource.size })),
+        origin: task.origin,
+        runtimeBundle: describeBundleInput(),
+        timedOut: false,
+        stdout_truncated: false,
+        stderr_truncated: false,
+    };
+}
+
+function generatedLocalUnsupportedResult(task, resolution) {
+    const finalAnswer = [
+        'Open Interpreter generated-local execution is safety-disabled before runtime preparation.',
+        resolution.reason,
+        'No runtime files, package installation, broker, network connection, or sandbox runner were started.',
+        'Use an explicit OPEN_INTERPRETER_MODEL and OPEN_INTERPRETER_API_BASE only for a separately configured external or local endpoint.',
+    ].join(' ');
     return {
         ok: true,
         backend_ok: true,
@@ -391,6 +417,11 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs, allowNetwork = fal
 
 async function main() {
     try {
+        const generatedLocalPreflight = resolveOpenInterpreterGeneratedLocalPreflight({ env: process.env });
+        if (generatedLocalPreflight) {
+            writeOk(generatedLocalUnsupportedResult({ resources: [], origin: {} }, generatedLocalPreflight));
+            return;
+        }
         const envelope = await readEnvelope();
         const invocationToken = getInvocationToken(envelope);
         if (!invocationToken) {
@@ -399,7 +430,6 @@ async function main() {
         }
 
         const task = normalizeInput(envelope.input || {});
-
         const runtimeRoot = resolveRuntimeRoot(process.env);
         let preparation;
         try {
@@ -513,4 +543,4 @@ async function main() {
     }
 }
 
-main();
+export const mainPromise = main();

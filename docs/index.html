@@ -83,6 +83,12 @@ ploinky start explorer 8080</pre>
         route through <code>launch-browser-use</code> to <code>browserUseAgent</code>, which controls a
         persistent Chromium session and exposes a protected viewer URL for ChatGPT and Gemini login flows.
     </p>
+    <p>
+        Credentialed launcher and relay calls use Ploinky's verified <code>AgentMcpClient</code>, which
+        validates the signed generated-local Router descriptor before credential or socket use. Generated-local
+        Open Interpreter model execution remains safety-disabled before runtime preparation in this release;
+        explicit operator-configured <code>OPEN_INTERPRETER_*</code> endpoints remain separate.
+    </p>
 
     <h2>Specifications</h2>
     <ul>

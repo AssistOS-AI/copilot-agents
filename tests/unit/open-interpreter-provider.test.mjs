@@ -18,6 +18,7 @@ import {
     resolveRuntimeRoot,
 } from '../../openInterpreterAgent/tools/lib/runtime-bundle.mjs';
 import { startOpenAICompatibleBroker } from '../../openInterpreterAgent/tools/lib/openai-compatible-broker.mjs';
+import { resolveOpenInterpreterRuntimeConfig } from '../../openInterpreterAgent/tools/lib/achilles-llm-config.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATUS_TOOL = path.resolve(__dirname, '../../openInterpreterAgent/tools/status.mjs');
@@ -102,6 +103,27 @@ function runTaskTool(input, env) {
         child.stdin.end(JSON.stringify(input));
     });
 }
+
+test('generated-local Open Interpreter fails closed before key access or broker selection', async () => {
+    let keyReads = 0;
+    const values = {
+        PLOINKY_ROUTER_DESCRIPTOR_FILE: '/run/ploinky/router-descriptor.json',
+        PLOINKY_AGENT_API_KEY: 'must-not-be-read',
+    };
+    const env = new Proxy(values, {
+        get(target, property, receiver) {
+            if (property === 'PLOINKY_AGENT_API_KEY') keyReads += 1;
+            return Reflect.get(target, property, receiver);
+        },
+    });
+
+    const resolution = await resolveOpenInterpreterRuntimeConfig({ env });
+    assert.equal(resolution.source, 'generated-local-unsupported');
+    assert.equal(resolution.broker, null);
+    assert.equal(resolution.sandbox.allowNetwork, false);
+    assert.match(resolution.reason, /PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED/);
+    assert.equal(keyReads, 0);
+});
 
 test('resolveRuntimeRoot defaults to /data/research-runtimes and accepts overrides', () => {
     assert.equal(resolveRuntimeRoot({}), '/data/research-runtimes');
@@ -221,7 +243,7 @@ test('open_interpreter_run_task refuses without an invocation token', () => {
     const child = spawnSync(process.execPath, [TASK_TOOL], {
         input: JSON.stringify({ tool: 'open_interpreter_run_task', input: { prompt: 'hello' } }),
         encoding: 'utf8',
-        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp', PLOINKY_AGENT_API_KEY: '' },
+        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp' },
         timeout: 10000,
     });
     const payload = JSON.parse(child.stdout || '{}');
@@ -239,7 +261,7 @@ test('open_interpreter_run_task returns a natural-language message when the bund
                 metadata: { invocationToken: 'test-token' },
             }),
             encoding: 'utf8',
-            env: { ...process.env, OI_RUNTIME_ROOT: root, OI_RUNTIME_AUTO_PREPARE: 'false', PLOINKY_AGENT_API_KEY: '' },
+            env: { ...process.env, OI_RUNTIME_ROOT: root, OI_RUNTIME_AUTO_PREPARE: 'false' },
             timeout: 10000,
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
@@ -272,7 +294,6 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
             OPEN_INTERPRETER_MODEL: '',
             OPEN_INTERPRETER_API_BASE: '',
             OPEN_INTERPRETER_LOCAL: '',
-            PLOINKY_AGENT_API_KEY: '',
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
         const payload = JSON.parse(child.stdout || '{}');
@@ -281,7 +302,11 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
         assert.equal(payload.sandbox_ok, false);
         assert.match(payload.final_answer, /runtime bundle open-interpreter@0\.4\.3 is prepared/);
         assert.match(payload.final_answer, /no Soul Gateway, model, or local endpoint is configured/);
-        assert.match(payload.final_answer, /PLOINKY_AGENT_API_KEY/);
+        assert.doesNotMatch(payload.final_answer, /PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED/);
+        assert.match(
+            payload.final_answer,
+            /OPEN_INTERPRETER_MODEL and OPEN_INTERPRETER_API_BASE/,
+        );
         assert.doesNotMatch(payload.final_answer, /sandbox runner|local bwrap|not installed/);
         assert.deepEqual(payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
     } finally {
@@ -297,7 +322,7 @@ test('open_interpreter_run_task validates prompt presence and resource size', ()
             metadata: { invocationToken: 'test-token' },
         }),
         encoding: 'utf8',
-        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp', PLOINKY_AGENT_API_KEY: '' },
+        env: { ...process.env, OI_RUNTIME_ROOT: '/tmp' },
         timeout: 10000,
     });
     const payload = JSON.parse(child.stdout || '{}');
@@ -403,7 +428,7 @@ process.stdin.on('end', () => {
     }
 });
 
-test('open_interpreter_run_task autoconfigures Soul Gateway through Achilles without staging the provider key', async () => {
+test('open_interpreter_run_task safety-disables generated-local before runner or broker construction', async () => {
     const root = mkroot();
     writeManifest(bundleDir(root), buildManifest({ digest: 'sha256:abc' }));
 
@@ -462,37 +487,10 @@ process.stdin.on('end', () => {
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
         const payload = JSON.parse(child.stdout || '{}');
         assert.equal(payload.ok, true, `expected ok=true; got ${JSON.stringify(payload)}`);
-        assert.equal(payload.jobId, 'soul-job-1');
-
-        const received = JSON.parse(fs.readFileSync(stubMarker, 'utf8'));
-        assert.equal(received.env.BWRAP_RUNNER_RUNTIME_ROOT, root);
-        assert.equal(received.env.BWRAP_RUNNER_ALLOW_NETWORK, 'true',
-            'broker-backed Open Interpreter jobs must allow inherited network to reach the local broker');
-        assert.equal(received.env.PLOINKY_AGENT_API_KEY, null,
-            'child runner env must not receive PLOINKY_AGENT_API_KEY');
-
-        const configFile = received.payload.files.find((file) => file.path === 'config/open-interpreter.json');
-        assert.ok(configFile, 'expected staged Open Interpreter config');
-        const config = JSON.parse(configFile.content);
-        assert.equal(config.model, 'openai/deep');
-        assert.match(config.api_base, /^http:\/\/127\.0\.0\.1:\d+\/v1$/);
-        assert.match(config.api_key, /^oi-broker-/);
-        assert.equal(config.context_window, 8000);
-        assert.equal(config.max_tokens, 2000);
-        assert.equal(config.offline, false);
-        assert.equal(config.local, null);
-
-        const serialized = JSON.stringify(received);
-        assert.ok(!serialized.includes('soul-secret-for-test'), 'PLOINKY_AGENT_API_KEY must not be staged');
-        assert.ok(!serialized.includes('test-token'), 'invocation token must not be passed to the inner sandbox');
-        await assert.rejects(
-            fetch(`${config.api_base}/chat/completions`, {
-                method: 'POST',
-                headers: { authorization: `Bearer ${config.api_key}`, 'content-type': 'application/json' },
-                body: JSON.stringify({ messages: [] }),
-            }),
-            'broker must be closed after the task finishes',
-        );
+        assert.equal(payload.sandbox_ok, false);
+        assert.equal(payload.jobId, null);
+        assert.match(payload.final_answer, /PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED/);
+        assert.equal(fs.existsSync(stubMarker), false, 'local runner must not be started');
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
         fs.rmSync(stubDir, { recursive: true, force: true });

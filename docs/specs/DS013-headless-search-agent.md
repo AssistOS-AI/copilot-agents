@@ -75,7 +75,8 @@ the launcher result.
 
 The `launch-web-search` cskill is the deterministic AchillesCLI launcher. It
 validates relay and provider availability, submits through
-`copilotProviderRelay.copilot_provider_task_submit`, and returns structured output with:
+`copilotProviderRelay.copilot_provider_task_submit` using Ploinky's verified
+`AgentMcpClient`, and returns structured output with:
 
 - `backend: 'web-search'`
 - `cacheable: true`
@@ -161,6 +162,14 @@ On 2026-06-24, hosted provider credentials were standardized on
 `PLOINKY_AGENT_API_KEY`. `webSearchAgent` remains a browser-search provider,
 so it must not depend on the router-issued provider credential or the Soul
 Gateway URL path.
+
+### Question #7: How does the launcher reach the relay and status tool safely?
+
+Response:
+It uses Ploinky's `AgentMcpClient`, which verifies the signed Router descriptor
+before agent-secret or user-delegation-token access and before creating the
+Router socket. The launcher does not construct a direct `/mcps/` request or
+retry a different authority after HTTP 421.
 
 ## Conclusion
 

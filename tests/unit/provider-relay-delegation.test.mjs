@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const submitTaskScript = path.resolve(__dirname, '../../copilotProviderRelay/tools/submit-task.mjs');
+const agentMcpClientLoader = path.resolve(__dirname, '../fixtures/agent-mcp-client-loader.mjs');
 
 function startStubRouter(handler) {
     const calls = [];
@@ -24,7 +25,7 @@ function startStubRouter(handler) {
             const call = {
                 method: req.method,
                 url: req.url,
-                jwt: req.headers['x-ploinky-caller-jwt'] || null,
+                delegationToken: req.headers['x-ploinky-user-delegation'] || null,
                 body,
             };
             calls.push(call);
@@ -43,7 +44,11 @@ function startStubRouter(handler) {
 
 function runSubmitTask(input, env) {
     return new Promise((resolve) => {
-        const child = spawn(process.execPath, [submitTaskScript], {
+        const child = spawn(process.execPath, [
+            '--experimental-loader',
+            agentMcpClientLoader,
+            submitTaskScript,
+        ], {
             env: { ...process.env, ...env },
             stdio: ['pipe', 'pipe', 'pipe'],
         });
@@ -93,7 +98,7 @@ test('relay forwards open-interpreter to openInterpreterAgent via MCP', async ()
             input: { backend: 'open-interpreter', prompt: 'hello' },
             metadata: { invocationToken: 'relay-token' },
         }, {
-            PLOINKY_ROUTER_URL: `http://127.0.0.1:${port}`,
+            PLOINKY_TEST_ROUTER_URL: `http://127.0.0.1:${port}`,
             PLOINKY_WORKSPACE_ROOT: process.cwd(),
         });
         assert.equal(child.status, 0, `submit-task exited ${child.status}: ${child.stderr}`);
@@ -110,9 +115,9 @@ test('relay forwards open-interpreter to openInterpreterAgent via MCP', async ()
 
         const toolsCall = calls.find((c) => c.body?.method === 'tools/call');
         assert.ok(toolsCall, 'expected a tools/call to the router');
-        assert.match(toolsCall.url, /openInterpreterAgent/);
+        assert.equal(toolsCall.url, '/openInterpreterAgent/mcp');
         assert.equal(toolsCall.body.params.name, 'open_interpreter_run_task');
-        assert.equal(toolsCall.jwt, 'relay-token', 'invocation token must be forwarded as x-ploinky-caller-jwt');
+        assert.equal(toolsCall.delegationToken, 'relay-token', 'invocation token must be forwarded through AgentMcp user delegation');
         assert.equal(toolsCall.body.params.arguments.prompt, 'hello');
         assert.ok(!('runtimeBundle' in toolsCall.body.params.arguments), 'relay must not own runtimeBundle');
         assert.ok(!('command' in toolsCall.body.params.arguments), 'relay must not own backend command strings');
@@ -134,7 +139,7 @@ test('relay falls back to natural-language message if provider returns no output
             input: { backend: 'open-interpreter', prompt: 'silence' },
             metadata: { invocationToken: 'relay-token' },
         }, {
-            PLOINKY_ROUTER_URL: `http://127.0.0.1:${port}`,
+            PLOINKY_TEST_ROUTER_URL: `http://127.0.0.1:${port}`,
             PLOINKY_WORKSPACE_ROOT: process.cwd(),
         });
         const payload = JSON.parse(child.stdout || '{}');
@@ -159,7 +164,7 @@ test('relay never resolves backend commands for provider-backed backends', async
             input: { backend: 'open-interpreter', prompt: 'hi' },
             metadata: { invocationToken: 'relay-token' },
         }, {
-            PLOINKY_ROUTER_URL: `http://127.0.0.1:${port}`,
+            PLOINKY_TEST_ROUTER_URL: `http://127.0.0.1:${port}`,
             PLOINKY_WORKSPACE_ROOT: process.cwd(),
             // Even if a legacy command env is set, it must be ignored:
             RESEARCH_OPEN_INTERPRETER_COMMAND: 'should-be-ignored',

@@ -10,6 +10,23 @@ export const ACHILLES_RESEARCH_DEFAULT = 'research';
 export const DEFAULT_SOUL_GATEWAY_CONTEXT_WINDOW = 8000;
 export const DEFAULT_SOUL_GATEWAY_MAX_TOKENS = 2000;
 
+export const GENERATED_LOCAL_DESCRIPTOR_SIGNALS = Object.freeze([
+    'PLOINKY_ROUTER_DESCRIPTOR_FILE',
+    'PLOINKY_ROUTER_HOST',
+    'PLOINKY_ROUTER_PORT',
+    'PLOINKY_ROUTER_URL',
+    'PLOINKY_ROUTER_REQUEST_AUTHORITY',
+    'PLOINKY_ROUTER_AUTHORITY',
+    'PLOINKY_INTERNAL_ROUTER_URL',
+    'PLOINKY_EDGE_TOPOLOGY_FILE',
+    'PLOINKY_ROUTER_LISTENER_CLASS',
+    'PLOINKY_ROUTER_ATTESTATION_ID',
+    'PLOINKY_ROUTER_TRANSPORT_VERSION',
+    'PLOINKY_ROUTER_LOCAL_STREAMING',
+    'PLOINKY_AGENT_API_PUBLIC_KEY',
+    'PLOINKY_AGENT_API_KEY',
+]);
+
 const require = createRequire(import.meta.url);
 const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -19,6 +36,25 @@ function stringValue(value) {
 
 function hasOwnEnvValue(env, name) {
     return Object.prototype.hasOwnProperty.call(env, name);
+}
+
+function hasGeneratedLocalDescriptorSignal(env) {
+    return GENERATED_LOCAL_DESCRIPTOR_SIGNALS.some((name) => (
+        hasOwnEnvValue(env, name)
+        || hasOwnEnvValue(env, `PLOINKY_ENV_SOURCE_${name}`)
+    )) || Object.keys(env).some((name) => name.startsWith('PLOINKY_ENV_SOURCE_PLOINKY_'));
+}
+
+function generatedLocalUnsupportedResolution() {
+    return {
+        source: 'generated-local-unsupported',
+        config: createBaseRuntimeConfig({
+            offline: true,
+        }),
+        broker: null,
+        sandbox: { allowNetwork: false },
+        reason: 'PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED: generated-local Open Interpreter is disabled until its authority transport and broker flow control are certified',
+    };
 }
 
 function boolFromEnv(env, name, defaultValue = false) {
@@ -268,9 +304,20 @@ export async function resolveAchillesSoulGatewayConfig({ env = process.env } = {
     };
 }
 
+export function resolveOpenInterpreterGeneratedLocalPreflight({ env = process.env } = {}) {
+    if (explicitOpenInterpreterConfig(env)) return null;
+    return hasGeneratedLocalDescriptorSignal(env)
+        ? generatedLocalUnsupportedResolution()
+        : null;
+}
+
 export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } = {}) {
     const explicit = explicitOpenInterpreterConfig(env);
     if (explicit) return explicit;
+
+    if (hasGeneratedLocalDescriptorSignal(env)) {
+        return generatedLocalUnsupportedResolution();
+    }
 
     if (hasOwnEnvValue(env, PLOINKY_AGENT_API_KEY_ENV) && stringValue(env[PLOINKY_AGENT_API_KEY_ENV]) === '') {
         return {

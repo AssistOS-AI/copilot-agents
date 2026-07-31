@@ -8,6 +8,7 @@ export const PROVIDER_STATUS_TOOL = 'browser_use_status';
 const DEFAULT_TIMEOUT_MS = 120000;
 const MAX_TASK_TIMEOUT_MS = 300000;
 const PROVIDER_TOKEN_RE = /(^|\s)@(?:browser-use|browser)(?=\s|$|[.,:;!?])/i;
+const AGENT_MCP_CLIENT_MODULE = '/Agent/client/AgentMcpClient.mjs';
 
 function trim(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -130,38 +131,26 @@ function resolveViewerFullUrl(viewerUrl, env = process.env, origin = {}) {
 }
 
 export async function callAgentTool(agent, toolName, input = {}, options = {}) {
-    const base = resolveRouterUrl(options.env || process.env);
-    const url = new URL(`/mcps/${encodeURIComponent(agent)}/mcp`, base);
-    const headers = {
-        'content-type': 'application/json',
-        accept: 'application/json',
-    };
-    if (options.invocationToken) {
-        headers['x-ploinky-caller-jwt'] = options.invocationToken;
+    const module = typeof options.createAgentClient === 'function'
+        ? { createAgentClient: options.createAgentClient }
+        : await import(AGENT_MCP_CLIENT_MODULE);
+    if (typeof module.createAgentClient !== 'function') {
+        throw new Error('Ploinky AgentMcpClient does not export createAgentClient');
     }
-    const controller = new AbortController();
-    const timeoutMs = Math.max(1000, Number(options.timeoutMs) || DEFAULT_TIMEOUT_MS);
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const client = await module.createAgentClient(agent);
+    const callOptions = {};
+    Object.defineProperty(callOptions, 'userDelegationToken', {
+        enumerable: true,
+        get: () => options.invocationToken || '',
+    });
+    Object.defineProperty(callOptions, 'timeoutMs', {
+        enumerable: true,
+        get: () => options.timeoutMs,
+    });
     try {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: 'tools/call',
-                params: { name: toolName, arguments: input || {} },
-            }),
-            signal: controller.signal,
-        });
-        const text = await response.text();
-        const parsed = text ? JSON.parse(text) : {};
-        if (!response.ok || parsed?.error) {
-            throw new Error(parsed?.error?.message || `router responded ${response.status}`);
-        }
-        return parsed;
+        return { result: await client.callTool(toolName, input || {}, callOptions) };
     } finally {
-        clearTimeout(timer);
+        await client.close?.();
     }
 }
 
@@ -179,6 +168,11 @@ export function extractToolText(response) {
 }
 
 export function extractToolJson(response) {
+    const result = response && response.result ? response.result : response;
+    if (result && typeof result === 'object' && !Array.isArray(result)
+        && !Array.isArray(result.content) && typeof result.text !== 'string') {
+        return result;
+    }
     const text = extractToolText(response).trim();
     if (!text) return {};
     return JSON.parse(text);

@@ -75,8 +75,13 @@ missing or does not match the session owner, and must not use a shared
 `anonymous` profile for browser tasks that can hold cookies.
 
 Provider credentials must stay outside inner sandbox payloads by default.
-For Open Interpreter's normal hosted path, `PLOINKY_AGENT_API_KEY` is exposed
-to `openInterpreterAgent` only. The provider starts a short-lived
+Generated-local Open Interpreter is disabled in this release. Its entrypoint
+must detect any generated-local descriptor signal before reading the invocation
+envelope, resolving or preparing the runtime, installing packages, reading
+`PLOINKY_AGENT_API_KEY`, starting a broker, enabling network, or invoking the
+runner. The broker design below is retained only as a future certification
+target and is not entered from generated-local selection. If certified and
+restored, `PLOINKY_AGENT_API_KEY` is exposed to `openInterpreterAgent` only. The provider starts a short-lived
 OpenAI-compatible loopback broker outside the inner bwrap sandbox, stages only
 the broker `/v1` URL and a dummy broker token into
 `/work/config/open-interpreter.json`, and injects the raw Soul Gateway bearer
@@ -178,6 +183,16 @@ On 2026-06-24, provider credentials for router-issued subject identity moved
 to `PLOINKY_AGENT_API_KEY`. The env name describes the Ploinky identity source,
 so redaction, broker injection, and sandbox exclusion rules no longer depend
 on a specific downstream provider name.
+
+### Question #8: What protects credentialed agent-to-agent Router calls?
+
+Response:
+The relay and deterministic launchers use Ploinky's `AgentMcpClient`. It
+verifies the signed generated-local Router descriptor before agent-secret or
+delegation-token access and before socket creation, then binds the physical
+connection to the signed request authority. Direct native HTTP/fetch clients,
+ambient invocation-token fallbacks, alternate-Host retries, and raw `/mcps/`
+construction are prohibited in these server-side callers.
 
 ## Conclusion
 

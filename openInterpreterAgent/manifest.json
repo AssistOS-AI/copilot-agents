@@ -1,10 +1,10 @@
 {
     "container": "docker.io/assistos/bwrap-runner:node24-python-bookworm",
-    "about": "Open Interpreter provider agent. Prepares its own runtime under /data/research-runtimes/open-interpreter/<version>/ inside the provider container and executes research tasks in a local bwrap sandbox started inside the same container. Does not call basic/bwrap-runner.",
+    "about": "Open Interpreter provider agent. Returns deterministic terminal unavailability in Ploinky Box until its provider/private-proc contract is certified; separately configured development tasks use a runner-ABI-compatible runtime under /data and a local bwrap sandbox. Does not call basic/bwrap-runner.",
     "containerSecurity": {
         "privileged": true
     },
-    "agent": "/usr/local/bin/node /opt/bwrap-runner/bin/healthcheck.mjs && sh /Agent/server/AgentServer.sh",
+    "agent": "/usr/local/bin/node /opt/bwrap-runner/bin/healthcheck.mjs --minimum=private && sh /Agent/server/AgentServer.sh",
     "readiness": {
         "protocol": "mcp"
     },

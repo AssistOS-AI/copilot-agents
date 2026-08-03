@@ -55,6 +55,20 @@ async function main() {
             profile: profileName,
             agents: active.map(({ agent, mode, noWait }) => ({ agent, mode, noWait })),
             availableProfiles: Object.keys(profiles),
+            lifecycle: {
+                noWaitIsolation: true,
+                failedOptionalProvidersDoNotBlockSiblings: true,
+            },
+            providerDisposition: {
+                openInterpreterAgent: {
+                    code: 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE',
+                    terminalUntilContractChange: true,
+                },
+                GPTResearcher: {
+                    sharedRunnerImageConsumer: true,
+                    sandboxServiceDependency: false,
+                },
+            },
         });
     } catch (error) {
         writeError(error && error.message ? error.message : 'research_agents_status failed');

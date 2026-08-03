@@ -195,6 +195,26 @@ async function checkProviderAvailability(input, backend) {
             timeoutMs: 30000,
             env: input.env,
         }));
+        const availability = status?.availability && typeof status.availability === 'object'
+            ? status.availability
+            : null;
+        if (availability?.available === false && availability?.terminal === true) {
+            return {
+                ok: false,
+                terminal: true,
+                result_text: normalizeRelayAnswer({
+                    ...availability,
+                    error: availability.reason || availability.message,
+                }),
+                diagnostics: {
+                    providerAvailability: availability.status || 'unavailable',
+                    providerAgent,
+                    providerCode: availability.code || null,
+                    terminal: true,
+                    cause: availability.cause || null,
+                },
+            };
+        }
         return { ok: true, providerAgent, status };
     } catch (error) {
         return {

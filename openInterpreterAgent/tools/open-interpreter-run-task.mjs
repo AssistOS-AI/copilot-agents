@@ -23,18 +23,26 @@ import path from 'node:path';
 import { readEnvelope, writeOk, writeError } from './lib/envelope.mjs';
 import {
     buildBrokeredRuntimeConfig,
+    OPEN_INTERPRETER_BOX_UNAVAILABLE_CODE,
     resolveOpenInterpreterGeneratedLocalPreflight,
     resolveOpenInterpreterRuntimeConfig,
 } from './lib/achilles-llm-config.mjs';
+import { BoundedByteTail } from './lib/bounded-tail.mjs';
 import { startOpenAICompatibleBroker } from './lib/openai-compatible-broker.mjs';
 import {
     BUNDLE_ID,
     BUNDLE_VERSION,
+    RUNNER_PROC_MINIMUM,
     bundleDir,
     describeBundleInput,
     readExistingManifest,
     resolveRuntimeRoot,
 } from './lib/runtime-bundle.mjs';
+import {
+    evaluateRunnerTaskResult,
+    inspectRunnerCapability,
+    OPEN_INTERPRETER_UNAVAILABLE_CODE,
+} from './lib/runner-contract.mjs';
 import { prepareRuntime } from './prepare-runtime.mjs';
 
 const MAX_PROMPT_CHARS = 16000;
@@ -45,6 +53,8 @@ const DEFAULT_TIMEOUT_MS = 110000;
 const MIN_TIMEOUT_MS = 1000;
 const MAX_TIMEOUT_MS = 120000;
 const STDERR_PREVIEW_CHARS = 4000;
+const OUTER_STDOUT_TAIL_BYTES = 64 * 1024;
+const OUTER_STDERR_TAIL_BYTES = 16 * 1024;
 const ENTRYPOINT_PATH = `/runtime/bin/research-open-interpreter.py`;
 const CONFIG_PATH = 'config/open-interpreter.json';
 const LOCAL_RUNNER_BIN = process.env.OI_LOCAL_RUNNER_BIN || '/usr/local/bin/bwrap-sandbox-exec';
@@ -181,14 +191,18 @@ function missingModelConfigurationResult(task, resolution) {
 
 function generatedLocalUnsupportedResult(task, resolution) {
     const finalAnswer = [
-        'Open Interpreter generated-local execution is safety-disabled before runtime preparation.',
+        'Open Interpreter is unavailable in the Ploinky Box before runtime preparation.',
         resolution.reason,
         'No runtime files, package installation, broker, network connection, or sandbox runner were started.',
-        'Use an explicit OPEN_INTERPRETER_MODEL and OPEN_INTERPRETER_API_BASE only for a separately configured external or local endpoint.',
+        'A scoped provider broker and private-proc runtime proof must be certified together before this backend can be enabled.',
     ].join(' ');
     return {
-        ok: true,
-        backend_ok: true,
+        ok: false,
+        code: OPEN_INTERPRETER_BOX_UNAVAILABLE_CODE,
+        status: 422,
+        terminal: true,
+        cause: { code: 'OPEN_INTERPRETER_PROVIDER_CONTRACT_UNCERTIFIED' },
+        backend_ok: false,
         sandbox_ok: false,
         jobId: null,
         final_answer: finalAnswer,
@@ -201,6 +215,41 @@ function generatedLocalUnsupportedResult(task, resolution) {
         timedOut: false,
         stdout_truncated: false,
         stderr_truncated: false,
+        outer_stdout_truncated: false,
+        outer_stderr_truncated: false,
+        outer_stdout_discarded_bytes: 0,
+        outer_stderr_discarded_bytes: 0,
+    };
+}
+
+function runnerUnavailableResult(task, availability, outerOutput = null) {
+    const finalAnswer = [
+        availability.message,
+        `${OPEN_INTERPRETER_UNAVAILABLE_CODE} is terminal until the runner image or provider contract changes.`,
+    ].join(' ');
+    return {
+        ok: false,
+        code: OPEN_INTERPRETER_UNAVAILABLE_CODE,
+        status: availability.status || 422,
+        terminal: true,
+        cause: availability.cause || { code: 'OPEN_INTERPRETER_PRIVATE_PROC_UNAVAILABLE' },
+        backend_ok: false,
+        sandbox_ok: false,
+        jobId: null,
+        final_answer: finalAnswer,
+        natural_language_output: finalAnswer,
+        exitCode: null,
+        stderr_preview: '',
+        resources: task.resources.map((resource) => ({ name: resource.name, mime: resource.mime, size: resource.size })),
+        origin: task.origin,
+        runtimeBundle: describeBundleInput(),
+        timedOut: false,
+        stdout_truncated: false,
+        stderr_truncated: false,
+        outer_stdout_truncated: Boolean(outerOutput?.stdout?.truncated),
+        outer_stderr_truncated: Boolean(outerOutput?.stderr?.truncated),
+        outer_stdout_discarded_bytes: Number(outerOutput?.stdout?.discardedBytes) || 0,
+        outer_stderr_discarded_bytes: Number(outerOutput?.stderr?.discardedBytes) || 0,
     };
 }
 
@@ -334,18 +383,21 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs, allowNetwork = fal
             childEnv.BWRAP_RUNNER_ALLOW_NETWORK = process.env.BWRAP_RUNNER_ALLOW_NETWORK;
         }
 
-        const child = spawn(launch.command, launch.args, {
+        const child = spawn(launch.command, [...launch.args, `--minimum=${RUNNER_PROC_MINIMUM}`], {
             stdio: ['pipe', 'pipe', 'pipe'],
             env: childEnv,
         });
-        const stdoutChunks = [];
-        const stderrChunks = [];
+        const stdoutTail = new BoundedByteTail(OUTER_STDOUT_TAIL_BYTES);
+        const stderrTail = new BoundedByteTail(OUTER_STDERR_TAIL_BYTES);
         let killed = false;
         let settled = false;
         let watchdog = null;
 
-        function streamText(chunks) {
-            return Buffer.concat(chunks).toString('utf8');
+        function outputSnapshot() {
+            return Object.freeze({
+                stdout: stdoutTail.snapshot(),
+                stderr: stderrTail.snapshot(),
+            });
         }
 
         function finish(result) {
@@ -358,35 +410,37 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs, allowNetwork = fal
         watchdog = setTimeout(() => {
             killed = true;
             try { child.kill('SIGKILL'); } catch (_) {}
-            const stdoutText = streamText(stdoutChunks).trim();
-            const stderrText = streamText(stderrChunks);
+            const adapterOutput = outputSnapshot();
             finish({
                 ok: false,
                 error: {
                     code: 'OI_LOCAL_RUNNER_TIMEOUT',
                     message: 'local sandbox runner timed out',
                 },
-                stdout: { text: stdoutText, truncated: false, byteLength: Buffer.byteLength(stdoutText, 'utf8') },
-                stderr: { text: stderrText, truncated: false, byteLength: Buffer.byteLength(stderrText, 'utf8') },
+                stdout: adapterOutput.stdout,
+                stderr: adapterOutput.stderr,
+                adapterOutput,
             });
         }, Math.max(timeoutMs + 15000, 30000));
 
-        child.stdout.on('data', (chunk) => stdoutChunks.push(chunk));
-        child.stderr.on('data', (chunk) => stderrChunks.push(chunk));
+        child.stdout.on('data', (chunk) => stdoutTail.push(chunk));
+        child.stderr.on('data', (chunk) => stderrTail.push(chunk));
         child.on('error', (err) => {
+            const adapterOutput = outputSnapshot();
             finish({
                 ok: false,
                 error: {
                     code: 'OI_LOCAL_RUNNER_SPAWN_FAILED',
                     message: err?.message || String(err),
                 },
-                stdout: { text: '', truncated: false, byteLength: 0 },
-                stderr: { text: streamText(stderrChunks), truncated: false, byteLength: 0 },
+                stdout: adapterOutput.stdout,
+                stderr: adapterOutput.stderr,
+                adapterOutput,
             });
         });
         child.on('close', (code) => {
-            const stdoutText = streamText(stdoutChunks).trim();
-            const stderrText = streamText(stderrChunks);
+            const adapterOutput = outputSnapshot();
+            const stdoutText = adapterOutput.stdout.text.trim();
             const lastLine = stdoutText ? stdoutText.split('\n').pop() : '';
             let parsed = null;
             try {
@@ -395,7 +449,7 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs, allowNetwork = fal
                 parsed = null;
             }
             if (parsed && typeof parsed === 'object') {
-                finish(parsed);
+                finish({ ...parsed, adapterOutput });
                 return;
             }
             finish({
@@ -406,8 +460,9 @@ function invokeLocalRunner(payload, { runtimeRoot, timeoutMs, allowNetwork = fal
                         ? 'local sandbox runner timed out'
                         : `local sandbox runner exited with code ${code} and no parseable record`,
                 },
-                stdout: { text: stdoutText, truncated: false, byteLength: Buffer.byteLength(stdoutText, 'utf8') },
-                stderr: { text: stderrText, truncated: false, byteLength: Buffer.byteLength(stderrText, 'utf8') },
+                stdout: adapterOutput.stdout,
+                stderr: adapterOutput.stderr,
+                adapterOutput,
             });
         });
 
@@ -430,6 +485,11 @@ async function main() {
         }
 
         const task = normalizeInput(envelope.input || {});
+        const runnerAvailability = inspectRunnerCapability({ env: process.env });
+        if (!runnerAvailability.available) {
+            writeOk(runnerUnavailableResult(task, runnerAvailability));
+            return;
+        }
         const runtimeRoot = resolveRuntimeRoot(process.env);
         let preparation;
         try {
@@ -516,6 +576,12 @@ async function main() {
             }
         }
 
+        const runnerUnavailable = evaluateRunnerTaskResult(runnerResult);
+        if (runnerUnavailable) {
+            writeOk(runnerUnavailableResult(task, runnerUnavailable, runnerResult?.adapterOutput));
+            return;
+        }
+
         const stdout = String(runnerResult?.stdout?.text || '').trim();
         const stderr = String(runnerResult?.stderr?.text || '').trim();
         const finalAnswer = naturalLanguageFromBwrap(runnerResult);
@@ -537,6 +603,13 @@ async function main() {
             timedOut: Boolean(runnerResult?.timedOut),
             stdout_truncated: Boolean(runnerResult?.stdout?.truncated),
             stderr_truncated: Boolean(runnerResult?.stderr?.truncated),
+            runner_abi: runnerResult?.runnerAbi ?? null,
+            proc_mode: runnerResult?.procMode || null,
+            proc_minimum: runnerResult?.procMinimum || null,
+            outer_stdout_truncated: Boolean(runnerResult?.adapterOutput?.stdout?.truncated),
+            outer_stderr_truncated: Boolean(runnerResult?.adapterOutput?.stderr?.truncated),
+            outer_stdout_discarded_bytes: Number(runnerResult?.adapterOutput?.stdout?.discardedBytes) || 0,
+            outer_stderr_discarded_bytes: Number(runnerResult?.adapterOutput?.stderr?.discardedBytes) || 0,
         });
     } catch (error) {
         writeError(error && error.message ? error.message : 'open_interpreter_run_task failed');

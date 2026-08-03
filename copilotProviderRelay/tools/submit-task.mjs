@@ -27,11 +27,16 @@ async function runProviderBackend(task, invocationToken) {
     const providerPayload = extractToolJson(response);
     const normalized = normalizeProviderResult(providerPayload, task);
     writeOk({
+        ok: normalized.ok,
         backend: task.backend.id,
         label: task.backend.label,
         provider_agent: task.backend.provider.agent,
         provider_tool: task.backend.provider.tool,
         bwrap_agent: null,
+        code: normalized.code,
+        status: normalized.status,
+        cause: normalized.cause,
+        terminal: normalized.terminal,
         jobId: normalized.jobId,
         sandbox_ok: normalized.sandbox_ok,
         backend_ok: normalized.backend_ok,
@@ -54,6 +59,13 @@ async function runProviderBackend(task, invocationToken) {
             stdout_truncated: normalized.stdout_truncated,
             stderr_truncated: normalized.stderr_truncated,
             stderr_preview: normalized.stderr_preview,
+            runner_abi: normalized.runner_abi,
+            proc_mode: normalized.proc_mode,
+            proc_minimum: normalized.proc_minimum,
+            outer_stdout_truncated: normalized.outer_stdout_truncated,
+            outer_stderr_truncated: normalized.outer_stderr_truncated,
+            outer_stdout_discarded_bytes: normalized.outer_stdout_discarded_bytes,
+            outer_stderr_discarded_bytes: normalized.outer_stderr_discarded_bytes,
         },
     });
 }

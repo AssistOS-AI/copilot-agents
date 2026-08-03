@@ -9,6 +9,7 @@ export const PLOINKY_AGENT_API_KEY_ENV = 'PLOINKY_AGENT_API_KEY';
 export const ACHILLES_RESEARCH_DEFAULT = 'research';
 export const DEFAULT_SOUL_GATEWAY_CONTEXT_WINDOW = 8000;
 export const DEFAULT_SOUL_GATEWAY_MAX_TOKENS = 2000;
+export const OPEN_INTERPRETER_BOX_UNAVAILABLE_CODE = 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE';
 
 export const GENERATED_LOCAL_DESCRIPTOR_SIGNALS = Object.freeze([
     'PLOINKY_ROUTER_DESCRIPTOR_FILE',
@@ -47,13 +48,16 @@ function hasGeneratedLocalDescriptorSignal(env) {
 
 function generatedLocalUnsupportedResolution() {
     return {
-        source: 'generated-local-unsupported',
+        source: 'box-unavailable',
+        code: OPEN_INTERPRETER_BOX_UNAVAILABLE_CODE,
+        status: 422,
+        terminal: true,
         config: createBaseRuntimeConfig({
             offline: true,
         }),
         broker: null,
         sandbox: { allowNetwork: false },
-        reason: 'PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED: generated-local Open Interpreter is disabled until its authority transport and broker flow control are certified',
+        reason: `${OPEN_INTERPRETER_BOX_UNAVAILABLE_CODE}: Open Interpreter is unavailable in Ploinky until private-proc execution and a scoped provider broker are certified together`,
     };
 }
 
@@ -305,19 +309,18 @@ export async function resolveAchillesSoulGatewayConfig({ env = process.env } = {
 }
 
 export function resolveOpenInterpreterGeneratedLocalPreflight({ env = process.env } = {}) {
-    if (explicitOpenInterpreterConfig(env)) return null;
     return hasGeneratedLocalDescriptorSignal(env)
         ? generatedLocalUnsupportedResolution()
         : null;
 }
 
 export async function resolveOpenInterpreterRuntimeConfig({ env = process.env } = {}) {
-    const explicit = explicitOpenInterpreterConfig(env);
-    if (explicit) return explicit;
-
     if (hasGeneratedLocalDescriptorSignal(env)) {
         return generatedLocalUnsupportedResolution();
     }
+
+    const explicit = explicitOpenInterpreterConfig(env);
+    if (explicit) return explicit;
 
     if (hasOwnEnvValue(env, PLOINKY_AGENT_API_KEY_ENV) && stringValue(env[PLOINKY_AGENT_API_KEY_ENV]) === '') {
         return {

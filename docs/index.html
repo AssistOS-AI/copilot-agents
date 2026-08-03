@@ -49,21 +49,23 @@ ploinky start explorer 8080</pre>
     <p>
         The bundle enables <code>copilotProviderRelay</code>, <code>openInterpreterAgent</code>,
         <code>webSearchAgent</code>, <code>browserUseAgent</code>, and <code>GPTResearcher</code>.
+        GPTResearcher is supplied by the sibling AchillesCLI repository and is covered here as an explicit
+        cross-repository shared-image compatibility surface.
         Backend availability is controlled by provider agents, not by
         direct backend chat agents, a separate bwrap-runner agent, or relay-owned command strings.
         <code>webSearchAgent</code> owns its local headless browser runtime and does not depend on
         an external search gateway.
     </p>
 
-    <h2>Agent Inventory</h2>
+    <h2>Agent Inventory and Compatibility Surfaces</h2>
     <ul>
         <li><code>research-agents</code> - explicit deployment bundle</li>
         <li><code>copilotProviderRelay</code> - secure provider task relay</li>
         <li><code>openInterpreterAgent</code> - Open Interpreter provider agent</li>
         <li><code>webSearchAgent</code> - cacheable web-search provider with a local headless browser runtime</li>
         <li><code>browserUseAgent</code> - interactive browser provider with protected viewer for ChatGPT/Gemini login and OAuth flows</li>
-        <li><code>GPTResearcher</code> - OpenAI-compatible research document agent using the bundled AgentServer chat-completions hook</li>
-        <li><code>codexAgent</code> - direct Codex CLI wrapper without MCP tools or HTTP routes</li>
+        <li><code>GPTResearcher</code> - AchillesCLI-owned shared-runner consumer covered by cross-repository cold-install, readiness, and task contracts</li>
+        <li><code>opencodeAgent</code>, <code>piAgent</code>, and <code>codexAgent</code> - AchillesCLI-owned launcher consumers covered by explicit cross-repository compatibility tests</li>
         <li><code>launch-open-interpreter</code> - deterministic AchillesCLI launcher for execution tasks</li>
         <li><code>launch-web-search</code> - deterministic AchillesCLI launcher for cacheable web search</li>
         <li><code>launch-browser-use</code> - deterministic AchillesCLI launcher for logged-in browser tasks</li>
@@ -86,8 +88,17 @@ ploinky start explorer 8080</pre>
     <p>
         Credentialed launcher and relay calls use Ploinky's verified <code>AgentMcpClient</code>, which
         validates the signed generated-local Router descriptor before credential or socket use. Generated-local
-        Open Interpreter model execution remains safety-disabled before runtime preparation in this release;
-        explicit operator-configured <code>OPEN_INTERPRETER_*</code> endpoints remain separate.
+        Open Interpreter model execution returns terminal
+        <code>PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE</code> before runtime preparation in this release;
+        explicit operator-configured <code>OPEN_INTERPRETER_*</code> endpoints cannot override a Box descriptor and
+        remain available only for separate non-Box local development.
+    </p>
+    <p>
+        Open Interpreter requires runner ABI <code>2</code> and private proc. Startup, readiness, status, and task
+        admission use the canonical shared-runner contract, while outer runner stdout/stderr are retained only as
+        bounded tails with discarded-byte counters. Its current privileged mutable-image manifest is an explicit
+        transition gate: immutable digest pinning and privilege removal remain blocked on native amd64/arm64 runner,
+        private-proc, Open Interpreter disposition, and GPTResearcher cold-task evidence.
     </p>
 
     <h2>Specifications</h2>

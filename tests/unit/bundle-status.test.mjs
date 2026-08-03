@@ -27,6 +27,16 @@ test('research_agents_status returns the default profile by default', () => {
     assert.ok(!agents.includes('bwrap-runner'), 'research-agents must not enable bwrap-runner');
     assert.ok(payload.availableProfiles.includes('qa'));
     assert.ok(payload.availableProfiles.includes('prod'));
+    assert.equal(payload.lifecycle.noWaitIsolation, true);
+    assert.equal(payload.lifecycle.failedOptionalProvidersDoNotBlockSiblings, true);
+    assert.deepEqual(payload.providerDisposition.openInterpreterAgent, {
+        code: 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE',
+        terminalUntilContractChange: true,
+    });
+    assert.deepEqual(payload.providerDisposition.GPTResearcher, {
+        sharedRunnerImageConsumer: true,
+        sandboxServiceDependency: false,
+    });
 });
 
 test('research_agents_status surfaces a requested profile', () => {

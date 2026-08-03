@@ -7,12 +7,15 @@ import path from 'node:path';
 export const BUNDLE_ID = 'open-interpreter';
 export const BUNDLE_VERSION = '0.4.3';
 export const SCHEMA = 'ploinky.research-runtime';
+export const RUNNER_ABI = 2;
+export const RUNNER_PROC_MINIMUM = 'private';
 export const SHIM_NAME = 'research-open-interpreter.py';
 export const SHIM_HOST_PATH = '/code/runtime/research-open-interpreter.py';
 export const DEFAULT_RUNTIME_ROOT = '/data/research-runtimes';
 export const RUNNER_IMAGE_HINT = 'docker.io/assistos/bwrap-runner:node24-python-bookworm';
 export const PYTHON_MAJOR_MINOR = '3.11';
 export const TMP_PREFIX = '.tmp-';
+export const BUNDLE_LAYOUT_VERSION = `${BUNDLE_VERSION}-runner-abi-${RUNNER_ABI}`;
 const MAX_MANIFEST_BYTES = 64 * 1024;
 
 export function resolveRuntimeRoot(env = process.env) {
@@ -25,7 +28,7 @@ export function resolveRuntimeRoot(env = process.env) {
 }
 
 export function bundleDir(runtimeRoot) {
-    return path.join(runtimeRoot, BUNDLE_ID, BUNDLE_VERSION);
+    return path.join(runtimeRoot, BUNDLE_ID, BUNDLE_LAYOUT_VERSION);
 }
 
 export function bundleParentDir(runtimeRoot) {
@@ -51,6 +54,13 @@ function parseRuntimeManifest(manifestPath) {
         return null;
     }
     if (parsed.schema !== SCHEMA || parsed.id !== BUNDLE_ID || parsed.version !== BUNDLE_VERSION) {
+        return null;
+    }
+    if (!isPlainObject(parsed.compatibility)
+        || parsed.compatibility.runnerAbi !== RUNNER_ABI
+        || parsed.compatibility.procMinimum !== RUNNER_PROC_MINIMUM
+        || parsed.compatibility.runnerImage !== RUNNER_IMAGE_HINT
+        || parsed.compatibility.pythonMajorMinor !== PYTHON_MAJOR_MINOR) {
         return null;
     }
     return parsed;
@@ -132,6 +142,8 @@ export function buildManifest({ digest = null, shim = null } = {}) {
         },
         compatibility: {
             runnerImage: RUNNER_IMAGE_HINT,
+            runnerAbi: RUNNER_ABI,
+            procMinimum: RUNNER_PROC_MINIMUM,
             pythonMajorMinor: PYTHON_MAJOR_MINOR,
         },
     };
@@ -157,7 +169,12 @@ export function naturalLanguageBundleStatus(runtimeRoot, manifest) {
 }
 
 export function describeBundleInput() {
-    return { id: BUNDLE_ID, version: BUNDLE_VERSION };
+    return {
+        id: BUNDLE_ID,
+        version: BUNDLE_VERSION,
+        runnerAbi: RUNNER_ABI,
+        procMinimum: RUNNER_PROC_MINIMUM,
+    };
 }
 
 export function decodeResourceContent(resource) {

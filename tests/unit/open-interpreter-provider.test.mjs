@@ -9,10 +9,14 @@ import { fileURLToPath } from 'node:url';
 
 import {
     BUNDLE_ID,
+    BUNDLE_LAYOUT_VERSION,
     BUNDLE_VERSION,
+    RUNNER_ABI,
+    RUNNER_PROC_MINIMUM,
     SCHEMA,
     bundleDir,
     buildManifest,
+    describeBundleInput,
     readExistingManifest,
     resolvePreparedRuntime,
     resolveRuntimeRoot,
@@ -24,6 +28,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATUS_TOOL = path.resolve(__dirname, '../../openInterpreterAgent/tools/status.mjs');
 const TASK_TOOL = path.resolve(__dirname, '../../openInterpreterAgent/tools/open-interpreter-run-task.mjs');
 const REMOVED_AGENT_KEY_ALIAS = ['SOUL_GATEWAY', 'API_KEY'].join('_');
+const OPEN_INTERPRETER_UNAVAILABLE_CODE = 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE';
 
 function mkroot() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'oi-provider-test-'));
@@ -32,6 +37,33 @@ function mkroot() {
 function writeManifest(dir, manifest) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+}
+
+function writeRunnerHealthcheck(dir, {
+    mode = RUNNER_PROC_MINIMUM,
+    minimum = RUNNER_PROC_MINIMUM,
+    runnerAbi = RUNNER_ABI,
+    ok = true,
+    code = ok ? 'BWRAP_RUNNER_READY' : 'PLOINKY_BWRAP_CAPABILITY_UNAVAILABLE',
+} = {}) {
+    const healthcheckPath = path.join(dir, 'runner-healthcheck.mjs');
+    fs.writeFileSync(healthcheckPath, `#!/usr/bin/env node
+const expected = '--minimum=${RUNNER_PROC_MINIMUM}';
+if (!process.argv.includes(expected)) {
+    process.stdout.write(JSON.stringify({ ok: false, code: 'TEST_MINIMUM_NOT_FORWARDED' }) + '\\n');
+    process.exitCode = 2;
+} else {
+    process.stdout.write(JSON.stringify(${JSON.stringify({
+        ok,
+        code,
+        runnerAbi,
+        capability: { mode, minimum },
+    })}) + '\\n');
+    process.exitCode = ${ok ? 0 : 1};
+}
+`);
+    fs.chmodSync(healthcheckPath, 0o755);
+    return healthcheckPath;
 }
 
 function writeAchillesConfig(dir, overrides = {}) {
@@ -118,10 +150,12 @@ test('generated-local Open Interpreter fails closed before key access or broker 
     });
 
     const resolution = await resolveOpenInterpreterRuntimeConfig({ env });
-    assert.equal(resolution.source, 'generated-local-unsupported');
+    assert.equal(resolution.source, 'box-unavailable');
+    assert.equal(resolution.code, 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE');
+    assert.equal(resolution.terminal, true);
     assert.equal(resolution.broker, null);
     assert.equal(resolution.sandbox.allowNetwork, false);
-    assert.match(resolution.reason, /PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED/);
+    assert.match(resolution.reason, /PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE/);
     assert.equal(keyReads, 0);
 });
 
@@ -137,6 +171,8 @@ test('buildManifest produces a manifest that matches the runner runtime-bundle s
     assert.equal(manifest.version, BUNDLE_VERSION);
     assert.equal(manifest.entrypoints.default, '/runtime/bin/research-open-interpreter.py');
     assert.deepEqual(manifest.python.pythonPath, ['/runtime/python']);
+    assert.equal(manifest.compatibility.runnerAbi, RUNNER_ABI);
+    assert.equal(manifest.compatibility.procMinimum, RUNNER_PROC_MINIMUM);
 });
 
 test('readExistingManifest recognizes an already-prepared bundle', () => {
@@ -162,6 +198,29 @@ test('readExistingManifest rejects manifests for the wrong bundle id/version', (
 
         writeManifest(target, { ...buildManifest(), version: '0.0.1' });
         assert.equal(readExistingManifest(root), null);
+
+        const incompatible = buildManifest();
+        delete incompatible.compatibility.runnerAbi;
+        writeManifest(target, incompatible);
+        assert.equal(readExistingManifest(root), null);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('runner ABI layout migrates additively without treating the populated legacy bundle as compatible', () => {
+    const root = mkroot();
+    try {
+        const legacy = path.join(root, BUNDLE_ID, BUNDLE_VERSION);
+        writeManifest(legacy, {
+            schema: SCHEMA,
+            id: BUNDLE_ID,
+            version: BUNDLE_VERSION,
+        });
+        assert.equal(bundleDir(root), path.join(root, BUNDLE_ID, BUNDLE_LAYOUT_VERSION));
+        assert.equal(readExistingManifest(root), null);
+        assert.equal(fs.existsSync(path.join(legacy, 'manifest.json')), true,
+            'compatibility migration must not delete a populated legacy bundle');
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
@@ -172,7 +231,7 @@ test('prepared runtime detection rejects symlink escapes from the runtime root',
     const outside = mkroot();
     try {
         fs.mkdirSync(path.join(root, BUNDLE_ID), { recursive: true });
-        fs.symlinkSync(outside, path.join(root, BUNDLE_ID, BUNDLE_VERSION));
+        fs.symlinkSync(outside, bundleDir(root));
         writeManifest(outside, buildManifest({ digest: 'sha256:escape' }));
         assert.equal(readExistingManifest(root), null);
         assert.equal(resolvePreparedRuntime(root), null);
@@ -201,10 +260,16 @@ test('prepared runtime detection rejects manifest symlinks that leave the select
 test('oi_status reports an unprepared bundle when the runtime root is empty', () => {
     const root = mkroot();
     try {
+        const healthcheck = writeRunnerHealthcheck(root);
         const child = spawnSync(process.execPath, [STATUS_TOOL], {
             input: JSON.stringify({ tool: 'oi_status', input: {} }),
             encoding: 'utf8',
-            env: { ...process.env, OI_RUNTIME_ROOT: root },
+            env: {
+                ...process.env,
+                OI_RUNTIME_ROOT: root,
+                OI_RUNNER_HEALTHCHECK_PATH: healthcheck,
+                OPEN_INTERPRETER_MODEL: 'local-model',
+            },
             timeout: 10000,
         });
         assert.equal(child.status, 0, `status exited ${child.status}: ${child.stderr}`);
@@ -216,6 +281,8 @@ test('oi_status reports an unprepared bundle when the runtime root is empty', ()
         assert.equal(payload.telemetry.disabled, true);
         assert.ok(payload.sandbox && typeof payload.sandbox === 'object',
             'status must report local sandbox health, not remote runner reachability');
+        assert.equal(payload.sandbox.available, true);
+        assert.equal(payload.sandbox.procMinimum, RUNNER_PROC_MINIMUM);
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
@@ -225,15 +292,61 @@ test('oi_status reports a prepared bundle once the manifest is in place', () => 
     const root = mkroot();
     try {
         writeManifest(bundleDir(root), buildManifest({ digest: 'sha256:abc' }));
+        const healthcheck = writeRunnerHealthcheck(root);
         const child = spawnSync(process.execPath, [STATUS_TOOL], {
             input: JSON.stringify({ tool: 'oi_status', input: {} }),
             encoding: 'utf8',
-            env: { ...process.env, OI_RUNTIME_ROOT: root },
+            env: {
+                ...process.env,
+                OI_RUNTIME_ROOT: root,
+                OI_RUNNER_HEALTHCHECK_PATH: healthcheck,
+                OPEN_INTERPRETER_MODEL: 'local-model',
+            },
             timeout: 10000,
         });
         const payload = JSON.parse(child.stdout || '{}');
         assert.equal(payload.runtime.prepared, true);
         assert.equal(payload.runtime.manifest.id, BUNDLE_ID);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('oi_status and task return the same terminal code when private proc is unavailable', async () => {
+    const root = mkroot();
+    try {
+        const healthcheck = writeRunnerHealthcheck(root, {
+            mode: 'private-or-empty',
+            minimum: 'private-or-empty',
+        });
+        const env = {
+            OI_RUNTIME_ROOT: root,
+            OI_RUNNER_HEALTHCHECK_PATH: healthcheck,
+            OPEN_INTERPRETER_MODEL: 'local-model',
+            OPEN_INTERPRETER_API_BASE: 'http://127.0.0.1:11434/v1',
+        };
+        const statusChild = spawnSync(process.execPath, [STATUS_TOOL], {
+            input: JSON.stringify({ tool: 'oi_status', input: {} }),
+            encoding: 'utf8',
+            env: { ...process.env, ...env },
+            timeout: 10000,
+        });
+        const statusPayload = JSON.parse(statusChild.stdout || '{}');
+        const taskChild = await runTaskTool({
+            tool: 'open_interpreter_run_task',
+            input: { prompt: 'hello world', timeoutMs: 5000 },
+            metadata: { invocationToken: 'test-token' },
+        }, env);
+        const taskPayload = JSON.parse(taskChild.stdout || '{}');
+
+        assert.equal(statusPayload.availability.code, OPEN_INTERPRETER_UNAVAILABLE_CODE);
+        assert.equal(statusPayload.availability.terminal, true);
+        assert.equal(taskPayload.code, statusPayload.availability.code);
+        assert.equal(taskPayload.status, statusPayload.availability.status);
+        assert.equal(taskPayload.terminal, true);
+        assert.equal(taskPayload.cause.code, 'PLOINKY_BWRAP_CAPABILITY_UNAVAILABLE');
+        assert.equal(fs.existsSync(path.join(root, BUNDLE_ID)), false,
+            'private-proc rejection must happen before runtime preparation');
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
@@ -254,6 +367,7 @@ test('open_interpreter_run_task refuses without an invocation token', () => {
 test('open_interpreter_run_task returns a natural-language message when the bundle is missing', () => {
     const root = mkroot();
     try {
+        const healthcheck = writeRunnerHealthcheck(root);
         const child = spawnSync(process.execPath, [TASK_TOOL], {
             input: JSON.stringify({
                 tool: 'open_interpreter_run_task',
@@ -261,7 +375,12 @@ test('open_interpreter_run_task returns a natural-language message when the bund
                 metadata: { invocationToken: 'test-token' },
             }),
             encoding: 'utf8',
-            env: { ...process.env, OI_RUNTIME_ROOT: root, OI_RUNTIME_AUTO_PREPARE: 'false' },
+            env: {
+                ...process.env,
+                OI_RUNTIME_ROOT: root,
+                OI_RUNTIME_AUTO_PREPARE: 'false',
+                OI_RUNNER_HEALTHCHECK_PATH: healthcheck,
+            },
             timeout: 10000,
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
@@ -273,7 +392,7 @@ test('open_interpreter_run_task returns a natural-language message when the bund
         assert.equal(payload.sandbox_ok, false);
         assert.match(payload.final_answer, /not prepared/);
         assert.match(payload.final_answer, /prepare_runtime/);
-        assert.deepEqual(payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
+        assert.deepEqual(payload.runtimeBundle, describeBundleInput());
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
@@ -283,6 +402,7 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
     const root = mkroot();
     writeManifest(bundleDir(root), buildManifest({ digest: 'sha256:abc' }));
     try {
+        const healthcheck = writeRunnerHealthcheck(root);
         const child = await runTaskTool({
             tool: 'open_interpreter_run_task',
             input: { prompt: 'hello world', timeoutMs: 5000 },
@@ -291,6 +411,7 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
             OI_RUNTIME_ROOT: root,
             OI_RUNTIME_AUTO_PREPARE: 'false',
             OI_LOCAL_RUNNER_BIN: '/nonexistent/path/to/bwrap-sandbox-exec',
+            OI_RUNNER_HEALTHCHECK_PATH: healthcheck,
             OPEN_INTERPRETER_MODEL: '',
             OPEN_INTERPRETER_API_BASE: '',
             OPEN_INTERPRETER_LOCAL: '',
@@ -302,13 +423,13 @@ test('open_interpreter_run_task returns missing-model guidance without invoking 
         assert.equal(payload.sandbox_ok, false);
         assert.match(payload.final_answer, /runtime bundle open-interpreter@0\.4\.3 is prepared/);
         assert.match(payload.final_answer, /no Soul Gateway, model, or local endpoint is configured/);
-        assert.doesNotMatch(payload.final_answer, /PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED/);
+        assert.doesNotMatch(payload.final_answer, /PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE/);
         assert.match(
             payload.final_answer,
             /OPEN_INTERPRETER_MODEL and OPEN_INTERPRETER_API_BASE/,
         );
         assert.doesNotMatch(payload.final_answer, /sandbox runner|local bwrap|not installed/);
-        assert.deepEqual(payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
+        assert.deepEqual(payload.runtimeBundle, describeBundleInput());
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
@@ -348,10 +469,12 @@ process.stdin.on('data', (chunk) => chunks.push(chunk));
 process.stdin.on('end', () => {
     const text = Buffer.concat(chunks).toString('utf8');
     fs.writeFileSync(${JSON.stringify(stubMarker)}, JSON.stringify({
+        argv: process.argv.slice(2),
         env: {
             BWRAP_RUNNER_RUNTIME_ROOT: process.env.BWRAP_RUNNER_RUNTIME_ROOT || null,
             BWRAP_RUNNER_ALLOW_NETWORK: process.env.BWRAP_RUNNER_ALLOW_NETWORK || null,
             PLOINKY_AGENT_API_KEY: process.env.PLOINKY_AGENT_API_KEY || null,
+            PLOINKY_AGENT_PRIVATE_SECRET: process.env.PLOINKY_AGENT_PRIVATE_SECRET || null,
         },
         payload: JSON.parse(text || '{}'),
     }));
@@ -363,6 +486,9 @@ process.stdin.on('end', () => {
         timedOut: false,
         elapsedMs: 7,
         network: 'none',
+        runnerAbi: ${RUNNER_ABI},
+        procMode: '${RUNNER_PROC_MINIMUM}',
+        procMinimum: '${RUNNER_PROC_MINIMUM}',
         stdout: { text: 'configured response from local sandbox', truncated: false, byteLength: 33 },
         stderr: { text: '', truncated: false, byteLength: 0 },
     }) + '\\n');
@@ -380,6 +506,7 @@ process.stdin.on('end', () => {
     fs.chmodSync(wrapper, 0o755);
 
     try {
+        const healthcheck = writeRunnerHealthcheck(stubDir);
         const child = await runTaskTool({
             tool: 'open_interpreter_run_task',
             input: { prompt: 'hello world', timeoutMs: 5000 },
@@ -388,11 +515,12 @@ process.stdin.on('end', () => {
             OI_RUNTIME_ROOT: root,
             OI_RUNTIME_AUTO_PREPARE: 'false',
             OI_LOCAL_RUNNER_BIN: wrapper,
+            OI_RUNNER_HEALTHCHECK_PATH: healthcheck,
             OPEN_INTERPRETER_MODEL: 'local-model',
             OPEN_INTERPRETER_API_BASE: 'http://127.0.0.1:11434/v1',
             OPEN_INTERPRETER_CONTEXT_WINDOW: '12345',
             OPEN_INTERPRETER_MAX_TOKENS: '1234',
-            PLOINKY_AGENT_API_KEY: 'soul-secret-should-not-win',
+            PLOINKY_AGENT_PRIVATE_SECRET: 'private-secret-should-not-pass',
             // No PLOINKY_ROUTER_URL: the provider must not call the router.
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
@@ -408,7 +536,10 @@ process.stdin.on('end', () => {
             'explicit Open Interpreter overrides must not force broker network mode');
         assert.equal(received.env.PLOINKY_AGENT_API_KEY, null,
             'child runner env must not receive PLOINKY_AGENT_API_KEY');
-        assert.deepEqual(received.payload.runtimeBundle, { id: BUNDLE_ID, version: BUNDLE_VERSION });
+        assert.equal(received.env.PLOINKY_AGENT_PRIVATE_SECRET, null,
+            'child runner env must not receive PLOINKY_AGENT_PRIVATE_SECRET');
+        assert.deepEqual(received.argv, [`--minimum=${RUNNER_PROC_MINIMUM}`]);
+        assert.deepEqual(received.payload.runtimeBundle, describeBundleInput());
         assert.match(received.payload.command, /\/work\/config\/open-interpreter\.json/);
         const configFile = received.payload.files.find((file) => file.path === 'config/open-interpreter.json');
         assert.ok(configFile, 'expected staged Open Interpreter config');
@@ -420,8 +551,65 @@ process.stdin.on('end', () => {
         assert.equal(config.api_key, null);
         const serialized = JSON.stringify(received);
         assert.ok(!serialized.includes('OPENAI_API_KEY'), 'credentials must not be staged');
-        assert.ok(!serialized.includes('soul-secret-should-not-win'), 'PLOINKY_AGENT_API_KEY must not be staged');
+        assert.ok(!serialized.includes('private-secret-should-not-pass'), 'private agent credentials must not be staged');
         assert.ok(!serialized.includes('test-token'), 'invocation token must not be passed to the inner sandbox');
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+        fs.rmSync(stubDir, { recursive: true, force: true });
+    }
+});
+
+test('open_interpreter_run_task bounds outer adapter output and reports discarded bytes', async () => {
+    const root = mkroot();
+    writeManifest(bundleDir(root), buildManifest({ digest: 'sha256:abc' }));
+    const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oi-output-bound-stub-'));
+    const stubBin = path.join(stubDir, 'stub-runner.mjs');
+    fs.writeFileSync(stubBin, `#!/usr/bin/env node
+process.stdin.resume();
+process.stdin.on('end', () => {
+    process.stdout.write('x'.repeat(80 * 1024) + '\\n');
+    process.stderr.write('y'.repeat(24 * 1024));
+    process.stdout.write(JSON.stringify({
+        ok: true,
+        jobId: 'bounded-job',
+        exitCode: 0,
+        runnerAbi: ${RUNNER_ABI},
+        procMode: '${RUNNER_PROC_MINIMUM}',
+        procMinimum: '${RUNNER_PROC_MINIMUM}',
+        stdout: { text: 'bounded response', truncated: false, byteLength: 16 },
+        stderr: { text: '', truncated: false, byteLength: 0 }
+    }) + '\\n');
+});
+`);
+    fs.chmodSync(stubBin, 0o755);
+    const wrapper = path.join(stubDir, 'bwrap-sandbox-exec');
+    fs.writeFileSync(wrapper, `#!/bin/sh\nexec "${process.execPath}" "${stubBin}" "$@"\n`);
+    fs.chmodSync(wrapper, 0o755);
+
+    try {
+        const healthcheck = writeRunnerHealthcheck(stubDir);
+        const child = await runTaskTool({
+            tool: 'open_interpreter_run_task',
+            input: { prompt: 'hello world', timeoutMs: 5000 },
+            metadata: { invocationToken: 'test-token' },
+        }, {
+            OI_RUNTIME_ROOT: root,
+            OI_RUNTIME_AUTO_PREPARE: 'false',
+            OI_LOCAL_RUNNER_BIN: wrapper,
+            OI_RUNNER_HEALTHCHECK_PATH: healthcheck,
+            OPEN_INTERPRETER_MODEL: 'local-model',
+            OPEN_INTERPRETER_API_BASE: 'http://127.0.0.1:11434/v1',
+        });
+        assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
+        const payload = JSON.parse(child.stdout || '{}');
+        assert.equal(payload.ok, true, JSON.stringify(payload));
+        assert.equal(payload.final_answer, 'bounded response');
+        assert.equal(payload.outer_stdout_truncated, true);
+        assert.equal(payload.outer_stderr_truncated, true);
+        assert.ok(payload.outer_stdout_discarded_bytes > 16 * 1024);
+        assert.equal(payload.outer_stderr_discarded_bytes, 8 * 1024);
+        assert.ok(Buffer.byteLength(child.stdout, 'utf8') < 16 * 1024,
+            'outer runner noise must not escape through the provider response');
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
         fs.rmSync(stubDir, { recursive: true, force: true });
@@ -486,10 +674,12 @@ process.stdin.on('end', () => {
         });
         assert.equal(child.status, 0, `task exited ${child.status}: ${child.stderr}`);
         const payload = JSON.parse(child.stdout || '{}');
-        assert.equal(payload.ok, true, `expected ok=true; got ${JSON.stringify(payload)}`);
+        assert.equal(payload.ok, false, `expected ok=false; got ${JSON.stringify(payload)}`);
+        assert.equal(payload.code, 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE');
+        assert.equal(payload.terminal, true);
         assert.equal(payload.sandbox_ok, false);
         assert.equal(payload.jobId, null);
-        assert.match(payload.final_answer, /PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED/);
+        assert.match(payload.final_answer, /PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE/);
         assert.equal(fs.existsSync(stubMarker), false, 'local runner must not be started');
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
@@ -516,6 +706,7 @@ test('open_interpreter_run_task does not call the router for sandbox execution',
         };
     });
     try {
+        const healthcheck = writeRunnerHealthcheck(root);
         const child = await runTaskTool({
             tool: 'open_interpreter_run_task',
             input: { prompt: 'hello world', timeoutMs: 5000 },
@@ -524,6 +715,7 @@ test('open_interpreter_run_task does not call the router for sandbox execution',
             OI_RUNTIME_ROOT: root,
             OI_RUNTIME_AUTO_PREPARE: 'false',
             OI_LOCAL_RUNNER_BIN: '/nonexistent/path/to/bwrap-sandbox-exec',
+            OI_RUNNER_HEALTHCHECK_PATH: healthcheck,
             PLOINKY_ROUTER_URL: `http://127.0.0.1:${port}`,
             PLOINKY_AGENT_API_KEY: '',
         });
@@ -534,9 +726,12 @@ test('open_interpreter_run_task does not call the router for sandbox execution',
         // structured natural-language failure so the chat surface stays clear.
         assert.equal(routerCalled, false,
             'provider must not call the router for sandbox execution');
+        assert.equal(payload.code, OPEN_INTERPRETER_UNAVAILABLE_CODE);
+        assert.equal(payload.cause.code, 'OPEN_INTERPRETER_PROVIDER_CONTRACT_UNCERTIFIED');
+        assert.equal(payload.terminal, true);
         assert.match(payload.final_answer,
-            /local sandbox|runtime|not prepared|local bwrap|sandbox runner/i,
-            `final answer should describe the local sandbox failure, got: ${payload.final_answer}`);
+            /unavailable in the Ploinky Box/i,
+            `final answer should describe the deterministic Box disposition, got: ${payload.final_answer}`);
     } finally {
         await new Promise((resolve) => server.close(resolve));
         fs.rmSync(root, { recursive: true, force: true });
@@ -645,7 +840,7 @@ test('openInterpreterAgent manifest requests privileged container security and u
     const manifestPath = path.resolve(__dirname, '../../openInterpreterAgent/manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     assert.deepEqual(manifest.containerSecurity, { privileged: true });
-    assert.match(manifest.agent, /\/opt\/bwrap-runner\/bin\/healthcheck\.mjs/);
+    assert.match(manifest.agent, /\/opt\/bwrap-runner\/bin\/healthcheck\.mjs --minimum=private/);
     assert.match(manifest.agent, /AgentServer\.sh/);
     assert.deepEqual(manifest.readiness, { protocol: 'mcp' });
     assert.equal(manifest.health.readiness.script, 'healthcheck.sh');

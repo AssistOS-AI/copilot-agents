@@ -126,6 +126,68 @@ test('relay forwards open-interpreter to openInterpreterAgent via MCP', async ()
     }
 });
 
+test('relay preserves terminal Open Interpreter code, cause, status, and bounded-output evidence', async () => {
+    const providerResponse = {
+        ok: false,
+        code: 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE',
+        status: 422,
+        cause: {
+            code: 'PLOINKY_BWRAP_CAPABILITY_UNAVAILABLE',
+            observedMode: 'private-or-empty',
+            observedMinimum: 'private-or-empty',
+        },
+        terminal: true,
+        sandbox_ok: false,
+        backend_ok: false,
+        final_answer: 'Open Interpreter requires private proc.',
+        runner_abi: 2,
+        proc_mode: 'private-or-empty',
+        proc_minimum: 'private',
+        outer_stdout_truncated: true,
+        outer_stderr_truncated: true,
+        outer_stdout_discarded_bytes: 8192,
+        outer_stderr_discarded_bytes: 4096,
+    };
+    const { server, port } = await startStubRouter((call) => ({
+        status: 200,
+        body: {
+            jsonrpc: '2.0',
+            id: call.body.id,
+            result: { content: [{ type: 'text', text: JSON.stringify(providerResponse) }] },
+        },
+    }));
+    try {
+        const child = await runSubmitTask({
+            input: { backend: 'open-interpreter', prompt: 'hello' },
+            metadata: { invocationToken: 'relay-token' },
+        }, {
+            PLOINKY_TEST_ROUTER_URL: `http://127.0.0.1:${port}`,
+            PLOINKY_WORKSPACE_ROOT: process.cwd(),
+        });
+        assert.equal(child.status, 0, `submit-task exited ${child.status}: ${child.stderr}`);
+        const payload = JSON.parse(child.stdout || '{}');
+        assert.equal(payload.ok, false);
+        assert.equal(payload.code, providerResponse.code);
+        assert.equal(payload.status, providerResponse.status);
+        assert.deepEqual(payload.cause, {
+            code: providerResponse.cause.code,
+            message: null,
+            observedRunnerAbi: null,
+            observedMode: providerResponse.cause.observedMode,
+            observedMinimum: providerResponse.cause.observedMinimum,
+        });
+        assert.equal(payload.terminal, true);
+        assert.equal(payload.diagnostics.runner_abi, 2);
+        assert.equal(payload.diagnostics.proc_minimum, 'private');
+        assert.equal(payload.diagnostics.outer_stdout_truncated, true);
+        assert.equal(payload.diagnostics.outer_stderr_truncated, true);
+        assert.equal(payload.diagnostics.outer_stdout_discarded_bytes, 8192);
+        assert.equal(payload.diagnostics.outer_stderr_discarded_bytes, 4096);
+    } finally {
+        await new Promise((resolve) => server.close(resolve));
+    }
+});
+
 test('relay falls back to natural-language message if provider returns no output', async () => {
     const { server, port } = await startStubRouter((call) => ({
         status: 200,
@@ -143,7 +205,7 @@ test('relay falls back to natural-language message if provider returns no output
             PLOINKY_WORKSPACE_ROOT: process.cwd(),
         });
         const payload = JSON.parse(child.stdout || '{}');
-        assert.equal(payload.ok, true, `submit-task error: ${payload.error || ''}`);
+        assert.equal(payload.ok, false);
         assert.equal(payload.backend_ok, false);
         assert.match(payload.final_answer, /Open Interpreter did not return/);
     } finally {

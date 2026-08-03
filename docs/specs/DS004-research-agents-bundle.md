@@ -50,6 +50,14 @@ backends must add provider agents before the bundle enables them.
 
 The bundle must not be listed in AssistOSExplorer's default dependency list. Restarting the Ploinky workspace after enabling the bundle is the safe documented activation path unless the current Ploinky branch later documents hot dependency refresh.
 
+Every optional provider entry remains `no-wait`, so an unavailable Open
+Interpreter provider cannot block relay, web search, browser use,
+GPTResearcher, or unrelated running agents. `research_agents_status` exposes
+this isolation contract and reports Open Interpreter's terminal
+`PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE` disposition. GPTResearcher is an
+AchillesCLI-owned shared-image consumer and does not depend on a separately
+enabled sandbox service.
+
 ## Decisions & Questions
 
 ### Question #1: Why make the bundle an agent instead of a script?
@@ -78,6 +86,15 @@ agent. Enabling a separate runner agent would reintroduce a central service
 that provider agents have to call, which is the coupling this architecture
 removes. Provider agents remain independently deployable Ploinky agents and
 use the shared sandbox image locally.
+
+### Decision #5: Why is terminal Open Interpreter unavailability compatible with a healthy bundle?
+
+Response:
+The bundle is a deployment graph, not an all-or-nothing readiness barrier.
+Optional provider nodes use no-wait isolation. A deterministic, terminal
+Open Interpreter disposition therefore prevents futile retries without
+destabilizing the relay, browser/search providers, GPTResearcher, or existing
+routes.
 
 ## Conclusion
 

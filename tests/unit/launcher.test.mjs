@@ -152,3 +152,39 @@ test('action returns unavailable when Open Interpreter provider route is missing
         [PROVIDER_AGENT, PROVIDER_STATUS_TOOL],
     ]);
 });
+
+test('action treats terminal provider unavailability as final and never submits', async () => {
+    const calls = [];
+    const result = await action({
+        prompt: 'run a quick diagnostic',
+        context: { invocationToken: 'caller-token' },
+        callAgentTool: async (...args) => {
+            calls.push(args);
+            const [, toolName] = args;
+            if (toolName === LIST_TOOL) {
+                return jsonResponse({ backends: [{ id: BACKEND, provider: { agent: PROVIDER_AGENT } }] });
+            }
+            if (toolName === PROVIDER_STATUS_TOOL) {
+                return jsonResponse({
+                    availability: {
+                        available: false,
+                        terminal: true,
+                        code: 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE',
+                        status: 422,
+                        reason: 'Open Interpreter requires private proc.',
+                    },
+                });
+            }
+            throw new Error('submit should not be called');
+        },
+    });
+
+    assert.equal(result.ok, false);
+    assert.equal(result.diagnostics.terminal, true);
+    assert.equal(result.diagnostics.providerCode, 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE');
+    assert.match(result.result_text, /requires private proc/);
+    assert.deepEqual(calls.map((call) => [call[0], call[1]]), [
+        [RELAY_AGENT, LIST_TOOL],
+        [PROVIDER_AGENT, PROVIDER_STATUS_TOOL],
+    ]);
+});

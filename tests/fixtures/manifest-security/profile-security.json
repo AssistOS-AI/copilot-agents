@@ -1,0 +1,10 @@
+{
+    "container": "node:24-bookworm",
+    "profiles": {
+        "qa": {
+            "containerSecurity": {
+                "privileged": false
+            }
+        }
+    }
+}

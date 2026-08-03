@@ -75,7 +75,9 @@ missing or does not match the session owner, and must not use a shared
 `anonymous` profile for browser tasks that can hold cookies.
 
 Provider credentials must stay outside inner sandbox payloads by default.
-Generated-local Open Interpreter is disabled in this release. Its entrypoint
+Generated-local Open Interpreter is disabled in this release with terminal
+code `PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE`, status `422`, and a bounded
+structured cause. Its entrypoint
 must detect any generated-local descriptor signal before reading the invocation
 envelope, resolving or preparing the runtime, installing packages, reading
 `PLOINKY_AGENT_API_KEY`, starting a broker, enabling network, or invoking the
@@ -91,6 +93,24 @@ provider keys. Because loopback broker access requires the inner bwrap job to
 inherit the provider container network, this path protects the raw provider
 key but must not be described as blocking all outbound network access from
 that sandbox job.
+
+Open Interpreter status and task admission must consume the canonical shared
+runner capability contract at runner ABI `2` with a strict `private` proc
+minimum. Capability failure, empty-only proc, missing healthcheck, or ABI drift
+must not produce false readiness or begin runtime preparation; they return the
+same stable terminal Open Interpreter code. The provider relay preserves
+`code`, `status`, `cause`, and `terminal` without converting them to a false
+success. The Open Interpreter adapter independently bounds outer runner stdout
+to 64 KiB and stderr to 16 KiB, and exposes only truncation flags and discarded
+byte counts. Raw outer output, prompts, credentials, and invocation tokens are
+not copied into relay diagnostics.
+
+Provider manifests may declare only root-level
+`containerSecurity.privileged` as a boolean. Profile-level security,
+unsupported fields, malformed values, and privilege are validator failures.
+The current Open Interpreter privileged mutable-image declaration is one exact
+transition gate pending immutable native image proof; it is not evidence of a
+completed rootless release.
 
 `/shared` is a convenience and coordination channel among trusted, explicitly
 enabled agents in a single workspace. It is not a hostile-agent security
@@ -193,6 +213,15 @@ delegation-token access and before socket creation, then binds the physical
 connection to the signed request authority. Direct native HTTP/fetch clients,
 ambient invocation-token fallbacks, alternate-Host retries, and raw `/mcps/`
 construction are prohibited in these server-side callers.
+
+### Decision #9: Why are terminal codes and discarded-byte counters part of observability?
+
+Response:
+Operators and watchdogs need to distinguish a deterministic policy/capability
+blocker from a transient provider failure without inspecting raw logs. Stable
+code, status, bounded cause, runner ABI/proc evidence, and discarded-byte
+counts provide that signal while keeping unbounded or secret-bearing output out
+of status and relay surfaces.
 
 ## Conclusion
 

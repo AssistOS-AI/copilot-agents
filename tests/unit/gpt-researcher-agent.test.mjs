@@ -4,11 +4,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { achillesAgentRoot } from '../fixtures/cross-repository-roots.mjs';
 
-const TESTS_DIR = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(TESTS_DIR, '..', '..');
-const AGENT_ROOT = path.join(REPO_ROOT, 'GPTResearcher');
+const AGENT_ROOT = achillesAgentRoot('GPTResearcher');
 const MANIFEST = path.join(AGENT_ROOT, 'manifest.json');
 const MCP_CONFIG = path.join(AGENT_ROOT, 'mcp-config.json');
 const SETTINGS_PLUGIN_CONFIG = path.join(AGENT_ROOT, 'IDE-plugins', 'gpt-researcher-settings', 'config.json');
@@ -24,7 +22,9 @@ function runStartResearch(input, env = {}) {
             cwd: AGENT_ROOT,
             env: {
                 ...process.env,
+                HOME: TEST_WORKSPACE_ROOT,
                 WORKSPACE_PATH: TEST_WORKSPACE_ROOT,
+                PYTHONDONTWRITEBYTECODE: '1',
                 ...env,
             },
             stdio: ['pipe', 'pipe', 'pipe'],
@@ -49,18 +49,29 @@ function runStartResearch(input, env = {}) {
 
 async function writeFakeGPTResearcherModule(tempDir) {
     const packageDir = path.join(tempDir, 'gpt_researcher');
-    await fs.mkdir(packageDir, { recursive: true });
+    for (const relative of [
+        '',
+        'actions',
+        'llm_provider',
+        'llm_provider/generic',
+        'memory',
+        'retrievers',
+    ]) {
+        const directory = path.join(packageDir, relative);
+        await fs.mkdir(directory, { recursive: true });
+        await fs.writeFile(path.join(directory, '__init__.py'), '');
+    }
     await fs.writeFile(path.join(packageDir, '__init__.py'), `import os
 
 class GPTResearcher:
-    def __init__(self, query, report_type):
+    def __init__(self, query, report_type, report_source=None, context=None):
         self.query = query
         self.report_type = report_type
 
     async def conduct_research(self):
         print("conducting research")
 
-    async def write_report(self):
+    async def write_report(self, custom_prompt=""):
         print("writing report")
         return "research report " + os.environ.get("FAST_LLM", "") + " " + os.environ.get("EMBEDDING", "")
 
@@ -79,6 +90,30 @@ class GPTResearcher:
     def get_source_urls(self):
         return ["https://example.com/source-a"]
 `);
+    await fs.writeFile(path.join(packageDir, 'llm_provider', 'generic', 'base.py'), `
+_SUPPORTED_PROVIDERS = set()
+class GenericLLMProvider:
+    _ploinky_soul_gateway_patch = False
+    def __init__(self, provider, chat_log=None, verbose=True):
+        self.provider = provider
+    @classmethod
+    def from_provider(cls, provider, chat_log=None, verbose=True, **kwargs):
+        return cls(provider, chat_log, verbose)
+`);
+    await fs.writeFile(path.join(packageDir, 'memory', 'embeddings.py'), `
+_SUPPORTED_PROVIDERS = set()
+class Memory:
+    def __init__(self, embedding_provider, model, **kwargs):
+        self._embeddings = None
+`);
+    await fs.writeFile(path.join(packageDir, 'actions', 'retriever.py'), `
+def get_retriever(name):
+    return name
+`);
+    await fs.writeFile(path.join(packageDir, 'retrievers', 'utils.py'), `
+def get_all_retriever_names():
+    return []
+`);
     return tempDir;
 }
 
@@ -88,6 +123,7 @@ function runNodeScript(entry, input, env = {}) {
             cwd: AGENT_ROOT,
             env: {
                 ...process.env,
+                HOME: TEST_WORKSPACE_ROOT,
                 WORKSPACE_PATH: TEST_WORKSPACE_ROOT,
                 ...env,
             },
@@ -138,25 +174,20 @@ async function withTemporaryFixedSettingsFile(fn) {
     }
 }
 
-test('GPTResearcher manifest uses Python-capable image and default AgentServer', async () => {
+test('GPTResearcher manifest keeps the mutable shared-image consumer gated for digest proof', async () => {
     const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
 
     assert.equal(manifest.container, 'docker.io/assistos/bwrap-runner:node24-python-bookworm');
-    assert.equal(manifest.agent, undefined);
+    assert.doesNotMatch(manifest.container, /@sha256:/,
+        'immutable image pinning remains gated on native publication and cold-task proof');
+    assert.equal(manifest.startup, 'manual');
+    assert.equal(manifest['lite-sandbox'], true);
+    assert.equal(manifest.agent, 'sh /code/scripts/start-gpt-researcher.sh');
     assert.equal(manifest.readiness?.protocol, 'mcp');
+    assert.equal(manifest.health?.readiness?.script, 'readiness.sh');
     assert.equal(manifest.profiles?.default?.install, 'sh /code/scripts/install-gpt-researcher.sh');
     assert.equal(manifest.profiles?.default?.env, undefined);
-    assert.deepEqual(manifest.env, [
-        'OPENAI_API_KEY',
-        'TAVILY_API_KEY',
-        'ANTHROPIC_API_KEY',
-        'GROQ_API_KEY',
-        'OPENROUTER_API_KEY',
-        'DEEPSEEK_API_KEY',
-        'XAI_API_KEY',
-        'MISTRAL_API_KEY',
-        'GOOGLE_API_KEY',
-    ]);
+    assert.equal(manifest.env, undefined);
     assert.deepEqual(manifest.ideSettings, [
         {
             key: 'gpt-researcher-settings',
@@ -200,29 +231,38 @@ test('GPTResearcher start_research is registered as an async MCP tool', async ()
     assert.equal(tool?.inputSchema?.reportType?.optional, true);
 });
 
-test('GPTResearcher settings tools are registered as authenticated MCP tools', async () => {
+test('GPTResearcher settings tools expose only the bounded settings schema', async () => {
     const config = JSON.parse(await fs.readFile(MCP_CONFIG, 'utf8'));
     const getTool = config.tools.find((entry) => entry.name === 'gpt_researcher_get_settings');
     const updateTool = config.tools.find((entry) => entry.name === 'gpt_researcher_update_settings');
 
     assert.equal(getTool?.command, '/usr/local/bin/node');
     assert.deepEqual(getTool?.args, ['/code/scripts/get-settings.mjs']);
-    assert.deepEqual(getTool?.tags, ['authenticated']);
     assert.equal(updateTool?.command, '/usr/local/bin/node');
     assert.deepEqual(updateTool?.args, ['/code/scripts/update-settings.mjs']);
-    assert.deepEqual(updateTool?.tags, ['authenticated']);
-    assert.equal(updateTool?.inputSchema?.env?.additionalProperties, true);
+    assert.deepEqual(Object.keys(updateTool?.inputSchema || {}).sort(), [
+        'embedding',
+        'fastLlm',
+        'searchProvider',
+        'smartLlm',
+        'strategicLlm',
+    ]);
 });
 
-test('install script uses pip for the Python package', async () => {
+test('cold-install and readiness scripts cover the shared-image consumer contract', async () => {
     const source = await fs.readFile(path.join(AGENT_ROOT, 'scripts', 'install-gpt-researcher.sh'), 'utf8');
+    const readiness = await fs.readFile(path.join(AGENT_ROOT, 'readiness.sh'), 'utf8');
 
     assert.match(source, /python3 -m venv "\$VENV_DIR"/);
     assert.match(source, /"\$VENV_DIR\/bin\/python" -m pip install --no-cache-dir gpt-researcher/);
     assert.match(source, /WORKSPACE_PATH is required/);
-    assert.match(source, /SETTINGS_PATH="\$WORKSPACE_PATH\/gpt-researcher-settings\.json"/);
+    assert.match(source, /SETTINGS_PATH="\$HOME\/gpt-researcher-settings\.json"/);
+    assert.match(source, /git clone --depth 1 https:\/\/github\.com\/assafelovic\/gpt-researcher\.git/);
     assert.match(source, /gpt-researcher/);
     assert.doesNotMatch(source, /npm/);
+    assert.match(readiness, /127\.0\.0\.1:7000\/health/);
+    assert.match(readiness, /127\.0\.0\.1:8000\//);
+    assert.match(readiness, /payload\.get\("ok"\) is not True/);
 });
 
 test('start_research calls Python GPTResearcher and keeps stdout as JSON', async () => {
@@ -240,9 +280,9 @@ test('start_research calls Python GPTResearcher and keeps stdout as JSON', async
         assert.equal(result.code, 0, result.stderr || result.stdout);
         const payload = JSON.parse(result.stdout);
         assert.equal(payload.ok, true);
-        assert.equal(payload.report, 'research report ollama:llama3.1 ollama:nomic-embed-text');
+        assert.equal(payload.report, 'research report soul_gateway:fast soul_gateway:embeddings');
         assert.equal(payload.reportType, 'research_report');
-        assert.equal(payload.settings.fastLlm, 'ollama:llama3.1');
+        assert.equal(payload.settings.fastLlm, 'fast');
         assert.equal(payload.researchContext, 'research context');
         assert.deepEqual(payload.sourceUrls, ['https://example.com/source-a']);
         assert.match(payload.logTail, /conducting research/);
@@ -252,14 +292,14 @@ test('start_research calls Python GPTResearcher and keeps stdout as JSON', async
     }
 });
 
-test('settings tools persist allowlisted provider settings', async () => {
+test('settings tools persist only the bounded model and search-provider settings', async () => {
     await withTemporaryFixedSettingsFile(async () => {
         const updateResult = await runNodeScript(UPDATE_SETTINGS_ENTRY, {
             fastLlm: 'groq:llama-3.3-70b-versatile',
             smartLlm: 'openrouter:anthropic/claude-sonnet-4',
             strategicLlm: 'ollama:qwen3',
             embedding: 'ollama:nomic-embed-text',
-            retriever: 'duckduckgo',
+            searchProvider: 'duckduckgo',
             env: {
                 OLLAMA_BASE_URL: 'http://ollama.local:11434',
                 OPENAI_BASE_URL: 'http://openai-compatible.local/v1',
@@ -271,15 +311,15 @@ test('settings tools persist allowlisted provider settings', async () => {
         const updatePayload = JSON.parse(updateResult.stdout);
         assert.equal(updatePayload.ok, true);
         assert.equal(updatePayload.settings.fastLlm, 'groq:llama-3.3-70b-versatile');
-        assert.equal(updatePayload.settings.env.OLLAMA_BASE_URL, 'http://ollama.local:11434');
-        assert.equal(updatePayload.settings.env.NOT_ALLOWED_SECRET, undefined);
+        assert.equal(updatePayload.settings.searchProvider, 'duckduckgo');
+        assert.equal(updatePayload.settings.env, undefined);
 
         const getResult = await runNodeScript(GET_SETTINGS_ENTRY);
         assert.equal(getResult.code, 0, getResult.stderr || getResult.stdout);
         const getPayload = JSON.parse(getResult.stdout);
         assert.equal(getPayload.ok, true);
         assert.equal(getPayload.settings.smartLlm, 'openrouter:anthropic/claude-sonnet-4');
-        assert.equal(getPayload.settings.env.OPENAI_BASE_URL, 'http://openai-compatible.local/v1');
+        assert.equal(getPayload.settings.searchProvider, 'duckduckgo');
     });
 });
 
@@ -293,7 +333,7 @@ test('start_research applies persisted settings before constructing GPTResearche
                 smartLlm: 'openrouter:test-smart',
                 strategicLlm: 'ollama:test-strategic',
                 embedding: 'ollama:test-embed',
-                retriever: 'duckduckgo',
+                searchProvider: 'duckduckgo',
                 env: {
                     OLLAMA_BASE_URL: 'http://ollama.local:11434',
                 },
@@ -309,7 +349,7 @@ test('start_research applies persisted settings before constructing GPTResearche
             assert.equal(payload.ok, true);
             assert.equal(payload.settings.fastLlm, 'groq:test-fast');
             assert.equal(payload.settings.embedding, 'ollama:test-embed');
-            assert.match(payload.report, /groq:test-fast ollama:test-embed/);
+            assert.match(payload.report, /soul_gateway:groq:test-fast soul_gateway:ollama:test-embed/);
         });
     } finally {
         await fs.rm(tempDir, { recursive: true, force: true });

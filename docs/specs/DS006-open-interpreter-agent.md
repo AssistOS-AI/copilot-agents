@@ -3,33 +3,40 @@ id: DS006
 title: Open Interpreter Provider Agent
 status: planned
 owner: copilot-agents-team
-summary: Defines the Open Interpreter provider agent. The agent owns Open Interpreter runtime setup and executes tasks inside its own local bwrap sandbox.
+summary: Defines Open Interpreter's terminal Box disposition, private-proc runner contract, compatible runtime bundle, and gated rootless transition.
 ---
 
 # DS006 - Open Interpreter Provider Agent
 
 ## Introduction
 
-`openInterpreterAgent` is the Open Interpreter provider agent. It owns
-preparation of the Open Interpreter runtime and execution of bounded research
-tasks inside a local inner bubblewrap sandbox. It does not delegate execution
-to a separate `basic/bwrap-runner` Ploinky agent. Chat-facing tasks reach it
-only through the Copilot Provider Relay's `open-interpreter` backend id.
+`openInterpreterAgent` is the Open Interpreter provider agent. In a Ploinky
+Box it currently returns a deterministic terminal unavailable result because
+neither a scoped provider broker nor empty-proc support has been certified.
+Separately configured local-development endpoints retain the provider-owned
+runtime and inner Bubblewrap path. The agent never delegates execution to a
+separate `basic/bwrap-runner` Ploinky agent. Chat-facing tasks reach it only
+through the Copilot Provider Relay's `open-interpreter` backend id.
 
 ## Core Content
 
-The agent must run inside a Linux container based on the fully qualified
-`docker.io/assistos/bwrap-runner:node24-python-bookworm` image or a documented
-derived image that preserves the shared sandbox base. This gives Open Interpreter runtime
-preparation and inner bwrap execution the same Linux Python ABI on macOS and
-Linux hosts. The agent must not use `lite-sandbox: true`, because it is itself
-a containerized sandbox host and must run the local bwrap runner. The provider
-manifest must request Ploinky's allowlisted
-`containerSecurity.privileged: true` setting so the inner bubblewrap process
-can create namespaces under common Docker and Podman configurations.
-The provider startup command must run the bwrap-runner image health check
-before `AgentServer.sh`, and readiness should expose the same health check, so
-Ploinky does not mark the provider ready when nested bubblewrap is unavailable.
+The rootless target uses an immutable digest of the shared Linux
+`docker.io/assistos/bwrap-runner` image, runner ABI `2`, and the strict
+`private` proc minimum. The current manifest intentionally remains on
+`docker.io/assistos/bwrap-runner:node24-python-bookworm` with
+`containerSecurity.privileged: true` until native amd64/arm64 image,
+private-proc, Open Interpreter disposition, and GPTResearcher cold-task proof
+exist. This exact declaration is a validator transition gate, not an accepted
+release posture. Privilege must not be removed before that evidence, and the
+mutable tag must not be replaced by an invented digest. Once the immutable
+candidate is recorded, digest pinning and privilege removal occur together.
+
+The agent must not use `lite-sandbox: true`, because it is itself a
+containerized sandbox host. Startup and readiness invoke the canonical shared
+runner healthcheck with `--minimum=private`; status interprets that same
+capability record instead of maintaining a duplicate namespace probe. An
+empty-only or absent capability returns terminal
+`PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE` with status `422`.
 
 The agent must own:
 
@@ -39,15 +46,20 @@ The agent must own:
   configuration before importing Open Interpreter, rather than producing a
   Python traceback.
 - `openInterpreterAgent/tools/prepare-runtime.mjs`: the idempotent runtime
-  preparation tool. It must target an agent-owned runtime root, defaulting to
-  `/data/research-runtimes/open-interpreter/<version>/`, build into
+  preparation tool. It must target an agent-owned runtime root. For Open
+  Interpreter `0.4.3` and runner ABI `2`, the compatible layout is
+  `/data/research-runtimes/open-interpreter/0.4.3-runner-abi-2/`; it builds into
   `/data/research-runtimes/open-interpreter/.tmp-*`, install the pinned
   Python package with
   `python3 -m pip install --target <tmp>/python open-interpreter==<version>`,
   copy the shim into `<tmp>/bin/`, write `manifest.json`, and atomically
-  rename the temp dir into the versioned runtime dir when the target does not
-  already exist. If a valid manifest already exists, the tool must reuse the
-  runtime. If an invalid target directory already exists, preparation must
+  rename the temp dir into the compatible runtime dir when the target does not
+  already exist. The manifest must record runner image identity, runner ABI
+  `2`, proc minimum `private`, and Python major/minor ABI. A manifest lacking
+  any of those exact inputs is incompatible. A populated legacy
+  `/data/research-runtimes/open-interpreter/0.4.3/` directory is left intact
+  but is not reused. If a valid compatible manifest already exists, the tool
+  reuses the runtime. If an invalid target directory already exists, preparation must
   fail with a natural-language repair message instead of deleting or replacing
   the directory in place.
 - `openInterpreterAgent/tools/open-interpreter-run-task.mjs`: the provider
@@ -55,17 +67,25 @@ The agent must own:
   reading the invocation envelope, resolving the runtime root, inspecting a
   manifest, preparing or installing the runtime, resolving a provider key,
   opening a broker or network socket, or starting the sandbox runner, it must
-  detect generated-local Ploinky descriptor signals. Generated-local Open
-  Interpreter is safety-disabled in this release and must return
-  `PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED` with no such side effect.
-  After that preflight passes, the tool must validate input, refuse to proceed
-  without a router invocation token, ensure the runtime exists by reusing or preparing it when
+  detect generated-local Ploinky descriptor signals. Open Interpreter is
+  unavailable in Box in this release and must return
+  `PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE`, status `422`,
+  `terminal: true`, and cause
+  `OPEN_INTERPRETER_PROVIDER_CONTRACT_UNCERTIFIED`, with no such side effect.
+  Explicit `OPEN_INTERPRETER_*` values cannot override a Box descriptor signal.
+  After that preflight passes, the tool validates input, refuses to proceed
+  without a router invocation token, and checks the canonical runner
+  capability with the `private` minimum before runtime preparation. It then
+  ensures the runtime exists by reusing or preparing it when
   `OI_RUNTIME_AUTO_PREPARE` is enabled, resolve Open Interpreter LLM
   configuration, stage `prompt.md`, `config/open-interpreter.json`, and
   `input/*` files for configured local sandbox jobs, invoke the shared local
   sandbox runner inside the provider container with the runtime directory
   bound read-only at `/runtime`, and normalize stdout/stderr into a
-  natural-language final answer. Configuration resolution must prefer
+  natural-language final answer. The runner invocation also carries
+  `--minimum=private`, and its result must prove runner ABI `2`, proc mode
+  `private`, and proc minimum `private`. Capability failure returns the same
+  stable terminal Open Interpreter code as status. Configuration resolution must prefer
   explicit `OPEN_INTERPRETER_MODEL`, `OPEN_INTERPRETER_API_BASE`, and
   `OPEN_INTERPRETER_LOCAL` overrides for local development. It must not
   autoconfigure from `PLOINKY_AGENT_API_KEY` in this release, because that
@@ -75,6 +95,10 @@ The agent must own:
   config must include explicit `context_window` and `max_tokens` values when
   they are known or defaulted, because the Soul Gateway aliases are not
   necessarily present in Open Interpreter's bundled LiteLLM model metadata.
+  The adapter retains at most 64 KiB of outer runner stdout and 16 KiB of outer
+  runner stderr independently of the inner runner's own bounds. Responses
+  expose truncation flags and discarded-byte counts; outer runner noise must
+  not escape into the MCP response.
 - `openInterpreterAgent/tools/status.mjs`: a status tool that reports whether
   the runtime is prepared, the configured model topology, the local sandbox
   health, and the telemetry posture. Status must not expose provider
@@ -89,9 +113,10 @@ runtime layer, never through a central runner agent.
 
 The hosted-provider path based on `PLOINKY_AGENT_API_KEY` is safety-disabled in
 this release. The key must not be read and AchillesAgentLib model topology must
-not be loaded after generated-local detection. Explicit `OPEN_INTERPRETER_*`
-overrides remain allowed for separately configured local or development
-endpoints. `OPEN_INTERPRETER_CONTEXT_WINDOW` and
+not be loaded after generated-local detection. The canonical Box result is
+terminal and must not be retried until the provider/runner contract changes.
+Explicit `OPEN_INTERPRETER_*` overrides remain allowed only for separately
+configured non-Box local or development endpoints. `OPEN_INTERPRETER_CONTEXT_WINDOW` and
 `OPEN_INTERPRETER_MAX_TOKENS` remain optional tuning overrides for those
 explicit endpoints.
 
@@ -139,6 +164,12 @@ The agent must expose at least:
 
 Long or stateful research work is out of scope for this provider tool; if
 introduced later, it must move to async MCP tasks and status polling.
+
+The Copilot Provider Relay must preserve the Open Interpreter `code`, `status`,
+structured `cause`, and `terminal` fields exactly. It also preserves runner
+ABI/proc evidence and bounded outer-output counters in diagnostics. A terminal
+unavailable provider is not a successful backend result and cannot be reduced
+to an unstructured natural-language fallback.
 
 The durable `/data` mount must be declared with Ploinky's manifest volume
 object-map shape:
@@ -273,10 +304,24 @@ proof. The preflight therefore runs before every filesystem, installer,
 credential, broker, network, and runner operation. Explicit
 `OPEN_INTERPRETER_*` endpoints remain a separate operator-selected path.
 
+### Decision #14: What is the accepted Box, proc, image, and bundle contract for the rootless transition?
+
+Response:
+On 2026-08-03, the accepted implementation decision was deterministic Box
+unavailability with `PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE` unless a scoped
+Ploinky-owned broker is implemented and proven in the same candidate. Open
+Interpreter requires private proc until an installed real task proves empty
+proc. Runner ABI `2` and that proc minimum are part of runtime-bundle
+compatibility, so incompatible populated bundles migrate additively. The
+current privileged mutable-image manifest remains gated until native immutable
+image and consumer smoke evidence exists; no local-only test can satisfy that
+publication boundary.
+
 ## Conclusion
 
-`openInterpreterAgent` must own Open Interpreter's runtime and bounded task
-execution inside its own local bwrap sandbox. It must keep the relay free of
-backend command strings and the shared bwrap-runner base image free of
-backend-specific dependencies. Telemetry stays off by default and every
-externally visible response must be natural language, not a traceback.
+`openInterpreterAgent` must return deterministic terminal unavailability in a
+Ploinky Box until its provider and private-proc contract is certified. Its
+separate development path owns a runner-ABI-compatible runtime and bounded
+task adapter inside a local bwrap sandbox. The relay remains free of backend
+command strings, telemetry stays off, and externally visible failures preserve
+stable structured evidence alongside natural-language guidance.

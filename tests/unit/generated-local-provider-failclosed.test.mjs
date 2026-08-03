@@ -85,8 +85,10 @@ test('every generated-local descriptor signal safety-disables Open Interpreter b
         });
         const preflight = resolveOpenInterpreterGeneratedLocalPreflight({ env });
         const resolution = await resolveOpenInterpreterRuntimeConfig({ env });
-        assert.equal(preflight?.source, 'generated-local-unsupported', signal);
-        assert.equal(resolution.source, 'generated-local-unsupported', signal);
+        assert.equal(preflight?.source, 'box-unavailable', signal);
+        assert.equal(preflight?.code, 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE', signal);
+        assert.equal(preflight?.terminal, true, signal);
+        assert.equal(resolution.source, 'box-unavailable', signal);
         assert.equal(resolution.broker, null, signal);
         assert.equal(resolution.sandbox.allowNetwork, false, signal);
         assert.equal(keyReads, 0, signal);
@@ -102,11 +104,11 @@ test('ordinary Ploinky identity does not claim generated-local Open Interpreter 
     };
     assert.equal(resolveOpenInterpreterGeneratedLocalPreflight({ env }), null);
     const resolution = await resolveOpenInterpreterRuntimeConfig({ env });
-    assert.notEqual(resolution.source, 'generated-local-unsupported');
+    assert.notEqual(resolution.source, 'box-unavailable');
     assert.equal(resolution.source, 'missing');
 });
 
-test('explicit Open Interpreter endpoints remain separate from generated-local selection', () => {
+test('explicit Open Interpreter endpoints cannot override generated-local Box unavailability', () => {
     const preflight = resolveOpenInterpreterGeneratedLocalPreflight({
         env: {
             PLOINKY_ROUTER_DESCRIPTOR_FILE: '/run/ploinky/router-descriptor.json',
@@ -114,7 +116,8 @@ test('explicit Open Interpreter endpoints remain separate from generated-local s
             OPEN_INTERPRETER_API_BASE: 'http://127.0.0.1:11434/v1',
         },
     });
-    assert.equal(preflight, null);
+    assert.equal(preflight?.source, 'box-unavailable');
+    assert.equal(preflight?.code, 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE');
 });
 
 test('Open Interpreter entrypoint fails closed before envelope/token parsing, filesystem, or installer calls', () => {
@@ -159,11 +162,14 @@ test('Open Interpreter entrypoint fails closed before envelope/token parsing, fi
     assert.match(child.stderr, /SIDE_EFFECT_EVENTS=\[\]/);
     assert.doesNotMatch(child.stderr, /Invalid JSON envelope/);
     const payload = JSON.parse(child.stdout || '{}');
-    assert.equal(payload.ok, true);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.code, 'PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE');
+    assert.equal(payload.status, 422);
+    assert.equal(payload.terminal, true);
     assert.equal(payload.sandbox_ok, false);
     assert.deepEqual(payload.resources, []);
     assert.deepEqual(payload.origin, {});
-    assert.match(payload.final_answer, /PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED/);
+    assert.match(payload.final_answer, /PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE/);
     assert.match(payload.final_answer, /before runtime preparation/);
 });
 
@@ -221,7 +227,7 @@ test('recursive executable inventory has an explicit disposition for every direc
             assert.doesNotMatch(source, /x-ploinky-caller-jwt|\/mcps\/|\bfetch\s*\(|node:https?|https?\.request/, relativePath);
         } else if (disposition === 'generated-local-fail-closed-resolver') {
             assert.match(source, /resolveOpenInterpreterGeneratedLocalPreflight/, relativePath);
-            assert.match(source, /PLOINKY_LOCAL_GENERATED_CONSUMER_NOT_CERTIFIED/, relativePath);
+            assert.match(source, /PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE/, relativePath);
         } else if (disposition === 'generated-local-preflight-before-side-effects') {
             const preflight = source.indexOf('const generatedLocalPreflight = resolveOpenInterpreterGeneratedLocalPreflight');
             assert.ok(preflight >= 0, relativePath);

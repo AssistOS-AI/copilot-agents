@@ -26,6 +26,25 @@ tasks must run through an inner bubblewrap sandbox started locally inside that
 provider container. `webSearchAgent` is not a code-execution backend; it uses a
 browser-enabled container and owns only local headless browser search.
 
+Consumers of the shared runner must treat its capability record as the
+canonical proc contract. Open Interpreter requires runner ABI `2` and the
+strict `private` proc minimum; readiness, status, and task admission must
+interpret the same runner record and must return
+`PLOINKY_OPEN_INTERPRETER_BOX_UNAVAILABLE` when that consumer minimum cannot be
+met. A populated runtime bundle is compatible only when its manifest records
+the expected runner image identity, runner ABI, proc minimum, and Python ABI.
+Changing those inputs selects a new versioned bundle layout instead of silently
+reusing or deleting an incompatible populated directory.
+
+Production manifests must use only the root `containerSecurity` object and its
+boolean `privileged` field. Profile-level container security, unknown security
+fields, malformed values, and privileged provider manifests are rejected by
+the repository validator. `openInterpreterAgent` has one exact transition
+allowance for its current mutable image and privileged declaration. That
+allowance is not a release posture: privilege removal and immutable digest
+pinning occur together only after native per-architecture runner, private-proc,
+Open Interpreter disposition, and GPTResearcher cold-task evidence is recorded.
+
 The DS specifications are the source of truth for this repository. When code changes behavior, manifests, MCP schemas, Explorer plugin behavior, routing, security posture, or runtime configuration, the same change must update the affected DS file and the HTML documentation. If implementation and specs diverge, the divergence is a defect; fix the implementation to match the spec or update the spec first with a numbered `Decisions & Questions` entry that explains the new contract.
 
 Executable MCP operations must be authorized by Ploinky secure-wire invocation. Tool code must rely on router-mediated calls and verified invocation metadata for sensitive operations. Browser-side Explorer plugins must call MCP tools through Explorer `appServices.callTool` or an equivalent session-aware SDK. Server-side agent-to-agent tool calls must use Ploinky's certified `AgentMcpClient`, which verifies the signed generated-local Router descriptor before credential or socket access, signs an agent assertion in `Authorization`, and carries the current invocation token as `x-ploinky-user-delegation`. Callers must not invent principal headers, construct raw `/mcps/` requests, use direct agent ports, or create custom bearer-token paths around Ploinky's router.
@@ -88,6 +107,15 @@ separate generic runner agent would be a second runtime hop and would require
 runtime bundles to be handed through shared storage. Using the same
 bwrap-runner image inside each provider preserves the common sandbox policy
 without coupling the research suite to a central runner service.
+
+### Decision #5: Why is Open Interpreter's manifest still privileged during the rootless transition?
+
+Response:
+Removing privilege before the immutable runner candidate and native
+private-proc proof exist would violate dependency-safe rollout ordering. The
+validator therefore permits only the exact current Open Interpreter manifest
+as an explicit gate. A digest-pinned manifest cannot retain that allowance,
+and no mutable image may be presented as the completed rootless consumer.
 
 ## Conclusion
 

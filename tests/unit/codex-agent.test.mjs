@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { achillesAgentRoot } from '../fixtures/cross-repository-roots.mjs';
 
-const TESTS_DIR = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(TESTS_DIR, '..', '..');
-const MANIFEST = path.join(REPO_ROOT, 'codexAgent', 'manifest.json');
-const INSTALL_SCRIPT = path.join(REPO_ROOT, 'codexAgent', 'scripts', 'install-codex.sh');
+const AGENT_ROOT = achillesAgentRoot('codexAgent');
+const MANIFEST = path.join(AGENT_ROOT, 'manifest.json');
+const INSTALL_SCRIPT = path.join(AGENT_ROOT, 'scripts', 'install-codex.sh');
+const RUNNER = path.join(AGENT_ROOT, 'scripts', 'codex-runner.mjs');
 
 test('codex manifest uses the non-interactive installer script', async () => {
     const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
@@ -17,11 +17,24 @@ test('codex manifest uses the non-interactive installer script', async () => {
     assert.doesNotMatch(install, /^npm install/);
 });
 
+test('codex runner pins managed Explorer tasks to the local Soul fast tier without embedding credentials', async () => {
+    const script = await fs.readFile(RUNNER, 'utf8');
+
+    assert.match(script, /PLOINKY_ROUTER_URL/);
+    assert.match(script, /PLOINKY_AGENT_API_KEY/);
+    assert.match(script, /base-agent-additional-server\/soul-gateway\/7000\/v1/);
+    assert.match(script, /MANAGED_SOUL_MODEL = 'fast'/);
+    assert.match(script, /env_key/);
+    assert.doesNotMatch(script, /sk-[A-Za-z0-9_-]{16,}/);
+});
+
 test('codex installer invokes npm through the absolute npm cli path', async () => {
     const script = await fs.readFile(INSTALL_SCRIPT, 'utf8');
 
-    assert.match(script, /node \/usr\/local\/lib\/node_modules\/npm\/bin\/npm-cli\.js install -g/);
+    assert.match(script, /\/opt\/ploinky-node\/lib\/node_modules\/npm\/bin\/npm-cli\.js/);
+    assert.match(script, /\/usr\/local\/lib\/node_modules\/npm\/bin\/npm-cli\.js/);
+    assert.match(script, /node "\$NPM_CLI" install -g --prefix "\$INSTALL_PREFIX"/);
     assert.match(script, /@openai\/codex/);
-    assert.match(script, /exec node \/usr\/local\/lib\/node_modules\/@openai\/codex\/bin\/codex\.js "\$@"/);
+    assert.match(script, /exec node "\$HOME\/\.local\/lib\/node_modules\/@openai\/codex\/bin\/codex\.js" "\$@"/);
     assert.doesNotMatch(script, /\bnpm install -g\b/);
 });

@@ -12,16 +12,14 @@ const AGENT_DIRS = [
     'research-agents',
     'copilotProviderRelay',
     'openInterpreterAgent',
-    'piAgent',
     'webSearchAgent',
     'browserUseAgent',
-    'GPTResearcher',
-    'opencodeAgent',
-    'codexAgent',
 ];
 
 const PLUGIN_ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*$/;
 const PLOINKY_PROFILE_NAMES = new Set(['default', 'dev', 'qa', 'prod']);
+const CONTAINER_SECURITY_FIELDS = new Set(['privileged']);
+const GATED_PRIVILEGED_AGENT_DIRS = new Set(['openInterpreterAgent']);
 
 let failures = 0;
 
@@ -34,12 +32,62 @@ function ok(file, message) {
     process.stdout.write(`OK ${file}: ${message}\n`);
 }
 
+function gated(file, message) {
+    process.stdout.write(`GATED ${file}: ${message}\n`);
+}
+
 function readJson(absPath) {
     try {
         return JSON.parse(fs.readFileSync(absPath, 'utf8'));
     } catch (err) {
         return { __error: err.message };
     }
+}
+
+function isPlainObject(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+}
+
+export function containerSecurityValidationErrors(manifest, { allowPrivileged = false } = {}) {
+    const errors = [];
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+        return ['manifest root must be an object'];
+    }
+    if (Object.hasOwn(manifest, 'containerSecurity')) {
+        const security = manifest.containerSecurity;
+        if (!isPlainObject(security)) {
+            errors.push('containerSecurity must be a plain object');
+        } else {
+            for (const key of Object.keys(security)) {
+                if (!CONTAINER_SECURITY_FIELDS.has(key)) {
+                    errors.push(`containerSecurity.${key} is unsupported`);
+                }
+            }
+            if (Object.hasOwn(security, 'privileged')) {
+                if (typeof security.privileged !== 'boolean') {
+                    errors.push('containerSecurity.privileged must be boolean');
+                } else if (security.privileged && !allowPrivileged) {
+                    errors.push('privileged provider manifests are unsupported');
+                }
+            }
+        }
+    }
+    if (manifest.profiles && typeof manifest.profiles === 'object' && !Array.isArray(manifest.profiles)) {
+        for (const [name, profile] of Object.entries(manifest.profiles)) {
+            if (profile !== null && typeof profile === 'object' && Object.hasOwn(profile, 'containerSecurity')) {
+                errors.push(`profile ${name}.containerSecurity is unsupported; containerSecurity is root-only`);
+            }
+        }
+    }
+    return errors;
+}
+
+function gatedPrivilegeMatches(agentDir, manifest) {
+    return GATED_PRIVILEGED_AGENT_DIRS.has(agentDir)
+        && manifest?.container === 'docker.io/assistos/bwrap-runner:node24-python-bookworm'
+        && manifest?.containerSecurity?.privileged === true;
 }
 
 function validateManifest(agentDir) {
@@ -52,6 +100,16 @@ function validateManifest(agentDir) {
     if (manifest.__error) {
         fail(manifestPath, `invalid JSON: ${manifest.__error}`);
         return;
+    }
+    const gatedPrivilege = gatedPrivilegeMatches(agentDir, manifest);
+    for (const error of containerSecurityValidationErrors(manifest, { allowPrivileged: gatedPrivilege })) {
+        fail(manifestPath, error);
+    }
+    if (gatedPrivilege) {
+        gated(
+            manifestPath,
+            'privilege remains only until an immutable runner digest and native private-proc/Open Interpreter disposition proof are recorded',
+        );
     }
     if (!manifest.container && !manifest.image) {
         fail(manifestPath, 'container or image field is required');
@@ -203,16 +261,25 @@ function validateAchillesSkills() {
     }
 }
 
-for (const agentDir of AGENT_DIRS) {
-    validateManifest(agentDir);
-    validateMcpConfig(agentDir);
-    validatePluginConfigs(agentDir);
-}
-validateAchillesSkills();
+export function runValidation() {
+    failures = 0;
+    for (const agentDir of AGENT_DIRS) {
+        validateManifest(agentDir);
+        validateMcpConfig(agentDir);
+        validatePluginConfigs(agentDir);
+    }
+    validateAchillesSkills();
 
-if (failures > 0) {
-    process.stderr.write(`\n${failures} validation failure(s)\n`);
-    process.exit(1);
+    if (failures > 0) {
+        process.stderr.write(`\n${failures} validation failure(s)\n`);
+        return false;
+    }
+
+    process.stdout.write('\nAll manifests, mcp-config files, plugin configs, and launcher skills validated.\n');
+    return true;
 }
 
-process.stdout.write('\nAll manifests, mcp-config files, plugin configs, and launcher skills validated.\n');
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+if (invokedPath && invokedPath === fileURLToPath(import.meta.url)) {
+    if (!runValidation()) process.exit(1);
+}

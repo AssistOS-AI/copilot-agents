@@ -1,0 +1,6 @@
+{
+    "container": "example.invalid/provider@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "containerSecurity": {
+        "privileged": true
+    }
+}

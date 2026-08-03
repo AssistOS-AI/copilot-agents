@@ -203,6 +203,22 @@ function resourceMetadata(resource) {
     };
 }
 
+function safeCause(value) {
+    if (typeof value === 'string') {
+        return value.slice(0, STDERR_PREVIEW_CHARS);
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return null;
+    }
+    return {
+        code: typeof value.code === 'string' ? value.code.slice(0, 160) : null,
+        message: typeof value.message === 'string' ? value.message.slice(0, STDERR_PREVIEW_CHARS) : null,
+        observedRunnerAbi: Number.isSafeInteger(value.observedRunnerAbi) ? value.observedRunnerAbi : null,
+        observedMode: typeof value.observedMode === 'string' ? value.observedMode.slice(0, 80) : null,
+        observedMinimum: typeof value.observedMinimum === 'string' ? value.observedMinimum.slice(0, 80) : null,
+    };
+}
+
 export function normalizeProviderResult(providerPayload, task) {
     const resources = task?.resources ? task.resources.map(resourceMetadata) : [];
     if (!providerPayload || typeof providerPayload !== 'object') {
@@ -221,6 +237,17 @@ export function normalizeProviderResult(providerPayload, task) {
             timedOut: false,
             stdout_truncated: false,
             stderr_truncated: false,
+            code: null,
+            status: null,
+            cause: null,
+            terminal: false,
+            runner_abi: null,
+            proc_mode: null,
+            proc_minimum: null,
+            outer_stdout_truncated: false,
+            outer_stderr_truncated: false,
+            outer_stdout_discarded_bytes: 0,
+            outer_stderr_discarded_bytes: 0,
         };
     }
     const finalAnswer = String(
@@ -249,6 +276,21 @@ export function normalizeProviderResult(providerPayload, task) {
         timedOut: Boolean(providerPayload.timedOut),
         stdout_truncated: Boolean(providerPayload.stdout_truncated),
         stderr_truncated: Boolean(providerPayload.stderr_truncated),
+        code: typeof providerPayload.code === 'string' ? providerPayload.code.slice(0, 160) : null,
+        status: Number.isSafeInteger(providerPayload.status) ? providerPayload.status : null,
+        cause: safeCause(providerPayload.cause),
+        terminal: Boolean(providerPayload.terminal),
+        runner_abi: Number.isSafeInteger(providerPayload.runner_abi) ? providerPayload.runner_abi : null,
+        proc_mode: typeof providerPayload.proc_mode === 'string' ? providerPayload.proc_mode.slice(0, 80) : null,
+        proc_minimum: typeof providerPayload.proc_minimum === 'string' ? providerPayload.proc_minimum.slice(0, 80) : null,
+        outer_stdout_truncated: Boolean(providerPayload.outer_stdout_truncated),
+        outer_stderr_truncated: Boolean(providerPayload.outer_stderr_truncated),
+        outer_stdout_discarded_bytes: Number.isSafeInteger(providerPayload.outer_stdout_discarded_bytes)
+            ? providerPayload.outer_stdout_discarded_bytes
+            : 0,
+        outer_stderr_discarded_bytes: Number.isSafeInteger(providerPayload.outer_stderr_discarded_bytes)
+            ? providerPayload.outer_stderr_discarded_bytes
+            : 0,
         state: typeof providerPayload.state === 'string' ? providerPayload.state : null,
         sessionId: providerPayload.sessionId || null,
         viewerUrl: providerPayload.viewerUrl || null,

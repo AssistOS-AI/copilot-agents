@@ -3,7 +3,7 @@ id: DS003
 title: Agent Inventory
 status: planned
 owner: copilot-agents-team
-summary: Defines the copilot provider relay inventory, provider-backed backend ids, and default enablement posture.
+summary: Defines the local provider-agent inventory, AchillesCLI compatibility surfaces, backend ids, and default enablement posture.
 ---
 
 # DS003 - Agent Inventory
@@ -16,7 +16,7 @@ implementation ordering.
 
 ## Core Content
 
-The repository must contain these Ploinky agents:
+The repository owns and validates these Ploinky agent directories:
 
 1. `research-agents`: the explicit deployment bundle.
 2. `copilotProviderRelay`: the Copilot launch-extension and provider-task relay agent.
@@ -27,53 +27,22 @@ The repository must contain these Ploinky agents:
 5. `browserUseAgent`: the Browser Use provider agent that controls interactive
    Chromium sessions for logged-in web application tasks and exposes a
    protected viewer URL for login, OAuth, 2FA, and CAPTCHA flows.
-6. `GPTResearcher`: the OpenAI-compatible research document agent. It declares
-   `endpoints.chatCompletions` for the bundled Ploinky AgentServer, reads
-   useful workspace context, uses a configurable web-search provider, writes
-   generated documents into the mounted project folder, and exposes an IDE
-   settings plugin for provider selection. Its only MCP tool writes
-   `.gpt-researcher/settings.json`; it does not expose research execution as
-   MCP and does not run a custom HTTP server.
-7. `opencodeAgent`: the internal OpenCode task runner agent. Its
-   `execute-task` MCP tool accepts `{ prompt, projectDir, model }`, creates the
-   `.opencode/skills` symlink in the effective project directory, and runs
-   OpenCode with explicit `--dir`, the caller-selected model, and permission
-   auto-approval because the tool is internal. The agent mounts
-   `.data/webAssist/data` at `/webAssist-data` and remaps caller
-   workspace paths under `$PLOINKY_WORKSPACE_ROOT/.data/webAssist/data`
-   into that mounted root. Callers own task-specific prompt construction and
-   artifact location instructions. The tool streams OpenCode stdout and stderr
-   to the `opencodeAgent` container logs with clear prefixes and is registered
-   as an async MCP tool so AgentServer task status exposes bounded log-tail
-   updates while it runs. It treats known OpenCode permission and missing-skill
-   output as failure even when OpenCode exits with code `0`, keeps MCP stdout
-   reserved for the final JSON result, and includes only a bounded final
-   OpenCode output tail in that JSON for caller visibility. It does not impose
-   a task-specific artifact validation contract; callers decide which files or
-   directories constitute success for their prompt. Its manifest readiness and
-   liveness probes must verify that `/root/.opencode/bin/opencode` is
-   executable, so Ploinky startup and CLI attachment wait for the OpenCode
-   installer to finish before invoking the declared `cli` command.
-   Its
-   `create-akus` skill transforms WAC JSON into an Achilles-compatible `.aku`
-   tree, fetches every `siteMap` URL for document KUs, preserves profile text
-   as document material, and writes root aggregate AKU indexes including
-   `search-index.jsonl`, `search-stats.json`, and `index-meta.json`.
-8. `piAgent`: the internal Pi task runner agent. Its `execute-task` MCP tool
-   accepts `{ prompt, projectDir, model }`, runs the `pi` CLI in the supplied
-   project directory, streams prefixed stdout and stderr to container logs, and
-   returns a bounded JSON result. The agent installs Pi non-interactively by
-   bypassing the official interactive installer and installing the
-   `@earendil-works/pi-coding-agent` npm package under `/root/.local`, using a
-   standalone Node.js/npm fallback when the container's bundled npm is not
-   usable.
-9. `codexAgent`: the direct Codex CLI wrapper agent. Its manifest installs the
-   official `@openai/codex` npm package through a non-interactive installer
-   script that invokes npm through `/usr/local/lib/node_modules/npm/bin/npm-cli.js`
-   and declares `/usr/local/bin/codex` as the Ploinky `cli` command. The agent
-   has no `mcp-config.json`, MCP tools, additional HTTP server, or Router access
-   entries; it exists only so Ploinky can open Codex in the current workspace
-   directory through the CLI attachment flow.
+
+`GPTResearcher`, `opencodeAgent`, `piAgent`, and `codexAgent` are owned by the
+sibling `AchillesCLI` repository, not this repository. They remain integration
+consumers of the bundle or launcher topology, so this repository keeps explicit
+cross-repository compatibility tests rooted at the saved workspace's
+`AchillesCLI` checkout. Missing sibling roots fail deterministically; they are
+not added to this repository's local manifest validator inventory.
+
+The `GPTResearcher` compatibility boundary covers its shared runner image,
+manual startup, MCP readiness, cold-install script, bounded settings schema,
+and minimal task adapter. Its mutable image reference is an explicit
+publication gate and must not be replaced with an invented digest. The
+OpenCode and PI compatibility boundary verifies their stable
+`PLOINKY_BWRAP_CAPABILITY_UNAVAILABLE` contract, fixed production Bubblewrap
+path, credential filtering, and privilege transition gate. Codex compatibility
+checks its non-interactive user-local installer contract.
 
 The repository must expose these active backend ids through `copilotProviderRelay`:
 
@@ -137,8 +106,9 @@ and sandbox execution.
 
 ## Conclusion
 
-The repository inventory consists of one deployment bundle, one semantic relay
+The local repository inventory consists of one deployment bundle, one semantic relay
 (the **Copilot Provider Relay**, under the `copilotProviderRelay` agent id),
-provider agents for Open Interpreter, Web Search, and Browser Use, and the
-direct OpenAI-compatible `GPTResearcher` document agent. Additional backend ids
-require provider agents before they enter the active catalog.
+and provider agents for Open Interpreter, Web Search, and Browser Use.
+AchillesCLI-owned consumers remain explicit cross-repository compatibility
+surfaces. Additional backend ids require provider agents before they enter the
+active catalog.

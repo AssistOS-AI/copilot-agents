@@ -3,189 +3,83 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
-const TESTS_DIR = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(TESTS_DIR, '..', '..');
-const EXECUTE_TASK_ENTRY = path.join(REPO_ROOT, 'piAgent', 'scripts', 'execute-task.mjs');
-const MCP_CONFIG = path.join(REPO_ROOT, 'piAgent', 'mcp-config.json');
-const MANIFEST = path.join(REPO_ROOT, 'piAgent', 'manifest.json');
+import { achillesAgentRoot } from '../fixtures/cross-repository-roots.mjs';
 
-function runExecuteTask(input, env = {}) {
-    return new Promise((resolve) => {
-        const command = `${process.execPath} ${EXECUTE_TASK_ENTRY}`;
-        const child = spawn('sh', ['-c', command], {
-            cwd: REPO_ROOT,
-            env: {
-                ...process.env,
-                ...env,
-            },
-            stdio: ['pipe', 'pipe', 'pipe'],
-        });
+const AGENT_ROOT = achillesAgentRoot('piAgent');
+const MANIFEST = path.join(AGENT_ROOT, 'manifest.json');
+const MCP_CONFIG = path.join(AGENT_ROOT, 'mcp-config.json');
+const EXECUTE_TASK_ENTRY = path.join(AGENT_ROOT, 'scripts', 'execute-task.mjs');
+const TASK_SANDBOX_ENTRY = path.join(AGENT_ROOT, 'scripts', 'task-sandbox.mjs');
+const sandbox = await import(pathToFileURL(TASK_SANDBOX_ENTRY));
 
-        let stdout = '';
-        let stderr = '';
-        child.stdout.on('data', (chunk) => {
-            stdout += chunk.toString();
-        });
-        child.stderr.on('data', (chunk) => {
-            stderr += chunk.toString();
-        });
-        child.on('close', (code) => {
-            resolve({ code: code ?? 0, stdout, stderr });
-        });
-
-        child.stdin.write(`${JSON.stringify({ input })}\n`);
-        child.stdin.end();
-    });
-}
-
-async function writeFakePi(tempDir, source) {
-    const scriptPath = path.join(tempDir, 'fake-pi-main.js');
-    const wrapperPath = path.join(tempDir, 'fake-pi');
-    await fs.writeFile(scriptPath, source);
-    await fs.chmod(scriptPath, 0o755);
-    const wrapper = `#!/bin/sh
-node ${scriptPath} "$@"
-`;
-    await fs.writeFile(wrapperPath, wrapper);
-    await fs.chmod(wrapperPath, 0o755);
-    return wrapperPath;
-}
-
-test('pi execute-task is registered as an async MCP tool', async () => {
+test('pi execute-task remains an async cross-repository consumer', async () => {
     const config = JSON.parse(await fs.readFile(MCP_CONFIG, 'utf8'));
     const tool = config.tools.find((entry) => entry.name === 'execute-task');
 
     assert.equal(tool?.async, true);
+    assert.deepEqual(tool?.args, ['/code/scripts/execute-task.mjs']);
 });
 
-test('pi manifest uses the non-interactive installer script', async () => {
+test('pi privilege removal remains gated on immutable image and native task proof', async () => {
     const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
-    const install = manifest.profiles?.default?.install;
 
-    assert.equal(install, 'sh /code/scripts/install-pi.sh');
-    assert.doesNotMatch(install, /pi\.dev\/install\.sh/);
-    assert.doesNotMatch(install, /^npm install/);
+    assert.deepEqual(manifest.containerSecurity, { privileged: true });
+    assert.doesNotMatch(manifest.container, /@sha256:/);
+    assert.equal(manifest.startup, 'manual');
+    assert.equal(manifest['lite-sandbox'], true);
+    assert.equal(manifest.profiles?.default?.install, 'sh /code/scripts/install-pi.sh');
 });
 
-test('execute-task streams pi output to stderr and keeps MCP stdout as JSON', async () => {
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-agent-test-'));
+test('pi production task path fixes Bubblewrap and exposes the stable capability code', async () => {
+    const executeSource = await fs.readFile(EXECUTE_TASK_ENTRY, 'utf8');
+    const sandboxSource = await fs.readFile(TASK_SANDBOX_ENTRY, 'utf8');
+
+    assert.equal(sandbox.BWRAP_CAPABILITY_ERROR_CODE, 'PLOINKY_BWRAP_CAPABILITY_UNAVAILABLE');
+    assert.match(sandboxSource, /DEFAULT_BWRAP_PATH = '\/usr\/bin\/bwrap'/);
+    assert.doesNotMatch(executeSource, /PLOINKY_TASK_BWRAP_BIN/);
+    assert.doesNotMatch(sandboxSource, /PLOINKY_TASK_BWRAP_BIN/);
+});
+
+test('pi outer-proc rejection is terminal before project mutation and credentials are filtered', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-cross-repo-'));
+    const workspaceRoot = path.join(root, 'workspace');
+    const projectDir = path.join(workspaceRoot, 'new-project');
+    await fs.mkdir(workspaceRoot);
     try {
-        const projectDir = path.join(tempDir, 'site');
-        await fs.mkdir(projectDir, { recursive: true });
-        const argsFile = path.join(tempDir, 'args.json');
-        const cwdFile = path.join(tempDir, 'cwd.txt');
-        const fakePi = await writeFakePi(tempDir, `const fs = require('node:fs');
-const args = process.argv.slice(2);
-fs.writeFileSync(process.env.FAKE_PI_ARGS_FILE, JSON.stringify(args));
-fs.writeFileSync(process.env.FAKE_PI_CWD_FILE, process.cwd());
-process.stdout.write('pi stdout line 1\\n');
-process.stderr.write('pi stderr line 1\\n');
-setTimeout(() => {
-    process.stdout.write('pi stdout line 2\\n');
-    process.stderr.write('pi stderr line 2\\n');
-    process.exit(0);
-}, 20);
-`);
+        assert.throws(
+            () => sandbox.prepareTaskSandbox({
+                projectDir,
+                env: { PLOINKY_WORKSPACE_ROOT: workspaceRoot },
+                createProjectDir: true,
+                dependencies: {
+                    bwrapPath: '/definitely/not-used/bwrap',
+                    procInspector: () => ({
+                        ok: false,
+                        processPid: process.pid,
+                        procSelfPid: process.pid + 1,
+                        pidNamespaceVisible: true,
+                        namespaceDevice: 'test',
+                        namespaceInode: 'test',
+                        error: null,
+                    }),
+                },
+            }),
+            (error) => error?.code === 'PLOINKY_BWRAP_CAPABILITY_UNAVAILABLE'
+                && error?.status === 422,
+        );
+        await assert.rejects(fs.access(projectDir));
 
-        const result = await runExecuteTask({
-            prompt: 'Create a TypeScript utility',
-            projectDir,
-            model: 'pi/test-model',
-        }, {
-            PI_BIN: fakePi,
-            FAKE_PI_ARGS_FILE: argsFile,
-            FAKE_PI_CWD_FILE: cwdFile,
-        });
-
-        assert.equal(result.code, 0, result.stderr || result.stdout);
-        const payload = JSON.parse(result.stdout);
-        assert.equal(payload.ok, true);
-        assert.equal(payload.projectDir, projectDir);
-        assert.equal(payload.model, 'pi/test-model');
-        assert.match(payload.outputText, /pi stdout line 1/);
-        assert.match(payload.outputText, /pi stdout line 2/);
-        assert.doesNotMatch(payload.outputText, /pi stderr line 1/);
-        assert.doesNotThrow(() => JSON.parse(result.stdout), 'MCP stdout must contain final JSON');
-
-        const args = JSON.parse(await fs.readFile(argsFile, 'utf8'));
-        assert.deepEqual(args, [
-            '-p',
-            '--no-session',
-            '--provider',
-            'anthropic',
-            '--model',
-            'pi/test-model',
-            'Create a TypeScript utility',
-        ]);
-
-        const logs = result.stderr;
-        assert.match(logs, new RegExp(`start projectDir=${projectDir}`));
-        assert.match(logs, /\[pi stdout\] pi stdout line 1/);
-        assert.match(logs, /\[pi stderr\] pi stderr line 1/);
-        assert.match(logs, /\[pi stdout\] pi stdout line 2/);
-        assert.match(logs, /\[pi stderr\] pi stderr line 2/);
-
-        const runCwd = String(await fs.readFile(cwdFile, 'utf8'));
-        assert.equal(trim(runCwd), projectDir);
+        const taskEnv = Object.fromEntries(sandbox.__testables.sandboxEnvironment({
+            PLOINKY_ROUTER_URL: 'http://router.test',
+            PLOINKY_AGENT_API_KEY: 'must-not-pass',
+            ANTHROPIC_API_KEY: 'must-not-pass',
+        }));
+        assert.equal(taskEnv.PLOINKY_ROUTER_URL, 'http://router.test');
+        assert.equal(taskEnv.PLOINKY_AGENT_API_KEY, undefined);
+        assert.equal(taskEnv.ANTHROPIC_API_KEY, undefined);
     } finally {
-        await fs.rm(tempDir, { recursive: true, force: true });
+        await fs.rm(root, { recursive: true, force: true });
     }
 });
-
-test('execute-task returns bounded output tail on pi failure', async () => {
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-agent-test-'));
-    try {
-        await fs.mkdir(path.join(tempDir, 'site'), { recursive: true });
-        const fakePi = await writeFakePi(tempDir, `process.stdout.write('before failure\\n');
-process.stderr.write('failure details\\n');
-process.exit(7);
-`);
-
-        const result = await runExecuteTask({
-            prompt: 'Create a TypeScript utility',
-            projectDir: path.join(tempDir, 'site'),
-            model: 'pi/test-model',
-        }, {
-            PI_BIN: fakePi,
-        });
-
-        assert.notEqual(result.code, 0);
-        const payload = JSON.parse(result.stdout);
-        assert.equal(payload.ok, false);
-        assert.match(payload.error, /exit code 7/);
-        assert.match(payload.error, /failure details/);
-        assert.match(payload.outputText, /failure details/);
-        assert.equal(payload.model, 'pi/test-model');
-
-        const logs = result.stderr;
-        assert.match(logs, /\[pi stdout\] before failure/);
-        assert.match(logs, /\[pi stderr\] failure details/);
-    } finally {
-        await fs.rm(tempDir, { recursive: true, force: true });
-    }
-});
-
-test('execute-task rejects invalid input', async () => {
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-agent-test-'));
-    try {
-        const result = await runExecuteTask({
-            projectDir: path.join(tempDir, 'site'),
-        }, {
-            PI_BIN: '/bin/true',
-        });
-
-        assert.notEqual(result.code, 0);
-        const payload = JSON.parse(result.stdout);
-        assert.equal(payload.ok, false);
-        assert.match(payload.error, /prompt is required/);
-    } finally {
-        await fs.rm(tempDir, { recursive: true, force: true });
-    }
-});
-
-function trim(value) {
-    return typeof value === 'string' ? value.trim() : '';
-}

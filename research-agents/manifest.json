@@ -1,6 +1,5 @@
 {
     "container": "node:20-alpine",
-    "lite-sandbox": true,
     "about": "Explicit deployment bundle for the copilot-agents provider suite. Enables the copilot-provider-relay (copilotProviderRelay) and the openInterpreterAgent provider. Provider agents execute provider tasks locally in their own containers based on the shared bwrap-runner image; this bundle must not enable basic/bwrap-runner.",
     "env": [
         "PLOINKY_WORKSPACE_ROOT"

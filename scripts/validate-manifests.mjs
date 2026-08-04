@@ -20,6 +20,13 @@ const PLUGIN_ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*$/;
 const PLOINKY_PROFILE_NAMES = new Set(['default', 'dev', 'qa', 'prod']);
 const CONTAINER_SECURITY_FIELDS = new Set(['privileged']);
 const GATED_PRIVILEGED_AGENT_DIRS = new Set(['openInterpreterAgent']);
+const EXPECTED_CONTAINER_BY_AGENT = new Map([
+    ['research-agents', 'node:20-alpine'],
+    ['copilotProviderRelay', 'node:20-alpine'],
+    ['openInterpreterAgent', 'docker.io/assistos/bwrap-runner:node24-python-bookworm'],
+    ['webSearchAgent', 'node:24.15.0-bookworm-slim'],
+    ['browserUseAgent', 'node:24.15.0-bookworm'],
+]);
 
 let failures = 0;
 
@@ -84,6 +91,21 @@ export function containerSecurityValidationErrors(manifest, { allowPrivileged = 
     return errors;
 }
 
+export function containerTopologyValidationErrors(agentDir, manifest) {
+    const errors = [];
+    const expectedContainer = EXPECTED_CONTAINER_BY_AGENT.get(agentDir);
+    if (!expectedContainer) {
+        return [`agent ${agentDir} is missing from the container topology`];
+    }
+    if (manifest?.container !== expectedContainer) {
+        errors.push(`container must remain ${expectedContainer}`);
+    }
+    if (Object.hasOwn(manifest ?? {}, 'lite-sandbox')) {
+        errors.push('lite-sandbox must be omitted so this image-backed agent remains container-routed');
+    }
+    return errors;
+}
+
 function gatedPrivilegeMatches(agentDir, manifest) {
     return GATED_PRIVILEGED_AGENT_DIRS.has(agentDir)
         && manifest?.container === 'docker.io/assistos/bwrap-runner:node24-python-bookworm'
@@ -102,6 +124,9 @@ function validateManifest(agentDir) {
         return;
     }
     const gatedPrivilege = gatedPrivilegeMatches(agentDir, manifest);
+    for (const error of containerTopologyValidationErrors(agentDir, manifest)) {
+        fail(manifestPath, error);
+    }
     for (const error of containerSecurityValidationErrors(manifest, { allowPrivileged: gatedPrivilege })) {
         fail(manifestPath, error);
     }

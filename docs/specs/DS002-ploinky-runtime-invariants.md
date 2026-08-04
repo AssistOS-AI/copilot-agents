@@ -26,6 +26,13 @@ tasks must run through an inner bubblewrap sandbox started locally inside that
 provider container. `webSearchAgent` is not a code-execution backend; it uses a
 browser-enabled container and owns only local headless browser search.
 
+Every repository-owned manifest must remain image-backed and must omit
+`lite-sandbox`. Strict `lite-sandbox: true` selects the platform Bubblewrap
+runtime for migrated coding AgentServers, which these bundle, relay, browser,
+and provider workloads are not. Their container images, install hooks,
+persistent storage, browser processes, and provider-owned inner sandboxes are
+part of the runtime topology and must not be bypassed.
+
 Consumers of the shared runner must treat its capability record as the
 canonical proc contract. Open Interpreter requires runner ABI `2` and the
 strict `private` proc minimum; readiness, status, and task admission must

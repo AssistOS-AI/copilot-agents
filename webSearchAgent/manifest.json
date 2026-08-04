@@ -1,6 +1,5 @@
 {
     "container": "node:24.15.0-bookworm-slim",
-    "lite-sandbox": true,
     "about": "Web Search provider agent. Executes cacheable web searches with its own local headless browser pool. The agent is self-contained and does not call external LLM/search gateways.",
     "agent": "sh /code/scripts/startAgent.sh",
     "readiness": {

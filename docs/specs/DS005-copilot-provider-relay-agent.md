@@ -21,9 +21,9 @@ runtime setup and execution.
 
 ## Core Content
 
-The agent must be a lightweight Ploinky MCP agent. It should use a Node
-container, `lite-sandbox: true`, and the default `AgentServer` with
-`mcp-config.json`.
+The agent must be a lightweight, container-backed Ploinky MCP agent. It uses
+the declared Node container, omits `lite-sandbox`, and runs the default
+`AgentServer` with `mcp-config.json`.
 
 The agent must expose exactly these MCP tools:
 

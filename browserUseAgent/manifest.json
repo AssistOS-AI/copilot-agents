@@ -1,6 +1,5 @@
 {
     "container": "node:24.15.0-bookworm",
-    "lite-sandbox": true,
     "about": "Interactive browser automation provider with protected user viewer for login and OAuth flows. Controls Chromium sessions and exposes a viewer URL where the authenticated user can complete login, 2FA, or CAPTCHA steps.",
     "agent": "sh /code/scripts/startAgent.sh",
     "readiness": {

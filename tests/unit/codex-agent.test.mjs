@@ -9,6 +9,16 @@ const MANIFEST = path.join(AGENT_ROOT, 'manifest.json');
 const INSTALL_SCRIPT = path.join(AGENT_ROOT, 'scripts', 'install-codex.sh');
 const RUNNER = path.join(AGENT_ROOT, 'scripts', 'codex-runner.mjs');
 
+test('codex uses the clean-break manual Bubblewrap selector', async () => {
+    const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
+
+    assert.equal(Object.hasOwn(manifest, 'container'), false);
+    assert.equal(Object.hasOwn(manifest, 'network'), false);
+    assert.equal(manifest.containerSecurity, undefined);
+    assert.equal(manifest.startup, 'manual');
+    assert.equal(manifest['lite-sandbox'], true);
+});
+
 test('codex manifest uses the non-interactive installer script', async () => {
     const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
     const install = manifest.profiles?.default?.install;

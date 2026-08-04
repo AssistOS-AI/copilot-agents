@@ -22,10 +22,11 @@ test('pi execute-task remains an async cross-repository consumer', async () => {
     assert.deepEqual(tool?.args, ['/code/scripts/execute-task.mjs']);
 });
 
-test('pi remains a manual coding selector during the container cleanup phase', async () => {
+test('pi uses the clean-break manual Bubblewrap selector', async () => {
     const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
 
-    assert.equal(manifest.container, 'docker.io/assistos/ploinky-node:24-bookworm-tools');
+    assert.equal(Object.hasOwn(manifest, 'container'), false);
+    assert.equal(Object.hasOwn(manifest, 'network'), false);
     assert.equal(manifest.containerSecurity, undefined);
     assert.equal(manifest.startup, 'manual');
     assert.equal(manifest['lite-sandbox'], true);

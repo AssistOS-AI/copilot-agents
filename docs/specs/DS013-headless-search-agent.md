@@ -23,9 +23,6 @@ service started by the agent process before the default `AgentServer`. The
 MCP tools remain command tools, but search execution runs through the local
 service so browser state, browser slots, and cleanup are owned by the
 long-lived `webSearchAgent` process rather than by one-shot tool commands.
-Its manifest retains the declared Debian Node container and Chromium install
-hook and omits `lite-sandbox`, because that image-backed browser topology is
-required at runtime.
 
 The agent must not know about, configure, or call external LLM/search gateways.
 It must not use `SOUL_GATEWAY_URL`, `PLOINKY_AGENT_API_KEY`,

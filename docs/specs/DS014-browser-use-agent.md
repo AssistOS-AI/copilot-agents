@@ -23,10 +23,8 @@ the session manager, relay, router, or launcher code.
 ## Core Content
 
 The agent must be a Ploinky agent directory named `browserUseAgent`. It uses
-`node:24.15.0-bookworm` as its container base and Playwright with Chromium for
-browser automation. Its manifest omits `lite-sandbox` so Ploinky preserves the
-image-backed browser, install, profile-persistence, and viewer-service
-topology.
+`node:24.15.0-bookworm` as its container base, `lite-sandbox: true`, and
+Playwright with Chromium for browser automation.
 
 The agent exposes these MCP tools:
 

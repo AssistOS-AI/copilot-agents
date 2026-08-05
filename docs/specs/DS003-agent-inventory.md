@@ -28,12 +28,6 @@ The repository owns and validates these Ploinky agent directories:
    Chromium sessions for logged-in web application tasks and exposes a
    protected viewer URL for login, OAuth, 2FA, and CAPTCHA flows.
 
-All five repository-owned agents are container-backed and omit
-`lite-sandbox`. The bundle and relay use their declared Node images, the
-browser agents require their declared Chromium-capable container setup, and
-Open Interpreter remains a containerized host for its provider-owned inner
-Bubblewrap sandbox.
-
 `GPTResearcher`, `opencodeAgent`, `piAgent`, and `codexAgent` are owned by the
 sibling `AchillesCLI` repository, not this repository. They remain integration
 consumers of the bundle or launcher topology, so this repository keeps explicit

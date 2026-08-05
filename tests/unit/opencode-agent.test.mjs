@@ -22,12 +22,11 @@ test('opencode execute-task remains an async cross-repository consumer', async (
     assert.deepEqual(tool?.args, ['/code/scripts/execute-task.mjs']);
 });
 
-test('opencode uses the clean-break manual Bubblewrap selector', async () => {
+test('opencode privilege removal remains gated on immutable image and native task proof', async () => {
     const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
 
-    assert.equal(Object.hasOwn(manifest, 'container'), false);
-    assert.equal(Object.hasOwn(manifest, 'network'), false);
-    assert.equal(manifest.containerSecurity, undefined);
+    assert.deepEqual(manifest.containerSecurity, { privileged: true });
+    assert.doesNotMatch(manifest.container, /@sha256:/);
     assert.equal(manifest.startup, 'manual');
     assert.equal(manifest['lite-sandbox'], true);
 });
@@ -76,7 +75,7 @@ test('opencode outer-proc rejection is terminal before project mutation and cred
             PLOINKY_AGENT_API_KEY: 'must-not-pass',
             OPENAI_API_KEY: 'must-not-pass',
         }));
-        assert.equal(taskEnv.PLOINKY_ROUTER_URL, undefined);
+        assert.equal(taskEnv.PLOINKY_ROUTER_URL, 'http://router.test');
         assert.equal(taskEnv.PLOINKY_AGENT_API_KEY, undefined);
         assert.equal(taskEnv.OPENAI_API_KEY, undefined);
     } finally {

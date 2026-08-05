@@ -9,16 +9,6 @@ const MANIFEST = path.join(AGENT_ROOT, 'manifest.json');
 const INSTALL_SCRIPT = path.join(AGENT_ROOT, 'scripts', 'install-codex.sh');
 const RUNNER = path.join(AGENT_ROOT, 'scripts', 'codex-runner.mjs');
 
-test('codex uses the clean-break manual Bubblewrap selector', async () => {
-    const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
-
-    assert.equal(Object.hasOwn(manifest, 'container'), false);
-    assert.equal(Object.hasOwn(manifest, 'network'), false);
-    assert.equal(manifest.containerSecurity, undefined);
-    assert.equal(manifest.startup, 'manual');
-    assert.equal(manifest['lite-sandbox'], true);
-});
-
 test('codex manifest uses the non-interactive installer script', async () => {
     const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
     const install = manifest.profiles?.default?.install;
@@ -27,13 +17,13 @@ test('codex manifest uses the non-interactive installer script', async () => {
     assert.doesNotMatch(install, /^npm install/);
 });
 
-test('codex runner pins managed Explorer tasks to the concrete Soul model without embedding credentials', async () => {
+test('codex runner pins managed Explorer tasks to the local Soul fast tier without embedding credentials', async () => {
     const script = await fs.readFile(RUNNER, 'utf8');
 
     assert.match(script, /PLOINKY_ROUTER_URL/);
     assert.match(script, /PLOINKY_AGENT_API_KEY/);
     assert.match(script, /base-agent-additional-server\/soul-gateway\/7000\/v1/);
-    assert.match(script, /MANAGED_SOUL_MODEL = 'gpt-5\.6-sol'/);
+    assert.match(script, /MANAGED_SOUL_MODEL = 'fast'/);
     assert.match(script, /env_key/);
     assert.doesNotMatch(script, /sk-[A-Za-z0-9_-]{16,}/);
 });

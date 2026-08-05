@@ -25,10 +25,6 @@ The implementation must not require or introduce a Ploinky core shorthand such a
 
 The bundle manifest may expose lightweight MCP status tools, but it must not run upstream research workloads. Its primary contract is the manifest `enable` graph.
 
-The bundle itself remains container-backed on its declared Node image and must
-omit `lite-sandbox`. Enabling the bundle must not cause its deployment graph to
-bypass the provider and browser container images described below.
-
 The default bundle profile should enable:
 
 - `copilotProviderRelay global`

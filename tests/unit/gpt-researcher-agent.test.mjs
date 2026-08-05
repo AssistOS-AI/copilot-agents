@@ -181,7 +181,7 @@ test('GPTResearcher manifest keeps the mutable shared-image consumer gated for d
     assert.doesNotMatch(manifest.container, /@sha256:/,
         'immutable image pinning remains gated on native publication and cold-task proof');
     assert.equal(manifest.startup, 'manual');
-    assert.equal(manifest['lite-sandbox'], undefined);
+    assert.equal(manifest['lite-sandbox'], true);
     assert.equal(manifest.agent, 'sh /code/scripts/start-gpt-researcher.sh');
     assert.equal(manifest.readiness?.protocol, 'mcp');
     assert.equal(manifest.health?.readiness?.script, 'readiness.sh');

@@ -126,7 +126,7 @@ test('browserUseAgent manifest is valid JSON with required fields', () => {
     const manifestPath = path.resolve(__dirname, '..', '..', 'browserUseAgent', 'manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     assert.equal(manifest.container, 'node:24.15.0-bookworm');
-    assert.equal(manifest['lite-sandbox'], undefined);
+    assert.equal(manifest['lite-sandbox'], true);
     assert.equal(Object.prototype.hasOwnProperty.call(manifest, 'httpServices'), false);
     assert.deepEqual(manifest.routerAccess.httpRoutes, [{
         path: '/base-agent-additional-server/browserUseAgent/7000/browser-use/*',

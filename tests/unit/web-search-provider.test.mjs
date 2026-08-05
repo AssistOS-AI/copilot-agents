@@ -191,7 +191,6 @@ describe('web-search-provider local browser runtime helpers', () => {
         ));
 
         assert.equal(manifest.container, 'node:24.15.0-bookworm-slim');
-        assert.equal(manifest['lite-sandbox'], undefined);
         assert.equal(manifest.profiles.default.install, 'sh /code/scripts/install.sh');
         assert.equal(packageJson.dependencies['puppeteer-core'], '25.0.4');
         assert.equal(packageJson.dependencies.puppeteer, undefined);

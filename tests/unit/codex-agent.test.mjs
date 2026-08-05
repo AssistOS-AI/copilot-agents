@@ -18,7 +18,7 @@ test('codex retains its selector-only dual-runtime manifest contract', async () 
 
     assert.equal(manifest.container, APPROVED_CODING_IMAGE);
     assert.equal(Object.hasOwn(manifest, 'network'), false);
-    assert.equal(manifest.containerSecurity, undefined);
+    assert.deepEqual(manifest.containerSecurity, { nestedBwrap: true });
     assert.equal(manifest.startup, 'manual');
     assert.equal(manifest['lite-sandbox'], true);
 });

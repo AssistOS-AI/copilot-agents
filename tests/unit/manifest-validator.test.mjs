@@ -4,7 +4,10 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { containerSecurityValidationErrors } from '../../scripts/validate-manifests.mjs';
+import {
+    containerSecurityValidationErrors,
+    writableVolumeValidationErrors,
+} from '../../scripts/validate-manifests.mjs';
 
 const fixtureRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
@@ -82,4 +85,61 @@ test('temporary privilege allowance is explicit and does not relax syntax valida
         }, { allowPrivileged: true }),
         ['containerSecurity.securityOpt is unsupported'],
     );
+});
+
+test('writable volume validation positively accepts only normalized .data descendants', () => {
+    assert.deepEqual(writableVolumeValidationErrors({ container: 'node:24-bookworm' }), []);
+    assert.deepEqual(writableVolumeValidationErrors({
+        container: 'node:24-bookworm',
+        volumes: {
+            '.data/browserUseAgent': '/data',
+            '.data/browserUseAgent/cache': '/cache',
+        },
+    }), []);
+});
+
+test('writable volume validation rejects legacy, ambiguous, absolute, and non-canonical host roots', () => {
+    for (const hostPath of [
+        '.ploinky/data/browserUseAgent',
+        'webassist-data',
+        '.data-other/browserUseAgent',
+        '.data',
+    ]) {
+        assert.deepEqual(
+            writableVolumeValidationErrors({ volumes: { [hostPath]: '/data' } }),
+            [`writable host volume must resolve beneath .data/: ${hostPath}`],
+        );
+    }
+    assert.deepEqual(
+        writableVolumeValidationErrors({ volumes: { '/workspace/.data/browserUseAgent': '/data' } }),
+        ['writable host volume must be workspace-relative beneath .data/: /workspace/.data/browserUseAgent'],
+    );
+    assert.deepEqual(
+        writableVolumeValidationErrors({ volumes: { '.data/browserUseAgent/../webSearchAgent': '/data' } }),
+        ['writable host volume must already be normalized: .data/browserUseAgent/../webSearchAgent'],
+    );
+});
+
+test('writable volume validation requires object-map shape and absolute container targets', () => {
+    assert.deepEqual(
+        writableVolumeValidationErrors({ volumes: ['.data/browserUseAgent:/data'] }),
+        ['volumes must be an object map of host path to container path'],
+    );
+    assert.deepEqual(
+        writableVolumeValidationErrors({ volumes: { '.data/browserUseAgent': 'data' } }),
+        ['volume container path must be absolute: "data"'],
+    );
+});
+
+test('provider manifests use exact unique-agent storage mappings', () => {
+    for (const agentName of ['browserUseAgent', 'openInterpreterAgent', 'webSearchAgent']) {
+        const manifest = JSON.parse(fs.readFileSync(
+            path.resolve(fixtureRoot, '../../..', agentName, 'manifest.json'),
+            'utf8',
+        ));
+        assert.deepEqual(manifest.volumes, {
+            [`.data/${agentName}`]: '/data',
+        });
+        assert.deepEqual(writableVolumeValidationErrors(manifest), []);
+    }
 });

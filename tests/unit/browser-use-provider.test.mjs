@@ -133,7 +133,7 @@ test('browserUseAgent manifest is valid JSON with required fields', () => {
         access: 'authenticated',
     }]);
     assert.ok(manifest.volumes);
-    assert.equal(manifest.volumes['.ploinky/data/browserUseAgent'], '/data');
+    assert.equal(manifest.volumes['.data/browserUseAgent'], '/data');
     assert.equal(manifest.profiles.default.env.BROWSER_USE_SERVICE_PORT, '7000');
     assert.equal(manifest.profiles.default.env.BROWSER_USE_MCP_PORT, '7001');
     assert.equal(manifest.profiles.default.env.BROWSER_USE_BIND_HOST, '0.0.0.0');

@@ -39,6 +39,6 @@
         }
     },
     "volumes": {
-        ".ploinky/data/browserUseAgent": "/data"
+        ".data/browserUseAgent": "/data"
     }
 }

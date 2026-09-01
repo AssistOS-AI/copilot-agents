@@ -84,6 +84,40 @@ export function containerSecurityValidationErrors(manifest, { allowPrivileged = 
     return errors;
 }
 
+export function writableVolumeValidationErrors(manifest) {
+    const errors = [];
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+        return ['manifest root must be an object'];
+    }
+    if (!Object.hasOwn(manifest, 'volumes')) return errors;
+    if (!isPlainObject(manifest.volumes)) {
+        return ['volumes must be an object map of host path to container path'];
+    }
+
+    for (const [hostPart, containerPart] of Object.entries(manifest.volumes)) {
+        if (typeof hostPart !== 'string' || !hostPart.trim()) {
+            errors.push(`volume host path malformed: ${JSON.stringify(hostPart)}`);
+            continue;
+        }
+        if (typeof containerPart !== 'string' || !path.posix.isAbsolute(containerPart)) {
+            errors.push(`volume container path must be absolute: ${JSON.stringify(containerPart)}`);
+        }
+        if (path.posix.isAbsolute(hostPart)) {
+            errors.push(`writable host volume must be workspace-relative beneath .data/: ${hostPart}`);
+            continue;
+        }
+        const normalized = path.posix.normalize(hostPart);
+        if (normalized !== hostPart) {
+            errors.push(`writable host volume must already be normalized: ${hostPart}`);
+            continue;
+        }
+        if (!normalized.startsWith('.data/')) {
+            errors.push(`writable host volume must resolve beneath .data/: ${hostPart}`);
+        }
+    }
+    return errors;
+}
+
 function gatedPrivilegeMatches(agentDir, manifest) {
     return GATED_PRIVILEGED_AGENT_DIRS.has(agentDir)
         && manifest?.container === 'docker.io/assistos/bwrap-runner:node24-python-bookworm'
@@ -127,27 +161,8 @@ function validateManifest(agentDir) {
             }
         }
     }
-    if (manifest.volumes) {
-        if (Array.isArray(manifest.volumes) || typeof manifest.volumes !== 'object') {
-            fail(manifestPath, 'volumes must be an object map of host path to container path');
-        } else {
-            for (const [hostPart, containerPart] of Object.entries(manifest.volumes)) {
-                if (typeof hostPart !== 'string' || !hostPart.trim()) {
-                    fail(manifestPath, `volume host path malformed: ${JSON.stringify(hostPart)}`);
-                    continue;
-                }
-                if (typeof containerPart !== 'string' || !path.isAbsolute(containerPart)) {
-                    fail(manifestPath, `volume container path must be absolute: ${JSON.stringify(containerPart)}`);
-                    continue;
-                }
-                if (path.isAbsolute(hostPart) && !hostPart.includes('.ploinky')) {
-                    fail(manifestPath, `host volume must resolve under .ploinky/: ${hostPart}`);
-                }
-                if (!path.isAbsolute(hostPart) && !hostPart.startsWith('.ploinky/')) {
-                    fail(manifestPath, `host volume must start at .ploinky/: ${hostPart}`);
-                }
-            }
-        }
+    for (const error of writableVolumeValidationErrors(manifest)) {
+        fail(manifestPath, error);
     }
     if (Object.hasOwn(manifest, 'httpServices')) {
         fail(manifestPath, 'httpServices is unsupported; declare convention paths in routerAccess.httpRoutes');

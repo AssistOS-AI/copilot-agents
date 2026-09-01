@@ -35,6 +35,6 @@
         }
     },
     "volumes": {
-        ".ploinky/data/webSearchAgent": "/data"
+        ".data/webSearchAgent": "/data"
     }
 }

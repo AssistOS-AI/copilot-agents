@@ -56,6 +56,12 @@ ploinky start explorer 8080</pre>
         <code>webSearchAgent</code> owns its local headless browser runtime and does not depend on
         an external search gateway.
     </p>
+    <p>
+        Provider-private writable state is mounted from the workspace
+        <code>.data/&lt;agent&gt;</code> root. Browser Use, Open Interpreter, and Web Search therefore
+        persist beneath <code>.data/browserUseAgent</code>, <code>.data/openInterpreterAgent</code>,
+        and <code>.data/webSearchAgent</code> while retaining <code>/data</code> inside each container.
+    </p>
 
     <h2>Agent Inventory and Compatibility Surfaces</h2>
     <ul>

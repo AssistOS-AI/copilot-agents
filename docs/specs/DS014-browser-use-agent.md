@@ -86,7 +86,7 @@ Browser profiles persist per authenticated user and provider under
 `/data/profiles/<safeUserId>/<provider>/`. The manifest declares:
 
 ```json
-{ ".ploinky/data/browserUseAgent": "/data" }
+{ ".data/browserUseAgent": "/data" }
 ```
 
 Only one non-terminal Chromium context may be active for a given user/provider

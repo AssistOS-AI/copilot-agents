@@ -42,6 +42,6 @@
         }
     },
     "volumes": {
-        ".ploinky/data/openInterpreterAgent": "/data"
+        ".data/openInterpreterAgent": "/data"
     }
 }

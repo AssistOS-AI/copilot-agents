@@ -176,7 +176,7 @@ object-map shape:
 
 ```json
 {
-  ".ploinky/data/openInterpreterAgent": "/data"
+  ".data/openInterpreterAgent": "/data"
 }
 ```
 
@@ -205,7 +205,7 @@ redaction and observability posture.
 Response:
 Ploinky resolves `manifest.volumes` with `Object.entries()` and applies
 host-path policy checks to each map key. Docker-style strings are
-interpreted incorrectly and fail the `.ploinky/` confinement policy at
+interpreted incorrectly and fail the `.data/` confinement policy at
 startup.
 
 ### Question #4: Why prepare the runtime in a Linux container instead of on the host?

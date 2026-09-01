@@ -26,7 +26,7 @@ avoid speculative abstractions that make an agent harder to audit.
 
 Ploinky tools should follow the default `AgentServer` pattern unless a specific service requires a custom long-running process. Tool wrappers must read the JSON envelope from stdin, normalize nested MCP input safely, validate required fields, and write compact JSON to stdout. The normal success shape should be `{ "ok": true, ... }`, and the normal failure shape should be `{ "ok": false, "error": "..." }`.
 
-Path handling must be centralized per agent. Tools must resolve paths against `PLOINKY_WORKSPACE_ROOT`, the agent work directory, or an explicit `.ploinky/data/<agent>` root. Tools must reject null bytes, traversal, symlink escape, and writes outside the allowed roots.
+Path handling must be centralized per agent. Tools must resolve paths against `PLOINKY_WORKSPACE_ROOT`, the agent work directory, or an explicit `.data/<agent>` root. Tools must reject null bytes, traversal, symlink escape, and writes outside the allowed roots.
 
 Logging must be conservative by default. Logs and errors must redact provider credentials, cookies, bearer tokens, invocation JWTs, raw prompts, materialized resource contents, base64 payloads, command stdin, hidden policy text, and internal payloads. Debug output may be added only behind explicit opt-in environment flags and must still redact sensitive values.
 

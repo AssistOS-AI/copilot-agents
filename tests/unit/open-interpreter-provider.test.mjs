@@ -11,9 +11,12 @@ import {
     BUNDLE_ID,
     BUNDLE_LAYOUT_VERSION,
     BUNDLE_VERSION,
+    PYTHON_MAJOR_MINOR,
     RUNNER_ABI,
+    RUNNER_IMAGE_HINT,
     RUNNER_PROC_MINIMUM,
     SCHEMA,
+    SHIM_HOST_PATH,
     bundleDir,
     buildManifest,
     describeBundleInput,
@@ -21,6 +24,7 @@ import {
     resolvePreparedRuntime,
     resolveRuntimeRoot,
 } from '../../openInterpreterAgent/tools/lib/runtime-bundle.mjs';
+import { prepareRuntime } from '../../openInterpreterAgent/tools/prepare-runtime.mjs';
 import { startOpenAICompatibleBroker } from '../../openInterpreterAgent/tools/lib/openai-compatible-broker.mjs';
 import { resolveOpenInterpreterRuntimeConfig } from '../../openInterpreterAgent/tools/lib/achilles-llm-config.mjs';
 
@@ -37,6 +41,29 @@ function mkroot() {
 function writeManifest(dir, manifest) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+}
+
+function preparationFixture(t) {
+    const root = mkroot();
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const shim = path.resolve(__dirname, '../../openInterpreterAgent/runtime/research-open-interpreter.py');
+    for (const method of ['existsSync', 'readFileSync', 'copyFileSync']) {
+        const original = fs[method];
+        t.mock.method(fs, method, (file, ...args) => original(file === SHIM_HOST_PATH ? shim : file, ...args));
+    }
+    const calls = path.join(root, 'pip-calls.jsonl');
+    const python = path.join(root, 'fixture-python');
+    fs.writeFileSync(python, `#!/usr/bin/env node
+const fs = require('node:fs');
+const path = require('node:path');
+const args = process.argv.slice(2);
+if (args.slice(0, 3).join(' ') !== '-m pip install') process.exit(2);
+const target = args[args.indexOf('--target') + 1];
+fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(args) + '\\n');
+fs.mkdirSync(target, { recursive: true });
+fs.writeFileSync(path.join(target, 'installed-package'), 'fixture package payload');
+`, { mode: 0o755 });
+    return { root, calls, env: { OI_RUNTIME_ROOT: root, OI_PREPARE_PYTHON: python } };
 }
 
 function writeRunnerHealthcheck(dir, {
@@ -173,6 +200,9 @@ test('buildManifest produces a manifest that matches the runner runtime-bundle s
     assert.deepEqual(manifest.python.pythonPath, ['/runtime/python']);
     assert.equal(manifest.compatibility.runnerAbi, RUNNER_ABI);
     assert.equal(manifest.compatibility.procMinimum, RUNNER_PROC_MINIMUM);
+    assert.equal(manifest.compatibility.runnerImage, RUNNER_IMAGE_HINT);
+    assert.equal(manifest.compatibility.pythonMajorMinor, '3.12');
+    assert.equal(PYTHON_MAJOR_MINOR, '3.12');
 });
 
 test('readExistingManifest recognizes an already-prepared bundle', () => {
@@ -224,6 +254,74 @@ test('runner ABI layout migrates additively without treating the populated legac
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
+});
+
+test('prepared runtime rejects a different image, Python ABI, runner ABI, or proc contract', () => {
+    const root = mkroot();
+    try {
+        for (const incompatible of [
+            { runnerImage: 'docker.io/assistos/bwrap-runner:obsolete-runtime' },
+            { pythonMajorMinor: '3.11' },
+            { runnerAbi: 1 },
+            { procMinimum: 'private-or-empty' },
+        ]) {
+            const manifest = buildManifest();
+            Object.assign(manifest.compatibility, incompatible);
+            writeManifest(bundleDir(root), manifest);
+            assert.equal(resolvePreparedRuntime(root), null, JSON.stringify(incompatible));
+        }
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('Python 3.12 preparation preserves the populated Python 3.11 layout and reuses only the new bundle', (t) => {
+    const { root, calls, env } = preparationFixture(t);
+    const legacyDir = path.join(root, BUNDLE_ID, `${BUNDLE_VERSION}-runner-abi-${RUNNER_ABI}`);
+    const legacyManifest = buildManifest();
+    legacyManifest.compatibility.pythonMajorMinor = '3.11';
+    legacyManifest.compatibility.runnerImage = 'docker.io/assistos/bwrap-runner:node24-python-bookworm';
+    writeManifest(legacyDir, legacyManifest);
+    fs.writeFileSync(path.join(legacyDir, 'preserved-data'), 'old runtime');
+
+    const prepared = prepareRuntime({ env });
+    assert.equal(prepared.prepared, true);
+    assert.equal(prepared.reused, false);
+    assert.notEqual(prepared.bundleDir, legacyDir);
+    assert.match(path.basename(prepared.bundleDir), /-python-3\.12-[a-f0-9]{16}$/);
+    assert.equal(prepared.manifest.compatibility.pythonMajorMinor, '3.12');
+    assert.equal(prepared.manifest.compatibility.runnerImage, RUNNER_IMAGE_HINT);
+    assert.equal(fs.readFileSync(path.join(prepared.bundleDir, 'python', 'installed-package'), 'utf8'), 'fixture package payload');
+    assert.equal(fs.readFileSync(path.join(legacyDir, 'preserved-data'), 'utf8'), 'old runtime');
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(legacyDir, 'manifest.json'), 'utf8')), legacyManifest);
+
+    const reused = prepareRuntime({ env });
+    assert.equal(reused.reused, true);
+    assert.equal(reused.prepared, false);
+    assert.equal(reused.refreshed, false);
+    assert.equal(reused.bundleDir, fs.realpathSync(prepared.bundleDir));
+    assert.equal(fs.readFileSync(calls, 'utf8').trim().split('\n').length, 1);
+});
+
+test('concurrent preparation adopts the compatible winning bundle and cleans its temporary directory', (t) => {
+    const { root, env } = preparationFixture(t);
+    const target = bundleDir(root);
+    const originalRename = fs.renameSync;
+    t.mock.method(fs, 'renameSync', (source, destination) => {
+        assert.equal(destination, target);
+        fs.mkdirSync(target, { recursive: true });
+        fs.writeFileSync(path.join(target, 'winner'), 'keep the winner');
+        fs.copyFileSync(path.join(source, 'manifest.json'), path.join(target, 'manifest.json'));
+        return originalRename(source, destination);
+    });
+
+    const result = prepareRuntime({ env });
+    assert.equal(result.reused, true);
+    assert.equal(result.prepared, false);
+    assert.match(result.message, /concurrently prepared/);
+    assert.equal(fs.readFileSync(path.join(target, 'winner'), 'utf8'), 'keep the winner');
+    assert.equal(result.manifest.compatibility.pythonMajorMinor, '3.12');
+    assert.deepEqual(fs.readdirSync(path.join(root, BUNDLE_ID)), [BUNDLE_LAYOUT_VERSION]);
 });
 
 test('prepared runtime detection rejects symlink escapes from the runtime root', () => {

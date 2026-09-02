@@ -1,6 +1,7 @@
 // Helpers for openInterpreterAgent runtime preparation and resolution.
 
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -13,9 +14,17 @@ export const SHIM_NAME = 'research-open-interpreter.py';
 export const SHIM_HOST_PATH = '/code/runtime/research-open-interpreter.py';
 export const DEFAULT_RUNTIME_ROOT = '/data/research-runtimes';
 export const RUNNER_IMAGE_HINT = 'docker.io/assistos/bwrap-runner:node24-python-bookworm';
-export const PYTHON_MAJOR_MINOR = '3.11';
+export const PYTHON_MAJOR_MINOR = '3.12';
 export const TMP_PREFIX = '.tmp-';
-export const BUNDLE_LAYOUT_VERSION = `${BUNDLE_VERSION}-runner-abi-${RUNNER_ABI}`;
+const RUNTIME_COMPATIBILITY = Object.freeze({
+    runnerImage: RUNNER_IMAGE_HINT,
+    runnerAbi: RUNNER_ABI,
+    procMinimum: RUNNER_PROC_MINIMUM,
+    pythonMajorMinor: PYTHON_MAJOR_MINOR,
+});
+const COMPATIBILITY_HASH = createHash('sha256')
+    .update(JSON.stringify(RUNTIME_COMPATIBILITY)).digest('hex').slice(0, 16);
+export const BUNDLE_LAYOUT_VERSION = `${BUNDLE_VERSION}-runner-abi-${RUNNER_ABI}-python-${PYTHON_MAJOR_MINOR}-${COMPATIBILITY_HASH}`;
 const MAX_MANIFEST_BYTES = 64 * 1024;
 
 export function resolveRuntimeRoot(env = process.env) {
@@ -140,12 +149,7 @@ export function buildManifest({ digest = null, shim = null } = {}) {
         python: {
             pythonPath: ['/runtime/python'],
         },
-        compatibility: {
-            runnerImage: RUNNER_IMAGE_HINT,
-            runnerAbi: RUNNER_ABI,
-            procMinimum: RUNNER_PROC_MINIMUM,
-            pythonMajorMinor: PYTHON_MAJOR_MINOR,
-        },
+        compatibility: { ...RUNTIME_COMPATIBILITY },
     };
     if (shim) {
         manifest.shim = shim;

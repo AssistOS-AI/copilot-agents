@@ -223,8 +223,8 @@ test('GPTResearcher start_research is registered as an async MCP tool', async ()
     const tool = config.tools.find((entry) => entry.name === 'start_research');
 
     assert.equal(tool?.async, true);
-    assert.equal(tool?.command, '/opt/gpt-researcher-venv/bin/python');
-    assert.deepEqual(tool?.args, ['/code/scripts/start-research.py']);
+    assert.equal(tool?.command, '/bin/sh');
+    assert.deepEqual(tool?.args, ['/code/scripts/run-research.sh']);
     assert.equal(tool?.timeoutMs, 600000);
     assert.deepEqual(tool?.tags, ['internal']);
     assert.equal(tool?.inputSchema?.query?.optional, false);

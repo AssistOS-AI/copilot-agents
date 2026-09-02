@@ -27,6 +27,7 @@ import {
     bundleDir,
     bundleParentDir,
     buildManifest,
+    readExistingManifest,
     resolvePreparedRuntime,
     resolveRuntimeRoot,
 } from './lib/runtime-bundle.mjs';

@@ -47,8 +47,11 @@ The agent must own:
   Python traceback.
 - `openInterpreterAgent/tools/prepare-runtime.mjs`: the idempotent runtime
   preparation tool. It must target an agent-owned runtime root. For Open
-  Interpreter `0.4.3` and runner ABI `2`, the compatible layout is
-  `/data/research-runtimes/open-interpreter/0.4.3-runner-abi-2/`; it builds into
+  Interpreter `0.4.3`, runner ABI `2`, and Python `3.12`, the compatible layout is
+  `/data/research-runtimes/open-interpreter/0.4.3-runner-abi-2-python-3.12-<compatibility-hash>/`.
+  The final component includes the first 16 hexadecimal characters of SHA-256
+  over the exact runner image, runner ABI, proc minimum, and Python ABI record.
+  Preparation builds into
   `/data/research-runtimes/open-interpreter/.tmp-*`, install the pinned
   Python package with
   `python3 -m pip install --target <tmp>/python open-interpreter==<version>`,
@@ -57,8 +60,9 @@ The agent must own:
   already exist. The manifest must record runner image identity, runner ABI
   `2`, proc minimum `private`, and Python major/minor ABI. A manifest lacking
   any of those exact inputs is incompatible. A populated legacy
-  `/data/research-runtimes/open-interpreter/0.4.3/` directory is left intact
-  but is not reused. If a valid compatible manifest already exists, the tool
+  `/data/research-runtimes/open-interpreter/0.4.3/` directory and the previous
+  Python `3.11` layout `0.4.3-runner-abi-2/` are left intact but are not reused.
+  If a valid compatible manifest already exists, the tool
   reuses the runtime. If an invalid target directory already exists, preparation must
   fail with a natural-language repair message instead of deleting or replacing
   the directory in place.
@@ -219,7 +223,7 @@ Ploinky container avoids ABI drift.
 ### Question #5: Why use the bwrap-runner image for the provider agent's container?
 
 Response:
-The provider agent needs Python 3.11, pip, Node 24, and the same dependency
+The provider agent needs Python 3.12, pip, Node 24, and the same dependency
 toolchain that the bwrap-runner image already publishes. Reusing the image
 avoids publishing and maintaining a second sandbox base just to keep ABI
 compatibility.
@@ -316,6 +320,20 @@ compatibility, so incompatible populated bundles migrate additively. The
 current privileged mutable-image manifest remains gated until native immutable
 image and consumer smoke evidence exists; no local-only test can satisfy that
 publication boundary.
+
+### Decision #15: How does the Python 3.12 runner adoption preserve existing runtimes?
+
+Response:
+The maintained Trixie runner combines Node 24 with Python 3.12 because Open
+Interpreter 0.4.3 supports that Python ABI. Its runtime manifest must record
+Python `3.12` and the exact published runner image. The versioned directory now
+includes Python ABI and a fingerprint of all compatibility inputs, so changing
+the image or runtime policy creates a separate bundle without deleting a
+populated Python 3.11 directory. Exact manifest checks still apply after the
+directory is selected. Concurrent preparation may reuse only a compatible
+winner. The immutable image pin and privilege removal remain coupled to native
+publication evidence; this metadata change does not certify generated-local
+Open Interpreter execution in a Box.
 
 ## Conclusion
 

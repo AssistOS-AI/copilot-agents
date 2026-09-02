@@ -67,7 +67,7 @@ agent. Server-side relay calls must use router-mediated MCP with invocation
 tokens; they must not derive MCP targets from public client `Host` headers or
 forward browser `Authorization` headers.
 
-Durable data and generated runtime inputs must live under `.data/<agent>`. Manifest volumes must use Ploinky's object-map shape, where every writable host key is a normalized workspace-relative descendant of `.data/` and each value is an absolute container path. Agent code must not persist secrets, prompts, manuscripts with hidden metadata, or raw tool payloads into plugin assets, static documentation, screenshots, logs, or transcripts.
+Durable data and generated runtime inputs must live under `.data/<agent>`. Manifest volumes must use Ploinky's object-map shape, where every writable host key is a normalized workspace-relative descendant of `.data/` and each value is an absolute container path. The validator checks root declarations and every selectable profile independently, including manifests that declare volumes only in profiles. Agent code must not persist secrets, prompts, manuscripts with hidden metadata, or raw tool payloads into plugin assets, static documentation, screenshots, logs, or transcripts.
 
 Bundle profile names must be selectable by the current Ploinky profile system. Until Ploinky supports bundle-local named profiles, this repository may use only `default`, `dev`, `qa`, and `prod` profile keys in manifests. Custom profile names such as `openhands` or `full-research` must remain documentation-only future work until Ploinky can select them.
 
@@ -116,6 +116,13 @@ private-proc proof exist would violate dependency-safe rollout ordering. The
 validator therefore permits only the exact current Open Interpreter manifest
 as an explicit gate. A digest-pinned manifest cannot retain that allowance,
 and no mutable image may be presented as the completed rootless consumer.
+
+### Decision #6: Why validate profile-only storage declarations?
+
+Response:
+Selecting a profile can introduce writable volumes even when the root manifest
+has none. Every profile receives the same positive `.data/` path and object-map
+validation as root declarations; a clean root cannot waive a profile failure.
 
 ## Conclusion
 

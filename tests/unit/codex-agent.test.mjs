@@ -17,13 +17,13 @@ test('codex manifest uses the non-interactive installer script', async () => {
     assert.doesNotMatch(install, /^npm install/);
 });
 
-test('codex runner pins managed Explorer tasks to the local Soul fast tier without embedding credentials', async () => {
+test('codex runner uses the concrete managed Soul model identity without embedding credentials', async () => {
     const script = await fs.readFile(RUNNER, 'utf8');
 
     assert.match(script, /PLOINKY_ROUTER_URL/);
     assert.match(script, /PLOINKY_AGENT_API_KEY/);
     assert.match(script, /base-agent-additional-server\/soul-gateway\/7000\/v1/);
-    assert.match(script, /MANAGED_SOUL_MODEL = 'fast'/);
+    assert.match(script, /MANAGED_SOUL_MODEL = 'gpt-5\.6-sol'/);
     assert.match(script, /env_key/);
     assert.doesNotMatch(script, /sk-[A-Za-z0-9_-]{16,}/);
 });

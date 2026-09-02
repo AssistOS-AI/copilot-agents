@@ -84,11 +84,8 @@ export function containerSecurityValidationErrors(manifest, { allowPrivileged = 
     return errors;
 }
 
-export function writableVolumeValidationErrors(manifest) {
+function volumeMapValidationErrors(manifest) {
     const errors = [];
-    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
-        return ['manifest root must be an object'];
-    }
     if (!Object.hasOwn(manifest, 'volumes')) return errors;
     if (!isPlainObject(manifest.volumes)) {
         return ['volumes must be an object map of host path to container path'];
@@ -114,6 +111,21 @@ export function writableVolumeValidationErrors(manifest) {
         if (!normalized.startsWith('.data/')) {
             errors.push(`writable host volume must resolve beneath .data/: ${hostPart}`);
         }
+    }
+    return errors;
+}
+
+export function writableVolumeValidationErrors(manifest) {
+    if (!isPlainObject(manifest)) return ['manifest root must be an object'];
+    const errors = volumeMapValidationErrors(manifest);
+    if (!Object.hasOwn(manifest, 'profiles')) return errors;
+    if (!isPlainObject(manifest.profiles)) return [...errors, 'profiles must be an object map'];
+    for (const [name, profile] of Object.entries(manifest.profiles)) {
+        if (!isPlainObject(profile)) {
+            errors.push(`profile ${name} must be an object`);
+            continue;
+        }
+        errors.push(...volumeMapValidationErrors(profile).map(error => `profile ${name}: ${error}`));
     }
     return errors;
 }

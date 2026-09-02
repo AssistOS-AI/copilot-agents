@@ -131,6 +131,25 @@ test('writable volume validation requires object-map shape and absolute containe
     );
 });
 
+test('writable volume validation checks every profile even without root volumes', () => {
+    for (const profile of ['default', 'dev', 'qa', 'prod']) {
+        for (const hostPath of ['webassist-data', '.ploinky/data/browserUseAgent', '.ploinky/shared', '.data-other/agent']) {
+            assert.deepEqual(writableVolumeValidationErrors({
+                profiles: { [profile]: { volumes: { [hostPath]: '/data' } } },
+            }), [`profile ${profile}: writable host volume must resolve beneath .data/: ${hostPath}`]);
+        }
+        assert.deepEqual(writableVolumeValidationErrors({
+            profiles: { [profile]: { volumes: { '.data/browserUseAgent/cache': '/cache' } } },
+        }), []);
+    }
+    assert.deepEqual(writableVolumeValidationErrors({
+        volumes: { '.data/root': '/root-data' },
+        profiles: { default: { volumes: ['.data/browserUseAgent:/data'] } },
+    }), ['profile default: volumes must be an object map of host path to container path']);
+    assert.deepEqual(writableVolumeValidationErrors({ profiles: [] }), ['profiles must be an object map']);
+    assert.deepEqual(writableVolumeValidationErrors({ profiles: { default: null } }), ['profile default must be an object']);
+});
+
 test('provider manifests use exact unique-agent storage mappings', () => {
     for (const agentName of ['browserUseAgent', 'openInterpreterAgent', 'webSearchAgent']) {
         const manifest = JSON.parse(fs.readFileSync(

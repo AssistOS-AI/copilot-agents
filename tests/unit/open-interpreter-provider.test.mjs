@@ -303,6 +303,30 @@ test('Python 3.12 preparation preserves the populated Python 3.11 layout and reu
     assert.equal(fs.readFileSync(calls, 'utf8').trim().split('\n').length, 1);
 });
 
+test('the verified image prepares a separate bundle without modifying the previous Python 3.12 cache', (t) => {
+    const { root, calls, env } = preparationFixture(t);
+    const previousDir = path.join(root, BUNDLE_ID, '0.4.3-runner-abi-2-python-3.12-60195a99ae10d2ec');
+    const previousManifest = buildManifest();
+    previousManifest.compatibility.runnerImage = 'docker.io/assistos/bwrap-runner:node24-python-bookworm';
+    writeManifest(previousDir, previousManifest);
+    fs.writeFileSync(path.join(previousDir, 'preserved-data'), 'previous image runtime');
+    assert.equal(readExistingManifest(root), null);
+
+    const prepared = prepareRuntime({ env });
+    assert.equal(prepared.prepared, true);
+    assert.equal(prepared.reused, false);
+    assert.notEqual(prepared.bundleDir, previousDir);
+    assert.equal(prepared.manifest.compatibility.runnerImage, RUNNER_IMAGE_HINT);
+    assert.equal(prepared.manifest.compatibility.pythonMajorMinor, '3.12');
+    assert.equal(fs.readFileSync(path.join(previousDir, 'preserved-data'), 'utf8'), 'previous image runtime');
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(previousDir, 'manifest.json'), 'utf8')), previousManifest);
+
+    const reused = prepareRuntime({ env });
+    assert.equal(reused.reused, true);
+    assert.equal(reused.bundleDir, fs.realpathSync(prepared.bundleDir));
+    assert.equal(fs.readFileSync(calls, 'utf8').trim().split('\n').length, 1);
+});
+
 test('concurrent preparation adopts the compatible winning bundle and cleans its temporary directory', (t) => {
     const { root, env } = preparationFixture(t);
     const target = bundleDir(root);
@@ -934,9 +958,11 @@ test('open_interpreter_run_task source must not import the MCP router client', (
         'provider tool must not look up a RESEARCH_BWRAP_AGENT name');
 });
 
-test('openInterpreterAgent manifest requests privileged container security and uses /data runtime root', () => {
+test('openInterpreterAgent adopts the proven runtime while retaining its private-proc compatibility restriction', () => {
     const manifestPath = path.resolve(__dirname, '../../openInterpreterAgent/manifest.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assert.equal(manifest.container, 'docker.io/assistos/bwrap-runner@sha256:9b6c08cf78fd0a29acfbe2e45ea2ee26efe6fde49c7f3db8b3aadfa30f2d53f8');
+    assert.equal(manifest.container, RUNNER_IMAGE_HINT);
     assert.deepEqual(manifest.containerSecurity, { privileged: true });
     assert.match(manifest.agent, /\/opt\/bwrap-runner\/bin\/healthcheck\.mjs --minimum=private/);
     assert.match(manifest.agent, /AgentServer\.sh/);

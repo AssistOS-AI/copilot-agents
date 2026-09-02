@@ -40,10 +40,12 @@ Production manifests must use only the root `containerSecurity` object and its
 boolean `privileged` field. Profile-level container security, unknown security
 fields, malformed values, and privileged provider manifests are rejected by
 the repository validator. `openInterpreterAgent` has one exact transition
-allowance for its current mutable image and privileged declaration. That
-allowance is not a release posture: privilege removal and immutable digest
-pinning occur together only after native per-architecture runner, private-proc,
-Open Interpreter disposition, and GPTResearcher cold-task evidence is recorded.
+allowance for its exact selected image and existing privileged declaration.
+Native per-architecture transport, runtime setup, Open Interpreter disposition,
+and GPTResearcher cold-task evidence may authorize an immutable image migration.
+That migration retains the declaration and strict private minimum; it does not
+certify rootless execution. Privilege removal separately requires native
+private-proc and real provider certification.
 
 The DS specifications are the source of truth for this repository. When code changes behavior, manifests, MCP schemas, Explorer plugin behavior, routing, security posture, or runtime configuration, the same change must update the affected DS file and the HTML documentation. If implementation and specs diverge, the divergence is a defect; fix the implementation to match the spec or update the spec first with a numbered `Decisions & Questions` entry that explains the new contract.
 
@@ -113,9 +115,11 @@ without coupling the research suite to a central runner service.
 Response:
 Removing privilege before the immutable runner candidate and native
 private-proc proof exist would violate dependency-safe rollout ordering. The
-validator therefore permits only the exact current Open Interpreter manifest
-as an explicit gate. A digest-pinned manifest cannot retain that allowance,
-and no mutable image may be presented as the completed rootless consumer.
+validator therefore permits only the exact selected Open Interpreter image and
+existing declaration as an explicit gate. A maintained image may be pinned after
+native publication proof while retaining this declaration, as specified by
+DS006 Decision #16. Neither a mutable tag nor a transport-only immutable image
+is evidence of a completed rootless consumer.
 
 ### Decision #6: Why validate profile-only storage declarations?
 

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
     containerSecurityValidationErrors,
+    gatedPrivilegeMatches,
     writableVolumeValidationErrors,
 } from '../../scripts/validate-manifests.mjs';
 
@@ -85,6 +86,24 @@ test('temporary privilege allowance is explicit and does not relax syntax valida
         }, { allowPrivileged: true }),
         ['containerSecurity.securityOpt is unsupported'],
     );
+});
+
+test('Open Interpreter privilege transition is limited to its exact selected image and declaration', () => {
+    const manifest = JSON.parse(fs.readFileSync(new URL('../../openInterpreterAgent/manifest.json', import.meta.url), 'utf8'));
+    assert.equal(gatedPrivilegeMatches('openInterpreterAgent', manifest), true);
+    assert.equal(gatedPrivilegeMatches('anotherProvider', manifest), false);
+    for (const container of [
+        'docker.io/assistos/bwrap-runner:node24-python-bookworm',
+        'docker.io/assistos/bwrap-runner:node24-python-trixie',
+        `docker.io/assistos/bwrap-runner@sha256:${'a'.repeat(64)}`,
+        'docker.io/other/runner:latest',
+    ]) {
+        assert.equal(gatedPrivilegeMatches('openInterpreterAgent', { ...manifest, container }), false);
+    }
+    for (const privileged of [false, 'true', null]) {
+        assert.equal(gatedPrivilegeMatches('openInterpreterAgent', { ...manifest, containerSecurity: { privileged } }), false);
+    }
+    assert.match(manifest.agent, /healthcheck\.mjs --minimum=private &&/);
 });
 
 test('writable volume validation positively accepts only normalized .data descendants', () => {

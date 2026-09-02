@@ -20,16 +20,17 @@ through the Copilot Provider Relay's `open-interpreter` backend id.
 
 ## Core Content
 
-The rootless target uses an immutable digest of the shared Linux
-`docker.io/assistos/bwrap-runner` image, runner ABI `2`, and the strict
-`private` proc minimum. The current manifest intentionally remains on
-`docker.io/assistos/bwrap-runner:node24-python-bookworm` with
-`containerSecurity.privileged: true` until native amd64/arm64 image,
-private-proc, Open Interpreter disposition, and GPTResearcher cold-task proof
-exist. This exact declaration is a validator transition gate, not an accepted
-release posture. Privilege must not be removed before that evidence, and the
-mutable tag must not be replaced by an invented digest. Once the immutable
-candidate is recorded, digest pinning and privilege removal occur together.
+The manifest selects the shared Linux image
+`docker.io/assistos/bwrap-runner@sha256:9b6c08cf78fd0a29acfbe2e45ea2ee26efe6fde49c7f3db8b3aadfa30f2d53f8`,
+runner ABI `2`, Python `3.12`, and the strict `private` proc minimum. It retains
+`containerSecurity.privileged: true` as a pre-existing compatibility
+declaration. Native amd64/arm64 publication proof authorizes this maintained
+transport/runtime image and matching Python cache identity. Only the exact selected image receives
+the validator transition allowance. This image migration does not certify
+rootless Open Interpreter execution: privilege removal separately requires
+native private-proc and real provider certification. Empty-proc execution plus
+deterministic private-proc unavailability cannot satisfy that requirement. The
+Box-unavailable preflight remains mandatory, and no digest may be invented.
 
 The agent must not use `lite-sandbox: true`, because it is itself a
 containerized sandbox host. Startup and readiness invoke the canonical shared
@@ -317,9 +318,10 @@ Ploinky-owned broker is implemented and proven in the same candidate. Open
 Interpreter requires private proc until an installed real task proves empty
 proc. Runner ABI `2` and that proc minimum are part of runtime-bundle
 compatibility, so incompatible populated bundles migrate additively. The
-current privileged mutable-image manifest remains gated until native immutable
-image and consumer smoke evidence exists; no local-only test can satisfy that
-publication boundary.
+privileged compatibility declaration remains gated until native private-proc
+and provider certification exists. Native image transport and consumer setup
+proof may authorize an immutable image update without removing that declaration;
+no local-only test can satisfy the publication boundary.
 
 ### Decision #15: How does the Python 3.12 runner adoption preserve existing runtimes?
 
@@ -331,9 +333,35 @@ includes Python ABI and a fingerprint of all compatibility inputs, so changing
 the image or runtime policy creates a separate bundle without deleting a
 populated Python 3.11 directory. Exact manifest checks still apply after the
 directory is selected. Concurrent preparation may reuse only a compatible
-winner. The immutable image pin and privilege removal remain coupled to native
-publication evidence; this metadata change does not certify generated-local
-Open Interpreter execution in a Box.
+winner. Immutable image selection requires native publication evidence;
+privilege removal has the separate private-proc and provider certification
+requirement. This metadata change does not certify generated-local Open
+Interpreter execution in a Box.
+
+### Decision #16: Separate the maintained image migration from private-proc certification
+
+Response:
+The shared runner can prove its ABI 2 `private-or-empty` default by executing
+empty proc and returning typed private-proc unavailability. That proof does not
+meet Open Interpreter's strict private minimum. Native transport, runtime setup,
+and provider-disposition gates may authorize the exact immutable Trixie image
+and matching Python 3.12 cache while retaining the existing privileged
+compatibility declaration. The validator allowance stays limited to this one
+agent and one selected image. Private-proc readiness, Box terminal 422, and the
+requirement for actual private/provider certification before privilege removal
+remain unchanged. No privileged execution is needed to establish the transport
+image's publication proof.
+
+[Publication run 33662621018](https://github.com/AssistOS-AI/container-image-builds/actions/runs/33662621018),
+at build source `33cc912da5514fbbf95678a47a23e1d6911b9105`, proved both native
+architectures for index
+`sha256:9b6c08cf78fd0a29acfbe2e45ea2ee26efe6fde49c7f3db8b3aadfa30f2d53f8`.
+The gates verified default and forced HTTP/2 Git, actual empty-proc boundaries,
+typed private-proc unavailability, Open Interpreter preparation and terminal
+Box 422, and GPTResearcher cold setup and readiness. No private-proc execution
+or privileged Open Interpreter run is claimed. The runtime compatibility hint
+and exact validator allowance select this index; the old Bookworm tag and any
+other tag or digest do not receive the allowance.
 
 ## Conclusion
 

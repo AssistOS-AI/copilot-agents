@@ -130,9 +130,9 @@ export function writableVolumeValidationErrors(manifest) {
     return errors;
 }
 
-function gatedPrivilegeMatches(agentDir, manifest) {
+export function gatedPrivilegeMatches(agentDir, manifest) {
     return GATED_PRIVILEGED_AGENT_DIRS.has(agentDir)
-        && manifest?.container === 'docker.io/assistos/bwrap-runner:node24-python-bookworm'
+        && manifest?.container === 'docker.io/assistos/bwrap-runner@sha256:9b6c08cf78fd0a29acfbe2e45ea2ee26efe6fde49c7f3db8b3aadfa30f2d53f8'
         && manifest?.containerSecurity?.privileged === true;
 }
 
@@ -154,7 +154,7 @@ function validateManifest(agentDir) {
     if (gatedPrivilege) {
         gated(
             manifestPath,
-            'privilege remains only until an immutable runner digest and native private-proc/Open Interpreter disposition proof are recorded',
+            'existing compatibility privilege remains until native private-proc/provider certification; immutable transport-image proof alone does not certify rootless execution',
         );
     }
     if (!manifest.container && !manifest.image) {

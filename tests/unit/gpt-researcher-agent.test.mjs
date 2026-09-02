@@ -174,12 +174,11 @@ async function withTemporaryFixedSettingsFile(fn) {
     }
 }
 
-test('GPTResearcher manifest keeps the mutable shared-image consumer gated for digest proof', async () => {
+test('GPTResearcher manifest adopts the shared image proven by native publication and cold setup', async () => {
     const manifest = JSON.parse(await fs.readFile(MANIFEST, 'utf8'));
 
-    assert.equal(manifest.container, 'docker.io/assistos/bwrap-runner:node24-python-bookworm');
-    assert.doesNotMatch(manifest.container, /@sha256:/,
-        'immutable image pinning remains gated on native publication and cold-task proof');
+    assert.equal(manifest.container, 'docker.io/assistos/bwrap-runner@sha256:9b6c08cf78fd0a29acfbe2e45ea2ee26efe6fde49c7f3db8b3aadfa30f2d53f8');
+    assert.equal(manifest.containerSecurity, undefined);
     assert.equal(manifest.startup, 'manual');
     assert.equal(manifest['lite-sandbox'], true);
     assert.equal(manifest.agent, 'sh /code/scripts/start-gpt-researcher.sh');
@@ -254,7 +253,9 @@ test('cold-install and readiness scripts cover the shared-image consumer contrac
     const readiness = await fs.readFile(path.join(AGENT_ROOT, 'readiness.sh'), 'utf8');
 
     assert.match(source, /python3 -m venv "\$VENV_DIR"/);
-    assert.match(source, /"\$VENV_DIR\/bin\/python" -m pip install --no-cache-dir gpt-researcher/);
+    assert.match(source, /"\$VENV_DIR\/bin\/python" -m pip install --no-cache-dir -r "\$APP_DIR\/requirements\.txt"/);
+    assert.match(source, /"\$VENV_DIR\/bin\/python" -m pip install --no-cache-dir "\$APP_DIR" langchain-mcp-adapters ddgs/);
+    assert.doesNotMatch(source, /-m pip install [^\n]*\s+gpt-researcher(?:\s|$)/);
     assert.match(source, /WORKSPACE_PATH is required/);
     assert.match(source, /SETTINGS_PATH="\$HOME\/gpt-researcher-settings\.json"/);
     assert.match(source, /git clone --depth 1 https:\/\/github\.com\/assafelovic\/gpt-researcher\.git/);

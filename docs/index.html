@@ -103,9 +103,12 @@ ploinky start explorer 8080</pre>
     <p>
         Open Interpreter requires runner ABI <code>2</code> and private proc. Startup, readiness, status, and task
         admission use the canonical shared-runner contract, while outer runner stdout/stderr are retained only as
-        bounded tails with discarded-byte counters. Its current privileged mutable-image manifest is an explicit
-        transition gate: immutable digest pinning and privilege removal remain blocked on native amd64/arm64 runner,
-        private-proc, Open Interpreter disposition, and GPTResearcher cold-task evidence.
+        bounded tails with discarded-byte counters. Its manifest and Python 3.12 cache select the immutable Trixie image
+        <code>sha256:9b6c08cf78fd0a29acfbe2e45ea2ee26efe6fde49c7f3db8b3aadfa30f2d53f8</code>, verified on both native
+        architectures by <a href="https://github.com/AssistOS-AI/container-image-builds/actions/runs/33662621018">publication run 33662621018</a>,
+        while retaining its existing privileged compatibility declaration. This exact validator
+        transition gate remains until native private-proc and provider certification permits privilege removal.
+        Empty-proc success and private-proc unavailability do not certify Open Interpreter execution.
     </p>
 
     <h2>Specifications</h2>

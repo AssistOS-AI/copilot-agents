@@ -108,9 +108,11 @@ not copied into relay diagnostics.
 Provider manifests may declare only root-level
 `containerSecurity.privileged` as a boolean. Profile-level security,
 unsupported fields, malformed values, and privilege are validator failures.
-The current Open Interpreter privileged mutable-image declaration is one exact
-transition gate pending immutable native image proof; it is not evidence of a
-completed rootless release.
+The existing Open Interpreter privileged declaration is one exact transition
+gate for its selected image. A proven immutable transport/runtime image may
+retain that declaration; privilege removal still requires native private-proc
+and provider certification. The image migration is not evidence of a completed
+rootless release, and its Box-unavailable preflight remains mandatory.
 
 `/shared` is a convenience and coordination channel among trusted, explicitly
 enabled agents in a single workspace. It is not a hostile-agent security

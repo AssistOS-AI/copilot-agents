@@ -1,8 +1,5 @@
 ---
-id: DS009
-title: MLJAR and DeepAnalyze Backends
-status: planned
-owner: copilot-agents-team
+title: DS009-ai-scientist-agent
 summary: Reserves the future MLJAR and DeepAnalyze provider backend contracts.
 ---
 
@@ -10,31 +7,19 @@ summary: Reserves the future MLJAR and DeepAnalyze provider backend contracts.
 
 ## Introduction
 
-`mljar` and `deepanalyze` are reserved future provider backend ids. They are
-not currently exposed by `copilotProviderRelay` and are not direct Ploinky chat
-agents in the current architecture.
+`mljar` and `deepanalyze` are reserved future provider backend ids. They are not currently exposed by [`copilotProviderRelay`](wiki.html#definition-copilot-provider-relay) and are not direct Ploinky chat agents in the current architecture.
 
 ## Core Content
 
-Before either backend becomes active, the repository must add a provider agent
-that owns the backend's runtime preparation, task staging, and local sandbox
-execution from a container based on the shared bwrap-runner image.
+Before either backend becomes active, the repository must add a provider agent that owns the backend's runtime preparation, task staging, and local sandbox execution from a container based on the shared bwrap-runner image.
 
-The current provider path does not collect `/outputs` artifacts or run async jobs.
-Backends that require longer runtime, large data files, network access, or
-artifact export need provider-owned async, artifact, and local runner support
-before they are considered complete.
+The current provider path does not collect `/outputs` artifacts or run async jobs. Backends that require longer runtime, large data files, network access, or artifact export need provider-owned async, artifact, and local runner support before they are considered complete.
 
-## Decisions & Questions
+### Rationale
 
-### Question #1: Why share one planned DS for MLJAR and DeepAnalyze?
+#### Rationale 1
 
-Response:
-Both are planned data-analysis backends with similar sandbox and artifact
-questions. They can split into separate DS files after concrete provider
-agents define different runtime and artifact needs.
+Both are planned data-analysis backends with similar sandbox and artifact questions. They can split into separate DS files after concrete provider agents define different runtime and artifact needs.
 
-## Conclusion
 
-`mljar` and `deepanalyze` remain reserved until provider agents own runtime
-setup and local sandbox execution.
+`mljar` and `deepanalyze` remain reserved until provider agents own runtime setup and local sandbox execution.

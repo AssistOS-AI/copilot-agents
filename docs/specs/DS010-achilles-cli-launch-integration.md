@@ -1,8 +1,5 @@
 ---
-id: DS010
-title: AchillesCLI Semantic Copilot Integration
-status: implemented
-owner: copilot-agents-team
+title: DS010-achilles-cli-launch-integration
 summary: Defines how AchillesCLI Copilot launches semantic provider tasks through deterministic launcher skills and the Copilot Provider Relay.
 ---
 
@@ -10,106 +7,47 @@ summary: Defines how AchillesCLI Copilot launches semantic provider tasks throug
 
 ## Introduction
 
-AchillesCLI is integrated into Explorer as the Copilot chat dependency. This
-specification defines how `copilot-agents` participates in that path after the
-legacy visible provider-tag routing has been replaced by semantic Copilot
-routing.
+RoboTeam is the AchillesCLI-owned conversational agent used by Explorer. This provider repository contributes generic launch metadata and optional compatibility skills; it does not install them into RoboTeam conversations or choose their instruction-skill policy.
 
 ## Core Content
 
-Explorer must keep the normal `Open Copilot here` action as the only visible
-chat entry point. Launch metadata may add only generic Copilot transport
-parameters, such as envelope forwarding and workspace-relative directory
-selection. It must not add provider backend ids, provider MCP tool names, or
-legacy relay launch parameters to the WebChat URL.
+Explorer must keep the normal `Open Copilot here` action as the only visible chat entry point. Launch metadata may add only generic Copilot transport parameters, such as envelope forwarding and workspace-relative directory selection. It must not add provider backend ids, provider MCP tool names, or legacy relay launch parameters to the WebChat URL.
 
 The preferred URL shape is:
 
 ```text
-/webchat?agent=achilles-cli&forward-envelope=1&workspace-dir=<relativeWorkspacePath>
+/webchat?agent=roboTeamAgent&robot=default&forward-envelope=1&workspace-dir=<relativeWorkspacePath>
 ```
 
 `dir=<absolutePath>` remains a Ploinky WebChat compatibility parameter, but Explorer launch extensions owned by this repository must avoid exposing absolute host paths in browser URLs when a workspace-relative path can be computed.
 
-Ploinky WebChat is only the transport. It may forward generic launch parameters
-to AchillesCLI and, when `forward-envelope=1` is present, send the WebChat
-envelope with sanitized attachment metadata, generic workspace references, and
-the selected-agent invocation token. It must not detect provider mentions, name
-`copilotProviderRelay`, call `copilot_provider_task_submit`, or own a provider catalog.
+Ploinky WebChat is only the transport. It may forward generic launch parameters to AchillesCLI and, when `forward-envelope=1` is present, send the WebChat envelope with sanitized attachment metadata, generic workspace references, and the selected-agent invocation token. It must not detect provider mentions, name [`copilotProviderRelay`](wiki.html#definition-copilot-provider-relay), call `copilot_provider_task_submit`, or own a provider catalog.
 
-The Copilot Provider Relay must not contribute an `Open Copilot Provider Relay here` Explorer
-menu action or a separate visible toolbar button. Doing so creates two chat
-entry points and contradicts the user model: open Copilot, then ask for the
-work in natural language.
+The Copilot Provider Relay must not contribute an `Open Copilot Provider Relay here` Explorer menu action or a separate visible toolbar button. Doing so creates two chat entry points and contradicts the user model: open Copilot, then ask for the work in natural language.
 
-AchillesCLI must route non-slash Copilot WebChat turns through its
-`copilot-router` oskill. The router may call deterministic provider launcher
-cskills, such as `launch-open-interpreter`, when the prompt and context require
-execution. Launchers call `copilotProviderRelay.copilot_provider_task_submit` through
-Ploinky's certified `AgentMcpClient`, after it verifies the runtime-owned signed
-Router descriptor. The current invocation token is carried as user delegation
-metadata; launcher code must not build direct `/mcps/` requests or use native
-`fetch`. Launchers return natural-language result text. Deprecated text such as `@open-interpreter list
-primes` is ordinary chat text and must not trigger provider dispatch.
+Consumer applications that install a provider launcher must submit execution through [copilotProviderRelay](wiki.html#definition-copilot-provider-relay) using [AgentMcpClient](wiki.html#definition-agent-mcp-client) and the current [Router](wiki.html#definition-router) delegation token. The bundled RoboTeam copilot has bash and launch-gpt-researcher, plus its workflow skills; it does not include copilot-router, launch-open-interpreter or launch-web-search. Provider-looking @word text alone establishes no dispatch contract.
 
-Provider availability for semantic Copilot routing is defined by launcher skill
-discovery. If AchillesCLI discovers a `launch-*` skill, the corresponding
-provider can be selected by the router; no Ploinky `enable research` command,
-bundle command, or WebChat toggle participates in that decision. A launcher may
-still return a clear runtime-unavailable message when the relay catalog or
-provider status probe fails, but that message must not instruct the user to run
-a Ploinky research enable command.
+Provider deployment and launcher selection are separate requirements. The [research-agents](wiki.html#definition-research-agents) bundle enables runtime providers; a consumer must expose its selected launcher before it can invoke that provider from a conversation. A local catalog entry or compatibility test does not prove that RoboTeam has installed the skill.
 
-When `forward-envelope=1` is present, WebChat may forward the full WebChat
-envelope to AchillesCLI. AchillesCLI must normalize that envelope back to plain
-text before invoking slash or natural-language paths so ordinary chat is not
-polluted by raw JSON. Attachment metadata may be appended as readable context
-for non-provider prompts. If the envelope includes a sanitized
-`origin.publicBaseUrl` hint, AchillesCLI should pass it through launcher context
-so user-facing provider links can use the same browser origin as WebChat rather
-than container-internal router hosts.
+When `forward-envelope=1` is present, WebChat may forward the full WebChat envelope to AchillesCLI. AchillesCLI must normalize that envelope back to plain text before invoking slash or natural-language paths so ordinary chat is not polluted by raw JSON. Attachment metadata may be appended as readable context for non-provider prompts. If the envelope includes a sanitized `origin.publicBaseUrl` hint, AchillesCLI should pass it through launcher context so user-facing provider links can use the same browser origin as WebChat rather than container-internal router hosts.
 
-The `launch-open-interpreter` cskill is the deterministic launcher for Open
-Interpreter execution. It is discoverable from AchillesCLI's built-in skill
-root, validates relay availability, performs a bounded provider status probe
-through the same verified `AgentMcpClient`, forwards only file path strings to the relay,
-submits execution through `copilotProviderRelay.copilot_provider_task_submit`,
-and declares `cacheable: false`.
+The optional launch-open-interpreter cskill is distributed under achilles-skills/launch-open-interpreter. It probes provider status with [AgentMcpClient](wiki.html#definition-agent-mcp-client), submits execution to the relay and returns non-cacheable output. Its presence in this repository does not make it an AchillesCLI built-in.
 
-The `launch-web-search` cskill is the deterministic launcher for cacheable web
-search. It validates relay and provider availability, submits the search query
-through `copilotProviderRelay.copilot_provider_task_submit`, and declares `cacheable: true` with
-`ttl_hint_seconds: 86400`. Its `persistence_hint.ku_type` is
-`agent.result.web-search`. Web search is selected semantically by AchillesCLI,
-not through visible `@web-search` or `@search` text.
+The optional launch-web-search cskill is distributed under achilles-skills/launch-web-search. It probes availability, submits to the relay and preserves cacheable results with a TTL hint of 86400 seconds and persistence_hint.ku_type agent.result.web-search. The consuming application owns selection and cache policy.
 
-## Decisions & Questions
+### Rationale
 
-### Question #1: Why keep provider routing out of Ploinky WebChat?
+#### Rationale 1
 
-Response:
-Ploinky is the framework transport and must not know optional catalog agents
-such as `copilotProviderRelay`. AchillesCLI is the selected chat agent, so it owns
-prompt interpretation and provider launcher policy. The relay still owns secure
-provider dispatch, while Ploinky only carries the envelope and invocation grant.
+Ploinky is the framework transport and must not know optional catalog agents such as [`copilotProviderRelay`](wiki.html#definition-copilot-provider-relay). AchillesCLI is the selected chat agent, so it owns prompt interpretation and provider launcher policy. The relay still owns secure provider dispatch, while Ploinky only carries the envelope and invocation grant.
 
-### Question #2: Why still normalize WebChat envelopes in AchillesCLI?
+#### Rationale 2
 
-Response:
-Envelope forwarding is useful for attachment-aware chat surfaces. AchillesCLI
-must tolerate it for ordinary prompts, otherwise Copilot prompts would receive
-raw `__webchatMessage` JSON.
+Envelope forwarding is useful for attachment-aware chat surfaces. AchillesCLI must tolerate it for ordinary prompts, otherwise Copilot prompts would receive raw `__webchatMessage` JSON.
 
-### Question #3: Why must launchers reuse `AgentMcpClient`?
+#### Rationale 3
 
-Response:
-Launcher calls carry both an agent assertion and the current user's delegation
-grant. The platform client verifies the signed Router descriptor before either
-credential can reach a socket and presents the descriptor's request authority
-without retrying a different Host after HTTP 421.
+Launcher calls carry both an agent assertion and the current user's delegation grant. The platform client verifies the signed [Router](wiki.html#definition-router) descriptor before either credential can reach a socket and presents the descriptor's request authority without retrying a different Host after HTTP 421.
 
-## Conclusion
 
-The AchillesCLI integration preserves normal Copilot chat while allowing
-semantic Copilot routing to invoke deterministic provider launchers and return
-relay output in the same stream.
+Generic Explorer launch metadata preserves ordinary RoboTeam chat. Provider dispatch requires a separately installed consumer integration and must not be inferred from the relay catalog.

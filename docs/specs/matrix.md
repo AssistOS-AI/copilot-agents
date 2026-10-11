@@ -1,22 +1,20 @@
 # Specification Matrix
 
-Generated from DS frontmatter following the GAMP specs workflow. Edit the DS files and regenerate this matrix instead of treating it as the source of truth.
-
-| Specification | Title | Status | Owner | Summary |
-| --- | --- | --- | --- | --- |
-| [DS000](specsLoader.html?spec=DS000-vision.md) | Vision | [[status:planned]] | copilot-agents-team | Defines the purpose, boundaries, and success criteria for the Ploinky research agents repository. |
-| [DS001](specsLoader.html?spec=DS001-coding-style.md) | Coding Style | [[status:implemented]] | copilot-agents-team | Establishes coding, layout, documentation, and testing conventions for the research agents repository. |
-| [DS002](specsLoader.html?spec=DS002-ploinky-runtime-invariants.md) | Ploinky Runtime Invariants | [[status:planned]] | copilot-agents-team | Captures the routing, deployment, authentication, storage, and logging invariants every research agent must preserve. |
-| [DS003](specsLoader.html?spec=DS003-agent-inventory.md) | Agent Inventory | [[status:planned]] | copilot-agents-team | Defines the local provider-agent inventory, AchillesCLI compatibility surfaces, backend ids, and default enablement posture. |
-| [DS004](specsLoader.html?spec=DS004-research-agents-bundle.md) | Research Agents Bundle | [[status:planned]] | copilot-agents-team | Defines the explicit deployment bundle that enables the copilot provider relay suite without making it an Explorer default. |
-| [DS005](specsLoader.html?spec=DS005-copilot-provider-relay-agent.md) | Copilot Provider Relay Agent (copilotProviderRelay) | [[status:planned]] | copilot-agents-team | Defines the semantic Copilot provider-task relay under the `copilotProviderRelay` agent id. |
-| [DS006](specsLoader.html?spec=DS006-open-interpreter-agent.md) | Open Interpreter Provider Agent | [[status:planned]] | copilot-agents-team | Defines Open Interpreter's terminal Box disposition, private-proc runner contract, compatible runtime bundle, and gated rootless transition. |
-| [DS007](specsLoader.html?spec=DS007-openhands-agent.md) | OpenHands Backend | [[status:planned]] | copilot-agents-team | Reserves the future OpenHands provider backend contract. |
-| [DS008](specsLoader.html?spec=DS008-agent-laboratory-agent.md) | Agentic Data Scientist Backend | [[status:planned]] | copilot-agents-team | Reserves the future Agentic Data Scientist provider backend contract. |
-| [DS009](specsLoader.html?spec=DS009-ai-scientist-agent.md) | MLJAR and DeepAnalyze Backends | [[status:planned]] | copilot-agents-team | Reserves the future MLJAR and DeepAnalyze provider backend contracts. |
-| [DS010](specsLoader.html?spec=DS010-achilles-cli-launch-integration.md) | AchillesCLI Semantic Copilot Integration | [[status:implemented]] | copilot-agents-team | Defines how AchillesCLI Copilot launches semantic provider tasks through deterministic launcher skills and the Copilot Provider Relay. |
-| [DS011](specsLoader.html?spec=DS011-security-observability.md) | Security and Observability | [[status:planned]] | copilot-agents-team | Defines safety, telemetry, logging, trace, transcript, artifact, and local sandbox rules for research-agent execution. |
-| [DS012](specsLoader.html?spec=DS012-semantic-copilot-routing.md) | Semantic Copilot Routing and Launcher Skills | [[status:implemented]] | copilot-agents-team | Defines semantic AchillesCLI Copilot routing, deterministic provider launchers, relay dispatch, and provider-result cacheability boundaries. |
-| [DS013](specsLoader.html?spec=DS013-headless-search-agent.md) | Web Search Provider Agent | [[status:implemented]] | copilot-agents-team | Defines the cacheable web-search provider agent backed by its own local headless browser runtime. |
-| [DS014](specsLoader.html?spec=DS014-browser-use-agent.md) | Browser Use Provider Agent | [[status:implemented]] | copilot-agents-team | Defines the interactive browser automation provider agent that controls Chromium sessions and exposes a protected viewer URL for login, OAuth, 2FA, and CAPTCHA flows. |
-| [DS015](specsLoader.html?spec=DS015-gpt-researcher-agent.md) | GPTResearcher OpenAI Research Agent | [[status:implemented]] | copilot-agents-team | Defines the GPTResearcher agent that accepts OpenAI-compatible requests, reads workspace context, uses configurable web search, and writes research documents into the workspace. |
+| Name | Description |
+| --- | --- |
+| [DS000-vision](specsLoader.html?spec=DS000-vision.md) | Defines the purpose, boundaries, and success criteria for the Ploinky research agents repository. |
+| [DS001-coding-style](specsLoader.html?spec=DS001-coding-style.md) | Establishes coding, layout, documentation, and testing conventions for the research agents repository. |
+| [DS002-ploinky-runtime-invariants](specsLoader.html?spec=DS002-ploinky-runtime-invariants.md) | Captures the routing, deployment, authentication, storage, and logging invariants every research agent must preserve. |
+| [DS003-main-behavior](specsLoader.html?spec=DS003-main-behavior.md) | Defines explicit provider deployment, authenticated task forwarding, web search, interactive browsing and Open Interpreter refusal in a managed Box. |
+| [DS004-research-agents-bundle](specsLoader.html?spec=DS004-research-agents-bundle.md) | Defines the explicit deployment bundle that enables the copilot provider relay suite without making it an Explorer default. |
+| [DS005-copilot-provider-relay-agent](specsLoader.html?spec=DS005-copilot-provider-relay-agent.md) | Defines the semantic Copilot provider-task relay under the `copilotProviderRelay` agent id. |
+| [DS006-open-interpreter-agent](specsLoader.html?spec=DS006-open-interpreter-agent.md) | Defines Open Interpreter's terminal Box disposition, private-proc runner contract, compatible runtime bundle, and gated rootless transition. |
+| [DS007-openhands-agent](specsLoader.html?spec=DS007-openhands-agent.md) | Reserves the future OpenHands provider backend contract. |
+| [DS008-agent-laboratory-agent](specsLoader.html?spec=DS008-agent-laboratory-agent.md) | Reserves the future Agentic Data Scientist provider backend contract. |
+| [DS009-ai-scientist-agent](specsLoader.html?spec=DS009-ai-scientist-agent.md) | Reserves the future MLJAR and DeepAnalyze provider backend contracts. |
+| [DS010-achilles-cli-launch-integration](specsLoader.html?spec=DS010-achilles-cli-launch-integration.md) | Defines how AchillesCLI Copilot launches semantic provider tasks through deterministic launcher skills and the Copilot Provider Relay. |
+| [DS011-security-observability](specsLoader.html?spec=DS011-security-observability.md) | Defines safety, telemetry, logging, trace, transcript, artifact, and local sandbox rules for research-agent execution. |
+| [DS012-semantic-copilot-routing](specsLoader.html?spec=DS012-semantic-copilot-routing.md) | Defines optional consumer launchers, authenticated provider dispatch and cacheability boundaries without assuming built-in RoboTeam integration. |
+| [DS013-headless-search-agent](specsLoader.html?spec=DS013-headless-search-agent.md) | Defines the cacheable web-search provider agent backed by its own local headless browser runtime. |
+| [DS014-browser-use-agent](specsLoader.html?spec=DS014-browser-use-agent.md) | Defines the interactive browser automation provider agent that controls Chromium sessions and exposes a protected viewer URL for login, OAuth, 2FA, and CAPTCHA flows. |
+| [DS015-agent-inventory](specsLoader.html?spec=DS015-agent-inventory.md) | Defines the local provider-agent inventory, AchillesCLI compatibility surfaces, backend ids, and default enablement posture. |

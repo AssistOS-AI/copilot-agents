@@ -21,3 +21,19 @@ export function achillesAgentRoot(agentName) {
     }
     return root;
 }
+
+export const LEGACY_AGENTS_ROOT = path.resolve(
+    process.env.LEGACY_AGENTS_ROOT || path.join(WORKSPACE_ROOT, 'legacy-agents'),
+);
+
+export function legacyAgentRoot(agentName) {
+    const root = path.join(LEGACY_AGENTS_ROOT, agentName);
+    if (!fs.existsSync(path.join(root, 'manifest.json'))) {
+        const error = new Error(
+            `COPILOT_CROSS_REPOSITORY_FIXTURE_MISSING: expected ${agentName} under ${LEGACY_AGENTS_ROOT} (set LEGACY_AGENTS_ROOT to a legacy-agents checkout)`,
+        );
+        error.code = 'COPILOT_CROSS_REPOSITORY_FIXTURE_MISSING';
+        throw error;
+    }
+    return root;
+}

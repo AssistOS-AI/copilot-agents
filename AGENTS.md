@@ -32,5 +32,5 @@ The repository distributes three optional typed cskills under `achilles-skills/`
 
 Run the narrowest relevant check after edits:
 
-- `node --test tests/unit/*.test.mjs`
+- `node --test tests/unit/*.test.mjs` (GPTResearcher tests read the `legacy-agents` sibling checkout: set `LEGACY_AGENTS_ROOT`, default `../legacy-agents`; a missing checkout fails the tests, it never skips them)
 - `node scripts/validate-manifests.mjs`

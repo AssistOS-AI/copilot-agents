@@ -4,9 +4,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { achillesAgentRoot } from '../fixtures/cross-repository-roots.mjs';
+import { legacyAgentRoot } from '../fixtures/cross-repository-roots.mjs';
 
-const AGENT_ROOT = achillesAgentRoot('GPTResearcher');
+const AGENT_ROOT = legacyAgentRoot('GPTResearcher');
 const MANIFEST = path.join(AGENT_ROOT, 'manifest.json');
 const MCP_CONFIG = path.join(AGENT_ROOT, 'mcp-config.json');
 const SETTINGS_PLUGIN_CONFIG = path.join(AGENT_ROOT, 'IDE-plugins', 'gpt-researcher-settings', 'config.json');

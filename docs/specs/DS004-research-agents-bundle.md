@@ -27,11 +27,11 @@ The default bundle profile should enable:
 - [`openInterpreterAgent global no-wait`](wiki.html#definition-open-interpreter)
 - [`webSearchAgent global no-wait`](wiki.html#definition-web-search)
 - [`browserUseAgent global no-wait`](wiki.html#definition-browser-use)
-- [`GPTResearcher global no-wait`](wiki.html#definition-gpt-researcher)
+- [`legacy-agents/GPTResearcher global no-wait`](wiki.html#definition-gpt-researcher)
 
 Current Ploinky only selects the global profile names `default`, `dev`, `qa`, and `prod`. The bundle must therefore use those names until Ploinky supports bundle-local profile selectors. The supported bundle profile mapping is:
 
-- `default`: [`copilotProviderRelay global`](wiki.html#definition-copilot-provider-relay), [`openInterpreterAgent global no-wait`](wiki.html#definition-open-interpreter), [`webSearchAgent global no-wait`](wiki.html#definition-web-search), [`browserUseAgent global no-wait`](wiki.html#definition-browser-use), and [`GPTResearcher global no-wait`](wiki.html#definition-gpt-researcher)
+- `default`: [`copilotProviderRelay global`](wiki.html#definition-copilot-provider-relay), [`openInterpreterAgent global no-wait`](wiki.html#definition-open-interpreter), [`webSearchAgent global no-wait`](wiki.html#definition-web-search), [`browserUseAgent global no-wait`](wiki.html#definition-browser-use), and [`legacy-agents/GPTResearcher global no-wait`](wiki.html#definition-gpt-researcher)
 - `dev`: same as `default`
 - `qa`: same as `default`
 - `prod`: same as `default`

@@ -5,12 +5,15 @@
     "env": [
         "PLOINKY_WORKSPACE_ROOT"
     ],
+    "repos": {
+        "legacy-agents": "https://github.com/AssistOS-AI/legacy-agents.git"
+    },
     "enable": [
         "copilotProviderRelay global",
         "openInterpreterAgent global no-wait",
         "webSearchAgent global no-wait",
         "browserUseAgent global no-wait",
-        "GPTResearcher global no-wait"
+        "legacy-agents/GPTResearcher global no-wait"
     ],
     "profiles": {
         "default": {
@@ -19,7 +22,7 @@
                 "openInterpreterAgent global no-wait",
                 "webSearchAgent global no-wait",
                 "browserUseAgent global no-wait",
-                "GPTResearcher global no-wait"
+                "legacy-agents/GPTResearcher global no-wait"
             ]
         },
         "dev": {
@@ -28,7 +31,7 @@
                 "openInterpreterAgent global no-wait",
                 "webSearchAgent global no-wait",
                 "browserUseAgent global no-wait",
-                "GPTResearcher global no-wait"
+                "legacy-agents/GPTResearcher global no-wait"
             ]
         },
         "qa": {
@@ -37,7 +40,7 @@
                 "openInterpreterAgent global no-wait",
                 "webSearchAgent global no-wait",
                 "browserUseAgent global no-wait",
-                "GPTResearcher global no-wait"
+                "legacy-agents/GPTResearcher global no-wait"
             ]
         },
         "prod": {
@@ -46,7 +49,7 @@
                 "openInterpreterAgent global no-wait",
                 "webSearchAgent global no-wait",
                 "browserUseAgent global no-wait",
-                "GPTResearcher global no-wait"
+                "legacy-agents/GPTResearcher global no-wait"
             ]
         }
     }
